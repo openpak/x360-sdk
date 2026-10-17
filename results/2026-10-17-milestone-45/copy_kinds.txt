@@ -18,12 +18,11 @@
 05b63b9d751d5736.frag: max oC0, r1.yyyz, r1.yyyz: a fetched value into an export: a texture fetch's value
 093884ef391dfddc.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 093884ef391dfddc.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-0963325b37f04df0.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-0963325b37f04df0.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+0963325b37f04df0.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 0963325b37f04df0.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 0963325b37f04df0.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
 0963325b37f04df0.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
-0963325b37f04df0.vert: max o4, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+0963325b37f04df0.vert: max o4, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 09bef7f9a3ac5df7.frag: max oC0, r1.zzzz, r1.zzzz: a fetched value into an export: a texture fetch's value
 0c5faf5ad1250944.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 0c5faf5ad1250944.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
@@ -49,27 +48,24 @@
 1e5db8674ad9d29e.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
 2013a34320f17698.frag: max oC0.xyz_, r1.xxxw, r1.xxxw: a fetched value into an export: a texture fetch's value
 2013a34320f17698.frag: max oC0.___w, c0.xxxw, c0.xxxw: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
-20a291c66ca7e0fd.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-20a291c66ca7e0fd.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+20a291c66ca7e0fd.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 20a291c66ca7e0fd.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 20a291c66ca7e0fd.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-20a291c66ca7e0fd.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+20a291c66ca7e0fd.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 246ca2b33bb1fdf4.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-251e226c8a088a82.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-251e226c8a088a82.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+251e226c8a088a82.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 251e226c8a088a82.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 251e226c8a088a82.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
-251e226c8a088a82.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+251e226c8a088a82.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 29fab4bb2516d607.frag: max r1.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
 29fab4bb2516d607.frag: max r1.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
 29fab4bb2516d607.frag: max r4.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
 29fab4bb2516d607.frag: max r4.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
 29fab4bb2516d607.frag: max_sat r0.___w, c117.wwww, c117.wwww: a clamp into a temp: of a uniform
-2a1a218d5688204a.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-2a1a218d5688204a.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+2a1a218d5688204a.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 2a1a218d5688204a.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 2a1a218d5688204a.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-2a1a218d5688204a.vert: max o2, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+2a1a218d5688204a.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 2bc4ebf687f545b6.frag: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
 2bc4ebf687f545b6.frag: max oC0.xyz_, r1, r1: a fetched value into an export: a texture fetch's value
 2e7f30cdc49bd211.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
@@ -85,11 +81,10 @@
 32d160ecc3deb658.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 32d160ecc3deb658.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
 32d160ecc3deb658.vert: max o0.___w, r1, r1: a fetched value into an export: a vertex fetch's value
-350248024002ce37.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-350248024002ce37.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+350248024002ce37.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 350248024002ce37.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 350248024002ce37.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
-350248024002ce37.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+350248024002ce37.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 35fc826ad15e1872.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 35fc826ad15e1872.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
 39662e66d545c874.vert: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
@@ -101,10 +96,9 @@
 3de421fc6f9f3122.frag: max_sat r1, r0.wwww, r0.wwww: a clamp into a temp: of an input
 3de421fc6f9f3122.frag: max_sat oC0.xyz_, r0, r0: an input into an export: an input
 3de421fc6f9f3122.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-407248b726bcb428.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-407248b726bcb428.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+407248b726bcb428.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 407248b726bcb428.vert: max o0.___w, c47, c47: a constant into an export: a uniform
-407248b726bcb428.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+407248b726bcb428.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 412f75e329bbe3a2.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 412f75e329bbe3a2.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
 412f75e329bbe3a2.vert: max o1, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
@@ -118,20 +112,18 @@
 4e6272cd5ea024f5.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 4e6272cd5ea024f5.vert: max o3.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 4ee5b3c093bea8ab.frag: max r6.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-4f939ba938f196ae.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-4f939ba938f196ae.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+4f939ba938f196ae.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 4f939ba938f196ae.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 4f939ba938f196ae.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
 4f939ba938f196ae.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 4f939ba938f196ae.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
-4f939ba938f196ae.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+4f939ba938f196ae.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 551fb86c6ef59def.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 551fb86c6ef59def.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-556ea181d0d34829.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-556ea181d0d34829.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+556ea181d0d34829.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 556ea181d0d34829.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 556ea181d0d34829.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-556ea181d0d34829.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+556ea181d0d34829.vert: max o3, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 55a0066e2650ed99.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 55a0066e2650ed99.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
 58786ba1a7e49515.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
@@ -142,40 +134,35 @@
 66457dda201609ed.frag: max r6.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 66457dda201609ed.frag: max_sat r2, r1, r1: a clamp into a temp: of a computed value: its writer's result read unclamped too
 66457dda201609ed.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-68b11762bd80366b.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-68b11762bd80366b.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+68b11762bd80366b.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 68b11762bd80366b.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 68b11762bd80366b.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 68b11762bd80366b.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 68b11762bd80366b.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
-68b11762bd80366b.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+68b11762bd80366b.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 695e15b366c72818.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 6a05b1f88a016fb2.frag: max oC0, c0.wwww, c0.wwww: a constant into an export: a literal 0 or 1, the register's only export
 6b7ff186cc28cce5.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
-6c429f0c99b0524f.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-6c429f0c99b0524f.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+6c429f0c99b0524f.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 6c429f0c99b0524f.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 6c429f0c99b0524f.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
 6dd3a70373df59bf.frag: max r6.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 6e690d475f0af5fe.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 6e690d475f0af5fe.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
 6e690d475f0af5fe.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
-70ee109df12524e4.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-70ee109df12524e4.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+70ee109df12524e4.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 70ee109df12524e4.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 70ee109df12524e4.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-70ee109df12524e4.vert: max o2, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
-71ac4a48df92e5b7.vert: max r6.xyz_, r5, r5: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-71ac4a48df92e5b7.vert: max r6.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+70ee109df12524e4.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+71ac4a48df92e5b7.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 71ac4a48df92e5b7.vert: max o0.___w, r4, r4: a fetched value into an export: a vertex fetch's value
 71ac4a48df92e5b7.vert: max o1, r3, r3: a fetched value into an export: a vertex fetch's value
 71ac4a48df92e5b7.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
-71ac4a48df92e5b7.vert: max o4, r7.zwzw, r7.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
-72abd6191dcd7bfe.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-72abd6191dcd7bfe.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+71ac4a48df92e5b7.vert: max o4, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+72abd6191dcd7bfe.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 72abd6191dcd7bfe.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 72abd6191dcd7bfe.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-72abd6191dcd7bfe.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+72abd6191dcd7bfe.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 75422301f0e22829.frag: max r5.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 820f98f280587ea8.frag: max r0.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
 820f98f280587ea8.frag: max r0.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
@@ -380,19 +367,17 @@ cefc467138f9dac7.vert: max o2, r1, r1: a fetched value into an export: a vertex 
 d1441271ff15f72c.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
 d5d99e338acc096e.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 d5d99e338acc096e.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
-d8658b0e39305f51.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-d8658b0e39305f51.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+d8658b0e39305f51.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 d8658b0e39305f51.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 d8658b0e39305f51.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 d8658b0e39305f51.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 d8658b0e39305f51.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
-d8658b0e39305f51.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+d8658b0e39305f51.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 d8d724f61446ecbb.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
-d90889c31c82dbe8.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-d90889c31c82dbe8.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+d90889c31c82dbe8.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 d90889c31c82dbe8.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 d90889c31c82dbe8.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-d90889c31c82dbe8.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+d90889c31c82dbe8.vert: max o3, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 da2593920df168c8.vert: max r1.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
 da2593920df168c8.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
 da2593920df168c8.vert: max o0.___w, c43, c43: a constant into an export: a uniform
@@ -403,35 +388,31 @@ e2cfed9f9f80cbf0.frag: max r6.x___, r2, r2: a computed value step 2 can't move: 
 e3fba406929fde97.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
 e5c535debebde1ed.frag: max_sat oC0.xyz_, r0, r0: an input into an export: an input
 e5c535debebde1ed.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
-e5ea8b62e2ebf4ac.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-e5ea8b62e2ebf4ac.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+e5ea8b62e2ebf4ac.vert: max r3.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 e5ea8b62e2ebf4ac.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 e5ea8b62e2ebf4ac.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
 e5ea8b62e2ebf4ac.vert: max o2, r2, r2: a fetched value into an export: a vertex fetch's value
 e5ea8b62e2ebf4ac.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 e5ea8b62e2ebf4ac.vert: max o4, r2, r2: a fetched value into an export: a vertex fetch's value
-e5ea8b62e2ebf4ac.vert: max o5, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+e5ea8b62e2ebf4ac.vert: max o5, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 e7fe951996d1f40b.frag: max r3.x___, r2.zwxy, r2.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-e9d14d2c939cffe4.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-e9d14d2c939cffe4.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+e9d14d2c939cffe4.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 e9d14d2c939cffe4.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 e9d14d2c939cffe4.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-e9d14d2c939cffe4.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+e9d14d2c939cffe4.vert: max o3, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 ece2618e566d8623.frag: max oC0.xyz_, r1, r1: a fetched value into an export: a texture fetch's value
 ece2618e566d8623.frag: max oC0.___w, c0, c0: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
 ed3667059b5c9028.frag: max r3.x___, r2.zwxy, r2.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 ed3667059b5c9028.frag: max oC0.0000, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
-f12926532ee0b4d0.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-f12926532ee0b4d0.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+f12926532ee0b4d0.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 f12926532ee0b4d0.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 f12926532ee0b4d0.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
 f12926532ee0b4d0.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
-f12926532ee0b4d0.vert: max o3, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
-f1f88472976e4bfb.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-f1f88472976e4bfb.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+f12926532ee0b4d0.vert: max o3, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+f1f88472976e4bfb.vert: max r4.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 f1f88472976e4bfb.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
 f1f88472976e4bfb.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
-f1f88472976e4bfb.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+f1f88472976e4bfb.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
 f2f1d4cd60de5251.frag: max r0._y__, c6.ywxz, c6.ywxz: a constant into a temp: a literal, read in one operand beside a computed value
 f3825523049d31cf.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 f3825523049d31cf.frag: max_sat r1, r3.wwww, r3.wwww: a clamp into a temp: of a texture fetch's value
@@ -677,9 +658,6 @@ vk_vertex_loop_count.vert.spv: max oPos, r2, r2: in a program the optimiser leav
 vk_vertex_loop_count.vert.spv: max o0, r3, r3: in a program the optimiser leaves alone: a hardware loop
 vk_vertex_texture.vert.spv: max oPos.x_zw, r0, r0: a fetched value into an export: a vertex fetch's value
 vk_vertex_texture.vert.spv: max o0, r3, r3: a fetched value into an export: a texture fetch's value
-vk_vertex_uniform_if.vert.spv: max r0.__zw, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-vk_vertex_uniform_if.vert.spv: max r0.x___, r3.yyyy, r3.yyyy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-vk_vertex_uniform_if.vert.spv: max r0._y__, r3.yxyy, r3.yxyy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 vk_volume.frag.spv: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
 vk_volume.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
 vk_volume.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
@@ -702,8 +680,7 @@ aurora_attr_defaults.vert: max o0.___w, c47, c47: a constant into an export: a u
 aurora_attr_defaults.vert: max r0.__z_, c125, c125: a constant into a temp: a literal, read in one operand beside a computed value
 aurora_attr_defaults.vert: max r2.__z_, c130, c130: a constant into a temp: a literal, read in one operand beside a computed value
 aurora_emboss.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
-aurora_emboss.vert: max r0.xyz_, r5, r5: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
-aurora_emboss.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_emboss.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
 aurora_emboss.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
 aurora_emboss.vert: max o0.___w, c47, c47: a constant into an export: a uniform
 aurora_emboss.vert: max r0.__z_, c172, c172: a constant into a temp: a literal, read in one operand beside a computed value
@@ -853,24 +830,12 @@ loop_count_if.frag: max r1, r7, r7: in a program the optimiser leaves alone: a h
 loop_count_if.frag: max r2, r5, r5: in a program the optimiser leaves alone: a hardware loop
 loop_count_if.frag: max oC0, r1, r1: in a program the optimiser leaves alone: a hardware loop
 loop_if.frag: max r0.___w, c7.xxxw, c7.xxxw: a constant into a temp: a literal, read in one operand beside a computed value
-loop_if.frag: max r0.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0._y__, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0.__z_, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
 loop_if.frag: max r5.xy_w, c7.xyxw, c7.xyxw: a constant into a temp: a literal, read in one operand beside a computed value
 loop_if.frag: max r0.___w, r6, r6: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-loop_if.frag: max r0.x___, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0._y__, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0.__z_, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
 loop_if.frag: max r4.xy_w, r6, r6: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 loop_if.frag: max r0.___w, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-loop_if.frag: max r0.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0._y__, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0.__z_, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
 loop_if.frag: max r3.xy_w, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 loop_if.frag: max r0.___w, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
-loop_if.frag: max r0.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0._y__, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
-loop_if.frag: max r0.__z_, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
 loop_if.frag: max r2.xy_w, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
 loop_uniform_if.frag: max r0, c4, c4: in a program the optimiser leaves alone: predication
 loop_uniform_if.frag: (p0) max r0, c5, c5: in a program the optimiser leaves alone: predication
@@ -1004,12 +969,10 @@ sprite.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's va
    28  an input into an export  ([0] 4, [1] 10, [2] 14)
           26  an input, 16 clamped  ([0] 4, [1] 9, [2] 13)
            2  an input, its absolute value  ([1] 1, [2] 1)
-  135  a computed value step 2 can't move  ([0] 89, [1] 15, [2] 31)
-          43  into a temp: an elementwise result whose other lanes are read elsewhere  ([0] 25, [1] 7, [2] 11)
+  100  a computed value step 2 can't move  ([0] 70, [1] 12, [2] 18)
+          40  into a temp: an elementwise result whose other lanes are read elsewhere  ([0] 25, [1] 4, [2] 11)
           27  into an export: computed before the export's alloc and read there too  ([0] 25, [2] 2)
           25  into an export: its writer's result read elsewhere too  ([0] 20, [1] 4, [2] 1)
-          20  into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone  ([0] 19, [2] 1)
-          12  into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone  ([2] 12)
            4  into an export: a scalar op's result into an export  ([1] 4)
            3  into a temp: its writer's result read in one operand with another writer's lanes  ([2] 3)
            1  into an export: computed before the export's alloc  ([2] 1)
@@ -1024,5 +987,5 @@ sprite.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's va
            1  a texture fetch's value into a temp, read in one operand beside a computed value  ([4] 1)
            1  an input into a temp, read in one operand beside a computed value  ([1] 1)
            1  an input into a temp, read in one operand beside a constant  ([1] 1)
-  954  copies in all  ([0] 442, [1] 239, [2] 256, [3] 9, [4] 8)
+  919  copies in all  ([0] 423, [1] 236, [2] 243, [3] 9, [4] 8)
    48  of them clamped  ([0] 33, [1] 1, [2] 14)

@@ -869,6 +869,72 @@ Dusklight's and vkbench's 157: ALU 6641 → 4639 (−30.1%), copies 2397 → 450
 - **Broken on purpose,** a fetch filling 0 where 1 belongs and 1 where 0 does: with vulkan4xenon's shaders compiled by
   it, 11 of `test_aurora_points`' checks fail, each an `aurora_*` shader with a filled input.
 
+## Step 2's copies placed together
+
+Built on 2026-10-17 and checked on the PC; the console runs are to come. `copy_kinds.py` (below) found 32 copies step
+2's scope covers that `compute_in_place` left: it weighed each copy alone, and `can_redirect` each of a copy's writers
+alone. Both are weighed together now (`src/xsc_optimize.c`).
+
+- **A copy's writers together.** Where a copy gathers several writers' results and another instruction reads them
+  together in one operand, that operand is redirected to the copy's place as a whole, each lane to where its own writer
+  now writes. In 19 of Dusklight's vertex shaders and vulkan4xenon's `aurora_emboss.vert`, the three `dp4`s of
+  `vec4(mv_pos, 1.0)` now write the vector's xyz, and the lighting reads `mv_pos.xyz` there.
+- **One writer's lanes copied by several copies.** Where a copy can't go alone because other copies take its writer's
+  other lanes into the same temp, those later copies join it and the writer writes all their lanes at once, its
+  operands swizzled to them. In vulkan4xenon's `loop_if.frag` an `add`'s three lanes were copied one at a time, four
+  times over. Testdata's `vk_vertex_uniform_if.vert` copied `p.yx` into a vector a lane at a time while its other arm
+  reads `p`; the `mul` now writes the vector, and the other arm reads it swizzled `yxzw`.
+- **The conditions,** each lane's as for a copy alone: nothing from the writer to that lane's own copy reads or writes
+  the lane, and the writer doesn't read it (`place_free`); every other reader of the writers reads only lanes the
+  copies hold, unwritten up to it (`can_redirect`); and copies that join one are into a temp, clamped as it is. A copy
+  is weighed with others only where it can't go alone, and for a copy that went before, weighing its writers together
+  agrees with weighing them alone, so what step 2 took it takes as before.
+
+It ran as the baseline's line with `--json ../results/2026-10-17-milestone-45/step2_together.json`, in 120 s;
+`step2_together.txt` is what it printed. The optimiser on, over the 367 shaders the baseline compiled, the baseline,
+steps 5 and 6 (`steps5_6.json`) and now:
+
+| | Corpus | | | Dusklight and vkbench | | |
+|---|---|---|---|---|---|---|
+| ALU | 8895 | 6502 | 6467 | 6641 | 4639 | 4620 |
+| Copies | 3253 | 938 | 903 | 2397 | 450 | 431 |
+| Registers | 2115 | 1530 | 1529 | 1117 | 784 | 784 |
+| Co-issued | 675 | 726 | 726 | 583 | 630 | 630 |
+
+The corpus's ALU is 27.3% under the baseline, 204 under the milestone's 6671; Dusklight's and vkbench's 30.4%. 22
+shaders change, all optimised: the 19 of Dusklight's, a copy fewer each; `aurora_emboss.vert` 39 to 38 ALU
+instructions; `loop_if.frag` 36 to 24; and `vk_vertex_uniform_if.vert` 9 to 6, its registers 5 to 4. No shader takes a
+register more, co-issued slots and fetches stay, and control flow is 4 instructions fewer, in the last three. With the
+3 shaders testdata gained in the milestone, the 370 that compile have 919 copies, against 954 at steps 5 and 6: the 32,
+and `vk_vertex_uniform_if.vert`'s 3, which `copy_kinds.py` had counted as elementwise results whose other lanes are
+read elsewhere. The lanes read elsewhere were the ones its other copies took; none of the 40 copies left of that kind
+has another copy take those lanes into its vector.
+
+**Checks:**
+- `check_optimize.py`: 0 differ, 15 not simulated, 16 not compiled.
+- xost's tests, a file at a time in WSL, all pass but `test_xcomb_parity.py`, which runs on Windows.
+  `test_optimize.py` has 3 cases for this: three `dp4`s copied into one vector and read together elsewhere, swizzled
+  (9 to 8 ALU instructions); an `add`'s lanes copied one at a time into one vector, each from another component (7 to
+  4); and the same with one lane's place read between its writer and its copy, which keeps them all (7). With main's
+  library the first two fail.
+- Broken on purpose:
+  - a reader's lane from another of the copy's writers given the place of the writer being placed: the `dp4` case
+    fails, and 20 shaders differ, the 19 of Dusklight's and `aurora_emboss.vert`;
+  - a joining copy's swizzle dropped, its lanes taking the first copy's components: the `add` case fails, and
+    `vk_vertex_uniform_if.vert` differs.
+- Containers against main's library (`00b5e54`), containers, literals and resources: every program of the corpus with
+  the optimiser off comes out byte for byte as before, and with it on all but the 22 above. Dusklight's pack: 19 of
+  its 150 programs change, the 19 vertex shaders; the other 131 come out byte for byte as before.
+- xsdk_test's compiler check: `tools/gen_xsc_shaders.py` with main's library gives the committed `tests/xsc_shaders.h`
+  byte for byte. Regenerated, 1 of its 9 containers changes, `vk_vertex_uniform_if.vert`'s, 132 words to 123; its
+  SPIR-V, literals and resources are the same.
+- `make clean && make -j32`, then `make -j32 XSC_PACK=/mnt/z/dusklight-xenon/platforms/xenon/glsl_pack.c
+  build/probe_shader_cost.xex build/probe_xsc.xex build/probe_relative_constants.xex`: no warnings.
+- Compile time, the pack's 150 programs on the PC as before, best of ten compiles of each and of three runs, two runs
+  each taken in turn with main's library: 70.5 and 69.9 ms against main's 69.5 and 69.8, about 1% more; the slowest,
+  `glsl_407248b726bcb428_vert`, 3.33 and 3.32 ms against 3.27 and 3.27. At that share the console's 1.32 s grows by
+  about 0.01 s.
+
 ## Copies left, by kind
 
 "Done when" counts the copies left by kind (agreed on 2026-10-17). `tools/copy_kinds.py` compiles each shader as
@@ -880,7 +946,7 @@ reads by register component. `can_place`'s conditions on what stands between a w
 (`place_free`, `unwritten`) depend on where values lived before the allocator packed them, so it doesn't check them;
 every copy found a reason without them.
 
-In WSL, from `xenos-toolchain/`, over the corpus as `steps5_6.json` has it:
+In WSL, from `xenos-toolchain/`, over the corpus as `step2_together.json` has it:
 
 ```
 python3 tools/copy_kinds.py /mnt/z/dusklight-xenon/platforms/xenon/shaders xsc/testdata/*.spv \
@@ -888,8 +954,9 @@ python3 tools/copy_kinds.py /mnt/z/dusklight-xenon/platforms/xenon/shaders xsc/t
     --each > ../results/2026-10-17-milestone-45/copy_kinds.txt
 ```
 
-It took 35 s. `copy_kinds.txt` lists every copy with its kind, then each kind's count by folder. Its 954 copies over the
-370 shaders that compile are `steps5_6.json`'s, 450 of them Dusklight's and vkbench's: the tool checks each shader's
-count against `check_optimize.py`'s, and that each program it takes as left alone for a loop or predication compiles
-the same with the optimiser on and off. The kinds, and why no step takes each, are recorded against "Done when" in
-docs/scope/45-xost-code-quality.md.
+It took 40 s. `copy_kinds.txt` lists every copy with its kind, then each kind's count by folder. Its 919 copies over the
+370 shaders that compile are `step2_together.json`'s, 431 of them Dusklight's and vkbench's: the tool checks each
+shader's count against `check_optimize.py`'s, and that each program it takes as left alone for a loop or predication
+compiles the same with the optimiser on and off. At steps 5 and 6 it found 954, 450; the 35 since went with step 2's
+copies placed together (above), and no copy is left of the two kinds it marks "each weighed alone". The kinds, and why
+no step takes each, are recorded against "Done when" in docs/scope/45-xost-code-quality.md.

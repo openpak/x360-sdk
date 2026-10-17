@@ -101,12 +101,14 @@ Each step is built, then verified as below, then the next begins.
   Recorded on 2026-10-17, at steps 5 and 6 together (`results/2026-10-17-milestone-45/`):
   - **The ALU: met.** The 367 shaders the baseline compiled take 6502 ALU instructions with the optimiser on, 26.9%
     under the baseline's 8895 and 169 under 6671; Dusklight's and vkbench's 157 take 4639, 30.1% under 6641.
-  - **The copies: not met as worded.** `tools/copy_kinds.py` sorts the 954 copies left in the 370 shaders that compile
-    (`copy_kinds.txt`; README, "Copies left, by kind"), 450 of them Dusklight's and vkbench's, given below as corpus
-    (Dusklight and vkbench). 771 (349) are the three kinds this line names. 146 (82) more stay for the hardware's
+  - **The copies: not met as worded.** Recorded again with step 2's copies placed together (README, "Step 2's copies
+    placed together"). `tools/copy_kinds.py` sorts the 919 copies left in the 370 shaders that compile
+    (`copy_kinds.txt`; README, "Copies left, by kind"), 431 of them Dusklight's and vkbench's, given below as corpus
+    (Dusklight and vkbench). 771 (349) are the three kinds this line names. 143 (82) more stay for the hardware's
     reasons, though the line doesn't name them: inputs into exports, clamps, fetched values and inputs copied into a
     vector with other values, and computed values the hardware won't let a step move. 5 (0) step 2 leaves by a rule of
-    its own, and 32 (19) are computed values step 2 should have taken.
+    its own. None is left that a step's scope covers and its code misses: the 32 (19) step 2 should have taken went,
+    and with them 3 (0) the tool had put among the hardware's.
     - *In a program the optimiser leaves alone,* 310 (137). 72 (0) are in hardware loops and 59 (0) in predicated code,
       control flow the milestone leaves as it is. 179 (137) are in the 10 programs that read a constant at a run-time
       index, which only `co_issue` works on, as the other passes don't model a0 (`can_optimize`); Dusklight's are in
@@ -129,9 +131,10 @@ Each step is built, then verified as below, then the next begins.
     - *An input into an export,* 28 (4), 16 (4) of them clamped and 2 (0) the point coordinate's absolute value.
       Interpolators and pixel parameters arrive in registers (xenia:src/xenia/gpu/registers.h:159-161), and only an
       ALU instruction exports.
-    - *A computed value step 2 can't move,* 135 (89):
-      - 43 (25) an elementwise result whose other lanes are read elsewhere. A vector op writes one register
-        (ucode.h:1874), so the result can't both move to the copy's lanes and stay where its other readers read it.
+    - *A computed value step 2 can't move,* 100 (70):
+      - 40 (25) an elementwise result whose other lanes are read elsewhere, and copied into the copy's vector by no
+        other copy. A vector op writes one register (ucode.h:1874), so the result can't both move to the copy's lanes
+        and stay where its other readers read it.
       - 27 (25) a vertex shader's clip-space zw, computed for the position before the interpolators' alloc and exported
         again as an interpolator, and 25 (20) other exports whose writer's result is read elsewhere, Dusklight's all a
         pixel shader's alpha, which its alpha test reads too. An operand reads a temp or a constant, never an export
@@ -140,15 +143,16 @@ Each step is built, then verified as below, then the next begins.
         hold.
       - 5 (0) left by step 2's rule that only a vector op exports, and only after the export's own alloc, as xost's
         lowering always has: 4 of testdata's, a scalar op's result, which Xenia exports (ucode.h:2041-2060) but xost
-        never has on the console; and vulkan4xenon's `shadow.frag`, computed before the colours' alloc.
-      - **32 (19) step 2 should have taken.** 20 (19) gather several writers' results that another instruction reads
-        together in one operand: in 19 of Dusklight's vertex shaders, the three `dp4`s of `vec4(mv_pos, 1.0)`, which
-        the lighting reads as `mv_pos.xyz` too. 12 (0) are three copies of one `add`'s lanes into one vector, in
-        vulkan4xenon's `loop_if.frag`. Looked at by hand in `0963325b37f04df0.vert`, `20a291c66ca7e0fd.vert` and
-        `loop_if.frag`, nothing between the writers and the copies reads or writes their places, so the step's
-        "vectors built a component at a time" covers them; but `can_place` weighs each writer alone (`can_redirect`:
-        an operand reads one writer's result or none of it), and `compute_in_place` each copy. Not fixed here: the
-        user's to decide.
+        never has on the console; and vulkan4xenon's `shadow.frag`, computed before the colours' alloc. Nothing on the
+        console shows a scalar op's result exported: docs/HARDWARE.md records none, and every export xsdk's tests and
+        probes run is a vector op's, from xost's lowering or `tools/gen_*.py`, where the scalar pipe at most marks an
+        export's constant lanes (`tools/gen_setup_shaders.py`). So the rule stays.
+      - **Taken since, 35 (19).** The 32 (19) step 2 should have taken: 20 (19) gathered several writers' results that
+        another instruction reads together in one operand, in 19 of Dusklight's vertex shaders the three `dp4`s of
+        `vec4(mv_pos, 1.0)`, which the lighting reads as `mv_pos.xyz` too; and 12 (0) copied one `add`'s lanes into one
+        vector a lane at a time, in vulkan4xenon's `loop_if.frag`. With them 3 (0) the tool had counted among the
+        elementwise results above, testdata's `vk_vertex_uniform_if.vert` copying `p.yx` into a vector a lane at a
+        time while its other arm reads `p`: the lanes read elsewhere were the ones the other copies took.
     - *A clamp into a temp,* 10 (7): 3 (2) of a texture fetch's value, 3 (1) of an input and 2 (2) of a uniform, as only
       an ALU op clamps (ucode.h:1876), and 2 (2) of a computed value whose writer's result is read unclamped too. With
       the 17 in the programs read at a run-time index, Dusklight's and vkbench's `max_sat` copies into temps are 24,
