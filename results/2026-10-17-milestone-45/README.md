@@ -709,3 +709,17 @@ containers, literals and resources.
   runs, two runs each taken in turn with main's library: 73.7 and 74.3 ms against main's 74.3 and 73.8, the slowest
   program, `glsl_407248b726bcb428_vert`, 3.83 and 3.86 ms against 3.86 and 3.78. The step costs nothing measurable; the
   console's 1.43 s stays.
+
+### Step 6 on the console
+
+Run on 2026-10-17 through the console agent, everything cleaned and built in full:
+- **xsdk_test:** 383 passed; the two controller checks failed with 0x48F, no controller connected.
+- **`probe_xsc`,** from the pack as the step's xost makes it: 150 of 150 as on the PC, in 1.43 s.
+- **`probe_shader_cost`** (`probe_step6.log`): the same 100 pictures as the baseline. `6a05b1f88a016fb2.frag`, its
+  fetch gone, takes 1 register against 2 with the same picture and time.
+- **vulkan4xenon_test:** 426 as committed. With its shaders compiled with `--optimize` by the step's xost (23 lines
+  of `tests/shaders.c` different from step 4's, `aurora_attr_defaults.vert` among them), 426 in each of two runs.
+- **Dusklight,** built against the step's xsdk with its pack from the step's xost: the title scene runs at 30 fps,
+  its 600th frame captured and as before.
+- **Broken on purpose,** a fetch dropped when its first written component is dead, the others unchecked: 16 of the
+  probe's 100 pictures differ from the baseline.
