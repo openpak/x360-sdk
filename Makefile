@@ -185,6 +185,14 @@ $(BUILD)/probe/probe_relative_constant_cases.h: tools/gen_relative_constant_prob
 $(BUILD)/tests/probe_relative_constants.o: CFLAGS += -I$(BUILD)/probe
 $(BUILD)/tests/probe_relative_constants.o: $(BUILD)/probe/probe_relative_constant_cases.h
 
+# The probe of a0 in a pixel shader's code on the predicate, where vk_dynamic_if.frag hung the GPU; outside all too.
+$(BUILD)/probe/probe_a0_predicated_cases.h: tools/gen_a0_predicated_probe.py tools/gen_xsc_probe.py \
+	tools/gen_triangle_shaders.py
+	$(PYTHON) tools/gen_a0_predicated_probe.py $@
+
+$(BUILD)/tests/probe_a0_predicated.o: CFLAGS += -I$(BUILD)/probe
+$(BUILD)/tests/probe_a0_predicated.o: $(BUILD)/probe/probe_a0_predicated_cases.h
+
 $(BUILD)/host/libxsc.so: $(XSC_SOURCES:src/%.c=$(BUILD)/host/%.o)
 	$(HOST_CC) -shared -o $@ $^
 
