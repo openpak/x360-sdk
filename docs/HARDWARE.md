@@ -3668,6 +3668,25 @@ over a grid of 560 quads in one draw, each its own index of 16, the colour read 
 skinned models, read at `c[152..154+a0]` past the interpolators' alloc, are lit from their own rows for the first
 time.
 
+## a0 through fetch grouping (2026-10-17)
+
+A compiler bug in xost, found while the reload above was built, now a rule xost keeps. Built on 2026-10-17 and checked
+on the PC; the console runs are to come.
+- **Hardware fact, Xenia's:** a0 changes only at `maxa`, `maxas` and `maxasf`, and a read at a0 takes what a0 holds
+  when the read runs (xenia:src/xenia/gpu/shader_interpreter.cc:260-266, 808-823). No register links the read to the
+  load before it.
+- **Compiler bug:** a pixel shader's fetch grouping (`ordered`, `src/xsc_program.c`) took the work a sample's
+  coordinate needs up before the rest, and the a0 load that work reads at isn't among it. xost's
+  `vk_dynamic_texcoord.frag` samples at `coords[i]` scaled by `1 / scales[j].w`, read first: its read of `coords[i]`
+  went up past i's load, which landed after the sample, and read at j, every index wrong on xost's simulator. No
+  program of milestone 45's corpus or Dusklight's pack had that shape.
+- **The rule:** a read at a0 stays after every a0 load before it, and a load after every read and load before it, in
+  any shader the grouping lays out, as the optimiser moves nothing past an a0 load (`fixed`, `src/xsc_optimize.c`).
+- **Checks:** `tests/test_dynamic_index.py` runs `vk_dynamic_texcoord.frag` on `xdis/simulate.py` for each of 16
+  indices, optimiser off and on. xsdk_test's raster test compiles it on the console and draws it as one grid of 280
+  quads 10 pixels square, each its own i and a j never i, sampling a 32 by 32 texture in 4 by 4 blocks, a block an
+  index, every quad's centre checked in each frame.
+
 ## xost's code quality, milestone 45 (2026-10-17)
 
 docs/scope/45-xost-code-quality.md. `tests/probe_shader_cost.c` measured each step on the console, run through the

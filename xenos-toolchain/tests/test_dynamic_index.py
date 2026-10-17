@@ -14,6 +14,10 @@ parameters, as vulkan4xenon's milestone 11 needs for Aurora's matrices picked pe
   of what a0 held must come only where such a read needs it. vk_dynamic_interpolator.vert reads its colour, then its
   scale's w, past the interpolators' alloc at the a0 its position loaded: the position's load must come again right
   before the colour's read, and the simulator must give each of its 16 indices' position and colour.
+- No register links a read at a0 to the load before it (docs/HARDWARE.md, "a0 through fetch grouping").
+  vk_dynamic_texcoord.frag samples at coords[i] scaled by 1 / w of scales[j], read first: fetch grouping must keep the
+  read of coords[i] after i's load, so xdis/simulate.py, its sample giving the coordinate, must give coords[i] / w for
+  every i, optimiser off and on.
 """
 import math
 import struct
@@ -26,6 +30,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import xsc.spirv as spirv  # noqa: E402
 import xdis.container as container  # noqa: E402
+import xdis.simulate as simulate  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
 from xsc.lower import LowerError, lower_ex  # noqa: E402
@@ -274,7 +279,8 @@ def a0_reloads(blob):
 # The shaders that read at a0, and the reloads each takes: only vk_dynamic_interpolator.vert reads at a0 past an alloc
 # what it loaded a0 with before it.
 RELOADS = {"vk_dynamic_rows.vert": 0, "vk_dynamic_matrices.vert": 0, "vk_frag_coord.frag": 0,
-           "vk_instance_index.vert": 0, "vk_loop_count_if.frag": 0, "vk_dynamic_interpolator.vert": 1}
+           "vk_instance_index.vert": 0, "vk_loop_count_if.frag": 0, "vk_dynamic_interpolator.vert": 1,
+           "vk_dynamic_texcoord.frag": 0}
 ROWS = 16
 
 
@@ -329,9 +335,37 @@ def check_interpolator():
     return True
 
 
+def other_index(i):
+    """Index j for index i: never i."""
+    return (i + 7) % ROWS
+
+
+def check_texcoord():
+    name = "vk_dynamic_texcoord.frag"
+    coords = [[0.01 * (n + 1), 0.02 * (n + 1), 0.0, 0.0] for n in range(ROWS)]
+    scales = [[0.0, 0.0, 0.0, 1.0 + 0.25 * n] for n in range(ROWS)]
+    for optimize in (False, True):
+        blob, manifest = lower_ex(spirv.Module.parse((TD / f"{name}.spv").read_bytes()), XSDK_REGISTERS,
+                                  optimize=optimize)
+        consts = registers([x for row in coords + scales for x in row], 0)
+        consts.update({reg: list(values) for reg, values in manifest})
+        for i in range(ROWS):
+            j = other_index(i)
+            got = simulate.run(blob, {0: [i + 0.5, j + 0.5, 0.0, 0.0]}, consts,
+                               texture_fetch=lambda slot, uv: [uv[0], uv[1], 0.0, 1.0]).exports.get(0, [])
+            want = [coords[i][0] / scales[j][3], coords[i][1] / scales[j][3], 0.0, 1.0]
+            if not close(got, want):
+                print(f"  FAIL {name}: optimiser {'on' if optimize else 'off'}: i {i}, j {j}: sampled at "
+                      f"{got[:2]}, want coords[{i}] / scales[{j}].w, {want[:2]}")
+                return False
+    print(f"  PASS {name}: coords[i] / scales[j].w sampled for i 0 to {ROWS - 1}, j another index, optimiser off and "
+          f"on")
+    return True
+
+
 def main():
     results = [check_rows(), check_matrices(), check_frag_coord(), check_frag_coord_depth(), check_reloads(),
-               check_interpolator()]
+               check_interpolator(), check_texcoord()]
     sys.exit(0 if all(results) else 1)
 
 

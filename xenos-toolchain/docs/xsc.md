@@ -295,7 +295,11 @@ that way, and 15.9 laid out (the texture units' 16; xsdk:docs/HARDWARE.md,
 milestone 36). Shaders whose fetches read only their interpolators or pixel
 parameters lower byte for byte as before, and so does a lone fetch after its
 coordinate's work. `tests/test_fetch_layout.py` checks the layout, the
-simulator's results and those shaders.
+simulator's results and those shaders. No register links a read at `a0` to
+the load before it, so the layout keeps them in order: a read at `a0` stays
+after every `a0` load before it, and a load after every read and load before
+it (xsdk:docs/HARDWARE.md, "a0 through fetch grouping";
+`tests/test_dynamic_index.py`).
 
 Within an exec the ALU and the fetches run apart on the console, so the
 builder sets an instruction's serialize bit where it reads across them: an

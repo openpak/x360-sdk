@@ -597,9 +597,24 @@ static bool is_predicated(const XscOp *op)
 	return op->kind == XSC_OP_ALU ? op->alu.is_predicated : op->fetch.is_predicated;
 }
 
+static bool loads_a0(const XscOp *op)
+{
+	return op->kind == XSC_OP_ALU &&
+		(op->alu.vector_opcode == XSC_VECTOR_MAX_A || op->alu.scalar_opcode == XSC_SCALAR_MAX_AS ||
+			op->alu.scalar_opcode == XSC_SCALAR_MAX_ASF);
+}
+
+static bool uses_a0(const XscOp *op)
+{
+	return loads_a0(op) || (op->kind == XSC_OP_ALU && op->alu.is_const_address_register_relative);
+}
+
 // Whether b, after a, must stay after it for what their registers don't show (program.py _ordered).
 static bool ordered(const XscOp *a, const XscOp *b)
 {
+	// A read at a0 sees the load before it (docs/HARDWARE.md, "a0 through fetch grouping").
+	if ((loads_a0(a) && uses_a0(b)) || (uses_a0(a) && loads_a0(b)))
+		return true;
 	if (xsdk_xsc_modifies_predicate(a) && (is_predicated(b) || xsdk_xsc_modifies_predicate(b)))
 		return true;
 	if (is_predicated(a) && xsdk_xsc_modifies_predicate(b))
