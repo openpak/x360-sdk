@@ -3670,8 +3670,8 @@ time.
 
 ## a0 through fetch grouping (2026-10-17)
 
-A compiler bug in xost, found while the reload above was built, now a rule xost keeps. Built on 2026-10-17 and checked
-on the PC; the console runs are to come.
+A compiler bug in xost, found while the reload above was built, now a rule xost keeps. Built and run on the console on
+2026-10-17.
 - **Hardware fact, Xenia's:** a0 changes only at `maxa`, `maxas` and `maxasf`, and a read at a0 takes what a0 holds
   when the read runs (xenia:src/xenia/gpu/shader_interpreter.cc:260-266, 808-823). No register links the read to the
   load before it.
@@ -3685,7 +3685,9 @@ on the PC; the console runs are to come.
 - **Checks:** `tests/test_dynamic_index.py` runs `vk_dynamic_texcoord.frag` on `xdis/simulate.py` for each of 16
   indices, optimiser off and on. xsdk_test's raster test compiles it on the console and draws it as one grid of 280
   quads 10 pixels square, each its own i and a j never i, sampling a 32 by 32 texture in 4 by 4 blocks, a block an
-  index, every quad's centre checked in each frame.
+  index, every quad's centre checked in each frame. On the console 0 of 16,520 quads were wrong over 59 frames; with
+  the rule off (a copy of xsdk_test built without it, its compiler check's header made by that compiler), 16,520 of
+  16,520, each quad sampling the block at j.
 
 ## xost's code quality, milestone 45 (2026-10-17)
 
