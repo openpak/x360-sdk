@@ -1,0 +1,1028 @@
+01c8b343f41ff9f4.frag: max oC0, r1.yyyy, r1.yyyy: a fetched value into an export: a texture fetch's value
+020233a3aaada7e9.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+020233a3aaada7e9.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+020233a3aaada7e9.vert: max o1, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+04a469b1240c5698.vert: max r1, c[120+a0], c[120+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r1, c[121+a0], c[121+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r1, c[122+a0], c[122+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r1.x___, r2, r2 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r1._y__, r3, r3 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r1.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2.xyz_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2.___w, c152, c152 (a constant into a temp: a literal, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2.x___, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2._y__, r3, r3 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+04a469b1240c5698.vert: max r2.___w, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+05716a5bd2aae204.frag: max r5.x___, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+05b63b9d751d5736.frag: max oC0, r1.yyyz, r1.yyyz: a fetched value into an export: a texture fetch's value
+093884ef391dfddc.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+093884ef391dfddc.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+0963325b37f04df0.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+0963325b37f04df0.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+0963325b37f04df0.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+0963325b37f04df0.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+0963325b37f04df0.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+0963325b37f04df0.vert: max o4, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+09bef7f9a3ac5df7.frag: max oC0, r1.zzzz, r1.zzzz: a fetched value into an export: a texture fetch's value
+0c5faf5ad1250944.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+0c5faf5ad1250944.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+0c9a6858fbbe328e.frag: max oC0, r1.wwww, r1.wwww: a fetched value into an export: a texture fetch's value
+0f8714b3c758a3b1.frag: max oC0, r1.xxxy, r1.xxxy: a fetched value into an export: a texture fetch's value
+12d30073b6d47043.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+1510c05add37f2b3.frag: max r5.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r5.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r6.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r6.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r7.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r7.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r8.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r8.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+1510c05add37f2b3.frag: max r9.x___, r1.zwxy, r1.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+15a57b221b955025.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+15a57b221b955025.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+1675a46dea18c182.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+16a9a335fb71c29a.frag: max oC0, r1.xxxx, r1.xxxx: a fetched value into an export: a texture fetch's value
+172ccfa9a454e318.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+172ccfa9a454e318.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+1e5db8674ad9d29e.frag: max_sat oC0.xyz_, c1, c1: a constant into an export: a uniform
+1e5db8674ad9d29e.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
+2013a34320f17698.frag: max oC0.xyz_, r1.xxxw, r1.xxxw: a fetched value into an export: a texture fetch's value
+2013a34320f17698.frag: max oC0.___w, c0.xxxw, c0.xxxw: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+20a291c66ca7e0fd.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+20a291c66ca7e0fd.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+20a291c66ca7e0fd.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+20a291c66ca7e0fd.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+20a291c66ca7e0fd.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+246ca2b33bb1fdf4.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+251e226c8a088a82.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+251e226c8a088a82.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+251e226c8a088a82.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+251e226c8a088a82.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
+251e226c8a088a82.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+29fab4bb2516d607.frag: max r1.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+29fab4bb2516d607.frag: max r1.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+29fab4bb2516d607.frag: max r4.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+29fab4bb2516d607.frag: max r4.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+29fab4bb2516d607.frag: max_sat r0.___w, c117.wwww, c117.wwww: a clamp into a temp: of a uniform
+2a1a218d5688204a.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+2a1a218d5688204a.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+2a1a218d5688204a.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+2a1a218d5688204a.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+2a1a218d5688204a.vert: max o2, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+2bc4ebf687f545b6.frag: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+2bc4ebf687f545b6.frag: max oC0.xyz_, r1, r1: a fetched value into an export: a texture fetch's value
+2e7f30cdc49bd211.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+2e7f30cdc49bd211.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
+2e7f30cdc49bd211.vert: max o0.___w, r2, r2: a fetched value into an export: a vertex fetch's value
+2e7f30cdc49bd211.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+2eefbbd89e53921c.frag: max r0.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+2eefbbd89e53921c.frag: max r0.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+2eefbbd89e53921c.frag: max r6.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+2eefbbd89e53921c.frag: max r6.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+31871ebc6e90765a.vert: max r1.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+31871ebc6e90765a.vert: max o1, r2.zwzw, r2.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+32d160ecc3deb658.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+32d160ecc3deb658.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
+32d160ecc3deb658.vert: max o0.___w, r1, r1: a fetched value into an export: a vertex fetch's value
+350248024002ce37.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+350248024002ce37.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+350248024002ce37.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+350248024002ce37.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+350248024002ce37.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+35fc826ad15e1872.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+35fc826ad15e1872.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+39662e66d545c874.vert: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+39662e66d545c874.vert: max oPos.xy__, r0, r0: a fetched value into an export: a vertex fetch's value
+3ba44326990edfeb.vert: max r4.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+3ba44326990edfeb.vert: max o0, r3, r3: a fetched value into an export: a vertex fetch's value
+3ba44326990edfeb.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+3ba44326990edfeb.vert: max o2, r2, r2: a fetched value into an export: a vertex fetch's value
+3de421fc6f9f3122.frag: max_sat r1, r0.wwww, r0.wwww: a clamp into a temp: of an input
+3de421fc6f9f3122.frag: max_sat oC0.xyz_, r0, r0: an input into an export: an input
+3de421fc6f9f3122.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+407248b726bcb428.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+407248b726bcb428.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+407248b726bcb428.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+407248b726bcb428.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+412f75e329bbe3a2.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+412f75e329bbe3a2.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+412f75e329bbe3a2.vert: max o1, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+46d1eea9e1360669.frag: max_sat r0.xyz_, r4, r4: a clamp into a temp: of a texture fetch's value
+48cd8f549b507826.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+48cd8f549b507826.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+4a2fde48317fee5f.frag: max oC0.0000, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+4e6272cd5ea024f5.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+4e6272cd5ea024f5.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+4e6272cd5ea024f5.vert: max o1.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+4e6272cd5ea024f5.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+4e6272cd5ea024f5.vert: max o3.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+4ee5b3c093bea8ab.frag: max r6.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+4f939ba938f196ae.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+4f939ba938f196ae.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+4f939ba938f196ae.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+4f939ba938f196ae.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+4f939ba938f196ae.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+4f939ba938f196ae.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+4f939ba938f196ae.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+551fb86c6ef59def.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+551fb86c6ef59def.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+556ea181d0d34829.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+556ea181d0d34829.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+556ea181d0d34829.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+556ea181d0d34829.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+556ea181d0d34829.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+55a0066e2650ed99.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+55a0066e2650ed99.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+58786ba1a7e49515.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+58786ba1a7e49515.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+58786ba1a7e49515.vert: max o1.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+58786ba1a7e49515.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+60bcbd6f4104ab13.frag: max r4.x___, r3.zwxy, r3.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+66457dda201609ed.frag: max r6.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+66457dda201609ed.frag: max_sat r2, r1, r1: a clamp into a temp: of a computed value: its writer's result read unclamped too
+66457dda201609ed.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+68b11762bd80366b.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+68b11762bd80366b.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+68b11762bd80366b.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+68b11762bd80366b.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+68b11762bd80366b.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+68b11762bd80366b.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
+68b11762bd80366b.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+695e15b366c72818.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+6a05b1f88a016fb2.frag: max oC0, c0.wwww, c0.wwww: a constant into an export: a literal 0 or 1, the register's only export
+6b7ff186cc28cce5.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+6c429f0c99b0524f.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+6c429f0c99b0524f.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+6c429f0c99b0524f.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+6c429f0c99b0524f.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+6dd3a70373df59bf.frag: max r6.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+6e690d475f0af5fe.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+6e690d475f0af5fe.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+6e690d475f0af5fe.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+70ee109df12524e4.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+70ee109df12524e4.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+70ee109df12524e4.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+70ee109df12524e4.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+70ee109df12524e4.vert: max o2, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+71ac4a48df92e5b7.vert: max r6.xyz_, r5, r5: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+71ac4a48df92e5b7.vert: max r6.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+71ac4a48df92e5b7.vert: max o0.___w, r4, r4: a fetched value into an export: a vertex fetch's value
+71ac4a48df92e5b7.vert: max o1, r3, r3: a fetched value into an export: a vertex fetch's value
+71ac4a48df92e5b7.vert: max o3, r2, r2: a fetched value into an export: a vertex fetch's value
+71ac4a48df92e5b7.vert: max o4, r7.zwzw, r7.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+72abd6191dcd7bfe.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+72abd6191dcd7bfe.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+72abd6191dcd7bfe.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+72abd6191dcd7bfe.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+72abd6191dcd7bfe.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+75422301f0e22829.frag: max r5.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+820f98f280587ea8.frag: max r0.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+820f98f280587ea8.frag: max r0.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+820f98f280587ea8.frag: max r2.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+820f98f280587ea8.frag: max r2.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+84e4d80e1fc6e615.frag: max oC0, r1.yyyz, r1.yyyz: a fetched value into an export: a texture fetch's value
+8586b077d3e63bc1.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+8586b077d3e63bc1.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+85ae52ee303f618c.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
+85c8b022385334bf.frag: max r3.x___, r0.yzxw, r0.yzxw: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+85c8b022385334bf.frag: max_sat r0.xyz_, c118, c118: a clamp into a temp: of a uniform
+88a3de8e328f385a.vert: max r1.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+8b4ce5184129a25a.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+8e555ecc28e3d240.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+8e555ecc28e3d240.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+8e555ecc28e3d240.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+8f974c0335e452d5.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+8f974c0335e452d5.vert: max o0.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+8f974c0335e452d5.vert: max o1, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+92f6cc89e68fccea.frag: max oC0.0000, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+92f6cc89e68fccea.frag: max oC0.xyz_, c0, c0: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+93d36ce55e3f9bad.vert: max r5, c[120+a0], c[120+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r5, c[121+a0], c[121+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r5, c[122+a0], c[122+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r5.x___, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r5._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r5.__z_, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r6.xyz_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r6.___w, c228, c228 (a constant into a temp: a literal, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r10.x___, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r10._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r10.__z_, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r10.___w, r9, r9 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r5, r5 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1, c[152+a0], c[152+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1, c[153+a0], c[153+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1, c[154+a0], c[154+a0] (a constant into a temp: a constant at a run-time index, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1.x___, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1.__z_, r9, r9 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r5, r5 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r11, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12._y__, r11, r11 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r12.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9._y__, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r9.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r9, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r11._y__, r9, r9 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r8._y__, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r8.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max_sat r1, r2, r2 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1.xyz_, r2, r2 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1.___w, r4, r4 (anything else: a vertex fetch's value into a temp, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max o0, r1, r1 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max o1, r3, r3 (a fetched value into an export: a vertex fetch's value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max r1, r10.zwzw, r10.zwzw (a computed value step 2 can't move: into a temp: its writer's result read in one operand with another writer's lanes): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+93d36ce55e3f9bad.vert: max o2, r1, r1 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+946541a3cc485e48.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
+a122a58ca77e3270.frag: max oC0.___w, c0.xxxw, c0.xxxw: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+a2beec39ae2b951c.frag: max oC0, r1.yyyy, r1.yyyy: a fetched value into an export: a texture fetch's value
+a35e191254f5ef46.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+a479ce42ba36b7d8.frag: max r2.x___, r0.yzxw, r0.yzxw: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+a479ce42ba36b7d8.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+a48b96d69ff86daf.vert: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+a48b96d69ff86daf.vert: max oPos.xy__, r0, r0: a fetched value into an export: a vertex fetch's value
+ad037db0d56a10dd.vert: max r3.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+ad037db0d56a10dd.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+ad037db0d56a10dd.vert: max o1.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+ad037db0d56a10dd.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+ad037db0d56a10dd.vert: max o3.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+ad037db0d56a10dd.vert: max o4, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+b331aaa6bee56ee9.frag: max r5.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+b331aaa6bee56ee9.frag: max_sat r4, r1, r1: a clamp into a temp: of a computed value: its writer's result read unclamped too
+b331aaa6bee56ee9.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+b40238367bc2ae70.frag: max r6.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+b40238367bc2ae70.frag: max oC0.___w, r2, r2: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+b4a8c01218dcffe9.frag: max r5.x___, r4.zwxy, r4.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+b4bd0f33bde7fc52.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+bacc292ad5a86eb3.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+bacc292ad5a86eb3.vert: max o0.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o1.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o2.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o3.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o4.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o5.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o6.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bacc292ad5a86eb3.vert: max o7.__z_, c120.xyzx, c120.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+bde83fec0182df1d.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+bde83fec0182df1d.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
+bde83fec0182df1d.vert: max o0.___w, c43, c43: a constant into an export: a uniform
+bde83fec0182df1d.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+bde83fec0182df1d.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+c0887c56621045a9.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+c0887c56621045a9.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+c0ddfd4547c71e5a.vert: max r4, c[120+a0], c[120+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r4, c[121+a0], c[121+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r4, c[122+a0], c[122+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r4.x___, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r4._y__, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r4.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r5.xyz_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r5.___w, c228, c228 (a constant into a temp: a literal, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r9.x___, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r9._y__, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r9.__z_, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r9.___w, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r4, r4 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1, c[152+a0], c[152+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1, c[153+a0], c[153+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1, c[154+a0], c[154+a0] (a constant into a temp: a constant at a run-time index, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1.x___, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1.__z_, r8, r8 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r4, r4 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r10, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11._y__, r10, r10 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r11.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8._y__, r7, r7 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r8.__z_, r4, r4 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r8, r1, r1 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r10._y__, r8, r8 (a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r10.__z_, r1, r1 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r7._y__, r6, r6 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r7.__z_, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max_sat r1, r2, r2 (a clamp into a temp: of a computed value: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1.xyz_, r2, r2 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1.___w, c43, c43 (a constant into a temp: a uniform, read in one operand beside a computed value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max o0, r1, r1 (anything else: a computed value and a constant together into an export): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max o1, r3, r3 (a fetched value into an export: a vertex fetch's value): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max r1, r9.zwzw, r9.zwzw (a computed value step 2 can't move: into a temp: its writer's result read in one operand with another writer's lanes): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c0ddfd4547c71e5a.vert: max o2, r1, r1 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+c165aaa5a5be8de5.frag: max oC0, r1.xxxy, r1.xxxy: a fetched value into an export: a texture fetch's value
+c359885760b8a624.vert: max r4.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+c359885760b8a624.vert: max o0, r3, r3: a fetched value into an export: a vertex fetch's value
+c359885760b8a624.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+c359885760b8a624.vert: max o2, r2, r2: a fetched value into an export: a vertex fetch's value
+c359885760b8a624.vert: max o3, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+c4bb20c5e14ce9d8.frag: max oC0, r1.zzzz, r1.zzzz: a fetched value into an export: a texture fetch's value
+c8673f02f09b439d.frag: max oC0.___w, r1, r1: a fetched value into an export: a texture fetch's value
+c91470b682614340.frag: max oC0, r1.xxxx, r1.xxxx: a fetched value into an export: a texture fetch's value
+c98a0ca2e68f85a1.frag: max oC0.0000, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+ca44599827bbdb23.frag: max r1.xy__, c109.xzxx, c109.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+ca44599827bbdb23.frag: max r1.__z_, c110.xyxw, c110.xyxw: a constant into a temp: a uniform, read in one operand beside a constant
+ca44599827bbdb23.frag: max r3.xy__, c109.ywyy, c109.ywyy: a constant into a temp: a uniform, read in one operand beside a constant
+ca44599827bbdb23.frag: max r3.__z_, c110.xyyw, c110.xyyw: a constant into a temp: a uniform, read in one operand beside a constant
+ce4bffbb0b973310.frag: max oC0, c0, c0: a constant into an export: a uniform
+cefc467138f9dac7.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+cefc467138f9dac7.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+cefc467138f9dac7.vert: max o2, r1, r1: a fetched value into an export: a vertex fetch's value
+d1441271ff15f72c.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+d5d99e338acc096e.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+d5d99e338acc096e.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+d8658b0e39305f51.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+d8658b0e39305f51.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+d8658b0e39305f51.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+d8658b0e39305f51.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+d8658b0e39305f51.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+d8658b0e39305f51.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+d8658b0e39305f51.vert: max o4, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+d8d724f61446ecbb.vert: max r2.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+d90889c31c82dbe8.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+d90889c31c82dbe8.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+d90889c31c82dbe8.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+d90889c31c82dbe8.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+d90889c31c82dbe8.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+da2593920df168c8.vert: max r1.___w, c120, c120: a constant into a temp: a literal, read in one operand beside a computed value
+da2593920df168c8.vert: max o0.xyz_, c41, c41: a constant into an export: a uniform
+da2593920df168c8.vert: max o0.___w, c43, c43: a constant into an export: a uniform
+dee3af7655c47a63.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+dee3af7655c47a63.frag: max oC0.___w, r4, r4: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+e09e6878603dc742.frag: max oC0, r1.xxxw, r1.xxxw: a fetched value into an export: a texture fetch's value
+e2cfed9f9f80cbf0.frag: max r6.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+e3fba406929fde97.frag: max_sat oC0.___w, c1.wwww, c1.wwww: a constant into an export: a uniform
+e5c535debebde1ed.frag: max_sat oC0.xyz_, r0, r0: an input into an export: an input
+e5c535debebde1ed.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+e5ea8b62e2ebf4ac.vert: max r0.xyz_, r3, r3: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+e5ea8b62e2ebf4ac.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+e5ea8b62e2ebf4ac.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+e5ea8b62e2ebf4ac.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+e5ea8b62e2ebf4ac.vert: max o2, r2, r2: a fetched value into an export: a vertex fetch's value
+e5ea8b62e2ebf4ac.vert: max o3.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+e5ea8b62e2ebf4ac.vert: max o4, r2, r2: a fetched value into an export: a vertex fetch's value
+e5ea8b62e2ebf4ac.vert: max o5, r4.zwzw, r4.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+e7fe951996d1f40b.frag: max r3.x___, r2.zwxy, r2.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+e9d14d2c939cffe4.vert: max r5.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+e9d14d2c939cffe4.vert: max r5.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+e9d14d2c939cffe4.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+e9d14d2c939cffe4.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+e9d14d2c939cffe4.vert: max o3, r6.zwzw, r6.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+ece2618e566d8623.frag: max oC0.xyz_, r1, r1: a fetched value into an export: a texture fetch's value
+ece2618e566d8623.frag: max oC0.___w, c0, c0: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+ed3667059b5c9028.frag: max r3.x___, r2.zwxy, r2.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+ed3667059b5c9028.frag: max oC0.0000, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+f12926532ee0b4d0.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+f12926532ee0b4d0.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+f12926532ee0b4d0.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+f12926532ee0b4d0.vert: max o1.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+f12926532ee0b4d0.vert: max o2.__z_, c168.xyzx, c168.xyzx: a constant into an export: a literal 0 or 1, only in lanes past its output's GLSL type
+f12926532ee0b4d0.vert: max o3, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+f1f88472976e4bfb.vert: max r0.xyz_, r4, r4: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+f1f88472976e4bfb.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+f1f88472976e4bfb.vert: max o0.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+f1f88472976e4bfb.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+f1f88472976e4bfb.vert: max o2, r5.zwzw, r5.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+f2f1d4cd60de5251.frag: max r0._y__, c6.ywxz, c6.ywxz: a constant into a temp: a literal, read in one operand beside a computed value
+f3825523049d31cf.frag: max r4.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+f3825523049d31cf.frag: max_sat r1, r3.wwww, r3.wwww: a clamp into a temp: of a texture fetch's value
+f3825523049d31cf.frag: max oC0.___w, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+f526e9ffb3616812.frag: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+f526e9ffb3616812.frag: max oC0.xyz_, r1.xyzx, r1.xyzx: a fetched value into an export: a texture fetch's value
+f544e71db9210106.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+f7c1df6fe6364447.frag: max oC0.___w, r3, r3: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+chainmat.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+chainmat.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+cubedir.vert.spv: max o0, r0, r0: a fetched value into an export: a vertex fetch's value
+explog.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+fs_cubemap.frag.spv: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+fs_deriv.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+fs_intdiv.frag.spv: max oC0.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+fs_minv.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+fs_mtest.frag.spv: max r1.x___, c0.xxxx, c0.xxxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r1._y__, c1.xxxx, c1.xxxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r1.__z_, c2.xxxx, c2.xxxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r2.x___, c0.yxxx, c0.yxxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r2._y__, c1.xyxx, c1.xyxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r2.__z_, c2.xxyx, c2.xxyx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r3.x___, c0.zxxx, c0.zxxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r3._y__, c1.xzxx, c1.xzxx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_mtest.frag.spv: max r3.__z_, c2.xxzx, c2.xxzx: a constant into a temp: a uniform, read in one operand beside a constant
+fs_refract.frag.spv: max r0.x___, c1.zwxy, c1.zwxy: a constant into a temp: a literal, read in one operand beside a computed value
+fs_refract.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+fs_texlod.frag.spv: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+fs_texproj.frag.spv: max r0.xy_w, r1, r1: anything else: an input into a temp, read in one operand beside a computed value
+fs_texproj.frag.spv: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+fs_texscale.frag.spv: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+fs_vrelation.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+gamma.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+gamma.frag.spv: max oC0.xyz_, r0, r0: a computed value step 2 can't move: into an export: a scalar op's result into an export
+gray.frag.spv: max oC0.___w, r1, r1: a fetched value into an export: a texture fetch's value
+intbucket.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+lit01.frag.spv: max oC0.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+lit01.frag.spv: max oC0.x___, r2.xxxx, r2.xxxx: a fetched value into an export: a texture fetch's value
+lit01.frag.spv: max oC0._y__, r1.yyyy, r1.yyyy: an input into an export: an input
+loop_accum.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+loop_array.frag.spv: max oC0, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_break.frag.spv: max oC0, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_nested.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+loop_stair.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+loop_uniform.frag.spv: max oC0, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_weight.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+loop_while.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+normlen.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+shuffle2.frag.spv: max oC0.xy__, r2, r2: a fetched value into an export: a texture fetch's value
+shuffle2.frag.spv: max oC0.__z_, r1.zzzz, r1.zzzz: an input into an export: an input
+shuffle2.frag.spv: max oC0.___w, r1.zzzw, r1.zzzw: an input into an export: an input
+spincube.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+spincube.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+tint.frag.spv: max oC0.___w, r2, r2: a fetched value into an export: a texture fetch's value
+verify_alloc.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_alloc.frag.spv: max oC0.x___, r0, r0: a computed value step 2 can't move: into an export: a scalar op's result into an export
+verify_alloc.frag.spv: max oC0._y__, r0, r0: a computed value step 2 can't move: into an export: a scalar op's result into an export
+verify_alloc.frag.spv: max oC0.__z_, c6, c6: a constant into an export: a literal
+verify_asin.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_atan.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_cross.frag.spv: max r0.__zw, r0.zwxy, r0.zwxy: anything else: an input into a temp, read in one operand beside a constant
+verify_cross.frag.spv: max r0.x___, c0.zwxy, c0.zwxy: a constant into a temp: a literal, read in one operand beside a computed value
+verify_cross.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_fract.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_mod.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_round.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_sign.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_smooth.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_sqrt.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+verify_sqrt.frag.spv: max oC0.xyz_, r0.yzwx, r0.yzwx: a computed value step 2 can't move: into an export: a scalar op's result into an export
+verify_trunc.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+vk_block_literals.vert.spv: max oPos.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_block_literals.vert.spv: max oPos.__z_, c8, c8: a constant into an export: a literal
+vk_blocks.vert.spv: max o0.__zw, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+vk_clip_distance_literal.vert.spv: not compiled: gl_ClipDistance other than dot(gl_Position, a plane), the plane a whole vec4 of a block at a fixed index, as Xenos's user clip planes take it (v1)
+vk_clip_distance_world.vert.spv: not compiled: gl_ClipDistance other than dot(gl_Position, a plane), the plane a whole vec4 of a block at a fixed index, as Xenos's user clip planes take it (v1)
+vk_composite_extract.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_constant_color.frag.spv: max oC0, c2, c2: a constant into an export: a uniform
+vk_constant_varying.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_constant_varying.vert.spv: max o0, c0, c0: a constant into an export: a uniform
+vk_cube.frag.spv: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+vk_cube_grad.frag.spv: not compiled: gradients for a cube map or a 3D texture (v1)
+vk_cull_distance.vert.spv: not compiled: gl_CullDistance: Xenos has no cull distances
+vk_dependent_fetch.frag.spv: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+vk_dependent_read.frag.spv: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+vk_dot2.frag.spv: max r0.__z_, c2.yzxw, c2.yzxw: a constant into a temp: a literal, read where the instruction would read a third constant
+vk_dot2.frag.spv: max r1.xy__, c1.zwzw, c1.zwzw: a constant into a temp: a uniform, read where the instruction would read a third constant
+vk_dot2.frag.spv: max oC0.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_dynamic_interpolator.vert.spv: max r1.xy__, r0, r0 (anything else: a vertex fetch's value into a temp, read in one operand beside a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r1.__z_, c32, c32 (a constant into a temp: a literal, read in one operand beside a computed value and a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r1.___w, c33, c33 (a constant into a temp: a literal, read in one operand beside a computed value and a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r1, c[16+a0], c[16+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max r3, r2.wwww, r2.wwww (anything else: a constant into a temp, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_interpolator.vert.spv: max o0, r2, r2 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_matrices.vert.spv: max r1, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_matrices.vert.spv: max r2, c[1+a0], c[1+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_matrices.vert.spv: max r3, c[2+a0], c[2+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_matrices.vert.spv: max r4, c[3+a0], c[3+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_matrices.vert.spv: max oPos, r5, r5 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max r2, c[1+a0], c[1+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max r2, c[2+a0], c[2+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max oPos.___1, r0, r0 (a constant into an export: the export's own 0 and 1, beside another instruction exporting the register): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max oPos.x___, r3, r3 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max oPos._y__, r4, r4 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max oPos.__z_, r5, r5 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max r1, c[12+a0], c[12+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_dynamic_rows.vert.spv: max o0, r1, r1 (a constant into an export: a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_fetch_fills.vert.spv: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+vk_fetch_fills.vert.spv: max o1.xyz_, r3, r3: a fetched value into an export: a vertex fetch's value
+vk_fetch_fills.vert.spv: max o1.___w, c5, c5: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+vk_fetch_fills.vert.spv: max r0.xyz_, r1, r1: anything else: a vertex fetch's value into a temp, read in one operand beside a constant
+vk_fetch_fills.vert.spv: max r0.___w, c5, c5: a constant into a temp: a literal, read in one operand beside a computed value
+vk_five_fetches.vert.spv: max oPos.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_five_fetches.vert.spv: max oPos.xyz_, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_five_fetches.vert.spv: max o0.___w, r2, r2: a fetched value into an export: a vertex fetch's 0 or 1, beside another instruction exporting the register
+vk_four_outputs.frag.spv: max oC0, c0, c0: a constant into an export: a uniform
+vk_four_outputs.frag.spv: max oC2.xy__, r0, r0: an input into an export: an input
+vk_four_outputs.frag.spv: max oC2.__z_, c2, c2: a constant into an export: a literal
+vk_four_outputs.frag.spv: max oC2.___w, c3, c3: a constant into an export: a literal
+vk_frag_coord_depth.frag.spv: not compiled: gl_FragCoord.zw: the pixel parameters hold no depth (v1)
+vk_frag_coord.frag.spv: max r3, r2.xxxx, r2.xxxx (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_frag_coord.frag.spv: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_frag_depth_arms.frag.spv: max oC0, c0, c0: a constant into an export: a uniform
+vk_frag_depth_branch.frag.spv: not compiled: gl_FragDepth written on one path of an if/else only: the depth export needs every path
+vk_frag_depth.frag.spv: max r1, c2, c2: a constant into a temp: a literal, read by a kill, a setp or an a0 load
+vk_front_facing_discard.frag.spv: max oC0, r0, r0: an input into an export: an input
+vk_front_facing_if.frag.spv: max r1.__z_, c2, c2: a constant into a temp: a literal, read in one operand beside a computed value and a constant
+vk_front_facing_if.frag.spv: max r1.___w, c3, c3: a constant into a temp: a literal, read in one operand beside a computed value and a constant
+vk_grad.frag.spv: max r1, c0, c0: a constant into a temp: a uniform, read by a fetch
+vk_grad.frag.spv: max r2.x___, c1, c1: a constant into a temp: a literal, read by a fetch
+vk_grad.frag.spv: max oC0, r3, r3: a fetched value into an export: a texture fetch's value
+vk_instance_alone.vert.spv: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_instance_alone.vert.spv: max oPos._y__, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_instance_index.vert.spv: max oPos.___w, r2, r2 (a computed value step 2 can't move: into an export: its writer's result read elsewhere too): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max r3, c14, c14 (a constant into a temp: a literal, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max r1, c14, c14 (a constant into a temp: a literal, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max r3.x___, r5, r5 (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max r3._y__, r1.xxzw, r1.xxzw (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max r1, c[4+a0], c[4+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_instance_index.vert.spv: max o0, r1, r1 (a constant into an export: a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+vk_local_branch_reassign.frag.spv: not compiled: local %9 stored more than once where the unroller doesn't rewrite it
+vk_local_merged_early.frag.spv: not compiled: local %9 read before the if/else that assigns it ends
+vk_local_partial.frag.spv: max oC0.x___, r0, r0: an input into an export: an input
+vk_local_partial.frag.spv: max oC0._yzw, c0, c0: a constant into an export: a uniform
+vk_lod.frag.spv: max r2, c1, c1: a constant into a temp: a literal, read by a fetch
+vk_lod.frag.spv: max oC0.x___, r4, r4: a fetched value into an export: a texture fetch's value
+vk_lod.frag.spv: max oC0._y__, r5, r5: a fetched value into an export: a texture fetch's value
+vk_lod.frag.spv: max oC0.__z_, r6, r6: a fetched value into an export: a texture fetch's value
+vk_lod.frag.spv: max oC0.___w, r7, r7: a fetched value into an export: a texture fetch's value
+vk_loop_break_data.frag.spv: not compiled: a break on data from a loop counted by a block: LOOP_END breaks when all 64 vertices or pixels agree (xenia:src/xenia/gpu/ucode.h:372-373) (v1)
+vk_loop_count.frag.spv: max r1, c1, c1: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count.frag.spv: max r1, r2, r2: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count.frag.spv: max oC0, r1, r1: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r1, c12, c12: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r2, c12, c12: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r3, c12, c12: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r4, c[0+a0], c[0+a0]: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r5, c[0+a0], c[0+a0]: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r5, r2, r2: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r8, r2.wwww, r2.wwww: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r5.___w, r9, r9: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r1, r4, r4: in a program the optimiser leaves alone: a hardware loop
+vk_loop_count_if.frag.spv: max r2, r8, r8: in a program the optimiser leaves alone: a hardware loop
+vk_loop_if_break.frag.spv: not compiled: a break, discard or return inside an if/else on data; real-loop v1: condition must compare local induction var to a uniform
+vk_loop_if.frag.spv: max r0.xyz_, c4.xyzx, c4.xyzx: a constant into a temp: a literal, read in one operand beside a computed value
+vk_loop_if.frag.spv: max r4.xyz_, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_loop_if.frag.spv: max r3.xyz_, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_loop_if.frag.spv: max r2.xyz_, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_loop_swap.frag.spv: max r1, c0, c0: in a program the optimiser leaves alone: a hardware loop
+vk_loop_swap.frag.spv: max r2, c1, c1: in a program the optimiser leaves alone: a hardware loop
+vk_loop_swap.frag.spv: max r4, r2, r2: in a program the optimiser leaves alone: a hardware loop
+vk_loop_swap.frag.spv: max r1, r4, r4: in a program the optimiser leaves alone: a hardware loop
+vk_loop_swap.frag.spv: max r2, r3, r3: in a program the optimiser leaves alone: a hardware loop
+vk_loop_uniform_if.frag.spv: max r1.xy__, r0, r0: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max r1.__z_, c2, c2: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max r1.___w, c3, c3: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max r2, c4, c4: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r2, r1, r1: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r4, r1.zzzz, r1.zzzz: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r2.__z_, r1, r1: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max r1, c4, c4: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r1, r3, r3: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r4, r3.zzzz, r3.zzzz: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r1.__z_, r3, r3: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r2, r1, r1: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max r1, c4, c4: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r1, r2, r2: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r4, r2.zzzz, r2.zzzz: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r1.__z_, r2, r2: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: (!p0) max r3, r1, r1: in a program the optimiser leaves alone: predication
+vk_loop_uniform_if.frag.spv: max oC0, r3, r3: in a program the optimiser leaves alone: predication
+vk_many_fetches.frag.spv: not compiled: pixel shader needs 367 registers (r0..r366), over the 64 it may use; it would hang the GPU
+vk_many_live.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_many_live.vert.spv: max o0, r15.xywz, r15.xywz: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+vk_output_location_4.frag.spv: not compiled: a colour output at location 4, past oC3
+vk_outputs_branch.frag.spv: not compiled: the colour output at location 1 stored 2 times
+vk_outputs_selected.frag.spv: max oC0, r0, r0: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+vk_point_coord.frag.spv: max oC0.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_point_coord.frag.spv: max oC0.xy__, r_abs[0].zwzz, r_abs[0].zwzz: an input into an export: an input, its absolute value
+vk_point_sprite.vert.spv: max oPts.x___, c1.xxxx, c1.xxxx: a constant into an export: a uniform
+vk_shadow_cube.frag.spv: not compiled: depth comparisons other than a sampler2DShadow's unsupported
+vk_shadow.frag.spv: max_sat r0.x___, r0.zzzz, r0.zzzz: a clamp into a temp: of an input
+vk_six_fetches.vert.spv: max oPos.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_six_fetches.vert.spv: max oPos.xyz_, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_six_fetches.vert.spv: max o0.__z_, r2, r2: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+vk_six_fetches.vert.spv: max o0.___w, c0, c0: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+vk_texel_offset_operand.frag.spv: not compiled: image operands 0x8: offsets, a sample index or a minimum LOD (v1)
+vk_three_inputs.vert.spv: max oPos.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+vk_three_inputs.vert.spv: max oPos.xy__, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_three_inputs.vert.spv: max oPos.__z_, c0, c0: a constant into an export: a literal
+vk_three_inputs.vert.spv: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+vk_three_inputs.vert.spv: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+vk_triangle.frag.gl.spv: max oC0, r0, r0: an input into an export: an input
+vk_triangle.frag.spv: max oC0, r0, r0: an input into an export: an input
+vk_triangle.vert.gl.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_triangle.vert.gl.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vk_triangle.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_triangle.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vk_unused_sample.frag.spv: max oC0.xy__, r0, r0: an input into an export: an input
+vk_unused_sample.frag.spv: max oC0.__z_, c0, c0: a constant into an export: a literal
+vk_unused_sample.frag.spv: max oC0.___w, c1.xxxw, c1.xxxw: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+vk_vertex_branch.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_vertex_if.vert.spv: max r3._yzw, r0, r0: anything else: a vertex fetch's value into a temp, read in one operand beside a computed value
+vk_vertex_if.vert.spv: max r4.x_zw, r0, r0: anything else: a vertex fetch's value into a temp, read in one operand beside a computed value
+vk_vertex_if.vert.spv: max r3.xy_w, r0, r0: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_vertex_if.vert.spv: max r3.__z_, c3, c3: a constant into a temp: a literal, read in one operand beside a computed value
+vk_vertex_index.vert.spv: not compiled: integer Load must be a foldable local
+vk_vertex_loop_count.vert.spv: max r2, r0, r0: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r3, c2, c2: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r4, r2, r2: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r4.x___, r5, r5: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r6, r4, r4: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r6._y__, r5, r5: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r2, r6, r6: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max r3, r5, r5: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max oPos, r2, r2: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_loop_count.vert.spv: max o0, r3, r3: in a program the optimiser leaves alone: a hardware loop
+vk_vertex_texture.vert.spv: max oPos.x_zw, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_vertex_texture.vert.spv: max o0, r3, r3: a fetched value into an export: a texture fetch's value
+vk_vertex_uniform_if.vert.spv: max r0.__zw, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_vertex_uniform_if.vert.spv: max r0.x___, r3.yyyy, r3.yyyy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_vertex_uniform_if.vert.spv: max r0._y__, r3.yxyy, r3.yxyy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+vk_volume.frag.spv: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+vk_volume.vert.spv: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+vk_volume.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vs_lighting.vert.spv: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+vs_lighting.vert.spv: max o1.___w, r3, r3: a fetched value into an export: a vertex fetch's value
+vs_mat2.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+vs_mat3.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vs_mat3.vert.spv: max o1.___w, c8, c8: a constant into an export: a literal 0 or 1, beside another instruction exporting the register
+vs_matmat.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vs_matmat.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+vs_vecmat.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vs_vecmat.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+vs_wave.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+vs_wave.vert.spv: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+vtx_arith.vert.spv: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+aurora_attr_defaults.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_attr_defaults.vert: max r0.___w, c125, c125: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_attr_defaults.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_attr_defaults.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_attr_defaults.vert: max r0.__z_, c125, c125: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_attr_defaults.vert: max r2.__z_, c130, c130: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_emboss.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_emboss.vert: max r0.xyz_, r5, r5: a computed value step 2 can't move: into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone
+aurora_emboss.vert: max r0.___w, c168, c168: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_emboss.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_emboss.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_emboss.vert: max r0.__z_, c172, c172: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_emboss.vert: max o1, r1, r1: a computed value step 2 can't move: into an export: its writer's result read elsewhere too
+aurora_texgen_binormal.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_binormal.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_binormal.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_binormal.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_binormal.vert: max r0.__z_, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_binormal.vert: max r2.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value and a fetched value
+aurora_texgen_prior.frag: max_sat r0.xyz_, r4, r4: a clamp into a temp: of a texture fetch's value
+aurora_texgen_prior.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_prior.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_prior.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_prior.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_prior.vert: max r0.__z_, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_prior.vert: max r3.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value and a constant
+aurora_texgen_prior.vert: max r0.__z_, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_prior.vert: max r1.xy__, r3.xyxx, r3.xyxx: a computed value step 2 can't move: into a temp: its writer's result read in one operand with another writer's lanes
+aurora_texgen_prior.vert: max r1.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value and a fetched value
+aurora_texgen_prior_inline.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_prior_inline.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_prior_inline.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_prior_inline.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_prior_inline.vert: max r0.__z_, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_prior_inline.vert: max r2.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value and a fetched value
+aurora_texgen_q_zero.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_q_zero.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_q_zero.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_q_zero.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_q_zero.vert: max r2.__z_, c129, c129: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_q_zero.vert: max r0.__z_, c129, c129: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_tangent.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_tangent.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_tangent.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_tangent.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_tangent.vert: max r0.__z_, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_tangent.vert: max r2.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value and a fetched value
+aurora_texgen_zero.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_texgen_zero.vert: max r2.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_zero.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_texgen_zero.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_texgen_zero.vert: max r0.__z_, c127, c127: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_texgen_zero.vert: max r2.__z_, c127, c127: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_add_u24.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_ztex_add_u24.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_add_u24.vert: max r3.__z_, r0.wwww, r0.wwww: a computed value step 2 can't move: into a temp: its writer's result read in one operand with another writer's lanes
+aurora_ztex_add_u24.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_ztex_add_u24.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_ztex_add_u24.vert: max r3.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_add_u24.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+aurora_ztex_add_u8.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_ztex_add_u8.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_add_u8.vert: max r3.__z_, r0.wwww, r0.wwww: a computed value step 2 can't move: into a temp: its writer's result read in one operand with another writer's lanes
+aurora_ztex_add_u8.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_ztex_add_u8.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_ztex_add_u8.vert: max r3.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_add_u8.vert: max o2, r0.zwzw, r0.zwzw: a computed value step 2 can't move: into an export: computed before the export's alloc and read there too
+aurora_ztex_replace_u24.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_ztex_replace_u24.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_replace_u24.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_ztex_replace_u24.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_ztex_replace_u24.vert: max r0.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_replace_u8.frag: max_sat oC0.___w, r0.wwww, r0.wwww: an input into an export: an input
+aurora_ztex_replace_u8.vert: max r3.___w, c124, c124: a constant into a temp: a literal, read in one operand beside a computed value
+aurora_ztex_replace_u8.vert: max o0.xyz_, c45, c45: a constant into an export: a uniform
+aurora_ztex_replace_u8.vert: max o0.___w, c47, c47: a constant into an export: a uniform
+aurora_ztex_replace_u8.vert: max r0.__z_, c128, c128: a constant into a temp: a literal, read in one operand beside a computed value
+band.frag: max r3, r2.xxxx, r2.xxxx (a computed value step 2 can't move: into a temp: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+band.frag: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+branch_data.vert: max r3._yzw, r0, r0: anything else: a vertex fetch's value into a temp, read in one operand beside a computed value
+branch_data.vert: max r4.x_zw, r0, r0: anything else: a vertex fetch's value into a temp, read in one operand beside a computed value
+branch_data.vert: max r4.xyz_, r1, r1: anything else: a vertex fetch's value into a temp, read in one operand beside a constant
+branch_data.vert: max r4.___w, c4, c4: a constant into a temp: a literal, read in one operand beside a computed value
+branch_data.vert: max r3.___w, c4, c4: a constant into a temp: a literal, read in one operand beside a computed value
+branch_data.vert: max r2.x_zw, r1, r1: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+branch_data.vert: max r2._y__, c4, c4: a constant into a temp: a literal, read in one operand beside a computed value
+branch_uniform.vert: max r0._yzw, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+branch_uniform.vert: max r3.x_zw, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+coord.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+coord.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+cube.frag: max oC0, r0, r0: a fetched value into an export: a texture fetch's value
+depth_if.frag: max oC0.1001, r0, r0: a constant into an export: the export's own 0 and 1, the register's only export
+displace.vert: max oPos.x_zw, r0, r0: a fetched value into an export: a vertex fetch's value
+displace.vert: max o1, r2, r2: a fetched value into an export: a vertex fetch's value
+facing.vert: max o0, r0, r0: a fetched value into an export: a vertex fetch's value
+facing_discard.frag: max oC0, c2, c2: a constant into an export: a uniform
+four_targets.frag: max oC0, c2, c2: a constant into an export: a uniform
+four_targets.frag: max oC1, c3, c3: a constant into an export: a uniform
+four_targets.frag: max oC2, c4, c4: a constant into an export: a uniform
+four_targets.frag: max oC3, c5.xxxx, c5.xxxx: a constant into an export: a uniform
+instanced.vert: max r3.x___, c0, c0: a constant into a temp: a uniform, read in one operand beside a computed value
+instanced.vert: max r3._y__, r1, r1: anything else: a vertex fetch's value into a temp, read in one operand beside a constant
+instanced.vert: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+instanced.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+instanced_places.vert: max oPos.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+instanced_places.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+lod_bands.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+lod_bands.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+lod_bands.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+lod_bias.frag: max oC0, r2, r2: a fetched value into an export: a texture fetch's value
+lod_computed.frag: max oC0, r2, r2: a fetched value into an export: a texture fetch's value
+lod_constant.frag: max r2, c0, c0: a constant into a temp: a literal, read by a fetch
+lod_gradients.frag: max r3.x___, r1.zwxy, r1.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+lod_gradients.frag: max r1.x___, c2, c2: a constant into a temp: a literal, read by a fetch
+lod_gradients.frag: max r1._y__, r1.zwxy, r1.zwxy: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+lod_gradients.frag: max oC0, r2, r2: a fetched value into an export: a texture fetch's value
+loop_count.frag: max r0, c4, c4: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r1, r0, r0: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r1.x___, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r3, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r3._y__, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r1, r3, r3: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r1.__z_, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max r0, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count.frag: max oC0, r0, r0: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r1, c8, c8: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r3, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r4, r2.xxxx, r2.xxxx: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r5, c2.xxxx, c2.xxxx: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r3.x___, r6, r6: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r4, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r4.x___, r5, r5: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r6, r4, r4: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r6._y__, r5, r5: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r4, r6, r6: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r4.__z_, r5, r5: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r2, r3, r3: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max r1, r4, r4: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max oPos, r2, r2: in a program the optimiser leaves alone: a hardware loop
+loop_count.vert: max o0, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r1, c12, c12: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r2, c13, c13: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r3, c13, c13: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r4, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r6, c[0+a0], c[0+a0]: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r4.x___, r7, r7: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r6, r4, r4: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r6._y__, r7, r7: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r4, r6, r6: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r4.__z_, r7, r7: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r6, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r7, r1.zzzz, r1.zzzz: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r6.__z_, r8, r8: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r4, c[0+a0], c[0+a0]: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r1, r7, r7: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max r2, r5, r5: in a program the optimiser leaves alone: a hardware loop
+loop_count_if.frag: max oC0, r1, r1: in a program the optimiser leaves alone: a hardware loop
+loop_if.frag: max r0.___w, c7.xxxw, c7.xxxw: a constant into a temp: a literal, read in one operand beside a computed value
+loop_if.frag: max r0.x___, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0._y__, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0.__z_, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r5.xy_w, c7.xyxw, c7.xyxw: a constant into a temp: a literal, read in one operand beside a computed value
+loop_if.frag: max r0.___w, r6, r6: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_if.frag: max r0.x___, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0._y__, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0.__z_, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r4.xy_w, r6, r6: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_if.frag: max r0.___w, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_if.frag: max r0.x___, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0._y__, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0.__z_, r3, r3: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r3.xy_w, r5, r5: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_if.frag: max r0.___w, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_if.frag: max r0.x___, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0._y__, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r0.__z_, r2, r2: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone
+loop_if.frag: max r2.xy_w, r4, r4: a computed value step 2 can't move: into a temp: an elementwise result whose other lanes are read elsewhere
+loop_uniform_if.frag: max r0, c4, c4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0, c5, c5: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0, c5, c5: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2.x___, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r3._y__, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2.__z_, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r2, c5, c5: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r2, c5.zzzz, c5.zzzz: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r3.__z_, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r0, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: max r2, c4, c4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2.x___, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r3._y__, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2.__z_, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r4, r0.zzzz, r0.zzzz: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r2.__z_, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r3, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: max r0, c4, c4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0.x___, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2._y__, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0, r2, r2: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r0.__z_, r4, r4: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r0, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r4, r3.zzzz, r3.zzzz: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r0.__z_, r3, r3: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: (!p0) max r2, r0, r0: in a program the optimiser leaves alone: predication
+loop_uniform_if.frag: max oC0, r2, r2: in a program the optimiser leaves alone: predication
+many_samplers.frag: max r0, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r1, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r2, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r3, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r4, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r5, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r6, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r7, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r8, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r9, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r10, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r11, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r12, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r13, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r14, c0, c0: a constant into a temp: a literal, read by a fetch
+many_samplers.frag: max r15, c0, c0: a constant into a temp: a literal, read by a fetch
+matrix_index.vert: max r2, c[0+a0], c[0+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max r2, c[1+a0], c[1+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max r2, c[2+a0], c[2+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max oPos.___1, r0, r0 (a constant into an export: the export's own 0 and 1, beside another instruction exporting the register): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max oPos.x___, r3, r3 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max oPos._y__, r4, r4 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max oPos.__z_, r5, r5 (a computed value step 2 can't move: into an export: no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max r1, c[12+a0], c[12+a0] (a constant into a temp: a constant at a run-time index, no reason found): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+matrix_index.vert: max o0, r1, r1 (a constant into an export: a constant): in a program the optimiser leaves alone: a constant read at a run-time index, which co_issue alone works on
+point.vert: max oPts.x___, c1.xxxx, c1.xxxx: a constant into an export: a uniform
+point_coord.frag: max oC0.0001, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+point_coord.frag: max oC0.xy__, r_abs[0].zwzz, r_abs[0].zwzz: an input into an export: an input, its absolute value
+push.frag: max oC0, c2, c2: a constant into an export: a uniform
+shadow.frag: max_sat r0.x___, r0.zzzz, r0.zzzz: a clamp into a temp: of an input
+shadow.frag: max oC0, r1, r1: a computed value step 2 can't move: into an export: computed before the export's alloc
+texture.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+texture.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+texture.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+triangle.frag: max oC0, r0, r0: an input into an export: an input
+triangle.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+triangle.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+uniform.vert: max o0, c4, c4: a constant into an export: a uniform
+volume.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+blit.frag: max oC0, r1, r1: a fetched value into an export: a texture fetch's value
+blit.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+blit.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+blit_region.vert: max oPos, r0, r0: a fetched value into an export: a vertex fetch's value
+clear.frag: max oC0, c0, c0: a constant into an export: a uniform
+clear_four.frag: max oC0, c0, c0: a constant into an export: a uniform
+clear_four.frag: max oC1, c1, c1: a constant into an export: a uniform
+clear_four.frag: max oC2, c2, c2: a constant into an export: a uniform
+clear_four.frag: max oC3, c3, c3: a constant into an export: a uniform
+mesh.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+mesh_gray.frag: max r0.___w, r1, r1: anything else: a texture fetch's value into a temp, read in one operand beside a computed value
+mesh_uniform.vert: max o0, r1, r1: a fetched value into an export: a vertex fetch's value
+sprite.vert: max oPos.___1, r0, r0: a constant into an export: the export's own 0 and 1, beside another instruction exporting the register
+sprite.vert: max oPos.xy__, r0, r0: a fetched value into an export: a vertex fetch's value
+sprite.vert: max oPos.__z_, c0, c0: a constant into an export: a literal
+sprite.vert: max o0, r2, r2: a fetched value into an export: a vertex fetch's value
+sprite.vert: max o1, r1, r1: a fetched value into an export: a vertex fetch's value
+
+[0] /mnt/z/dusklight-xenon/platforms/xenon/shaders
+[1] xsc/testdata
+[2] /mnt/z/vulkan4xenon/tests/shaders
+[3] /mnt/z/vulkan4xenon/src/shaders
+[4] /mnt/z/vulkan4xenon/bench/shaders
+  310  in a program the optimiser leaves alone  ([0] 137, [1] 81, [2] 92)
+         179  a constant read at a run-time index, which co_issue alone works on, 17 clamped  ([0] 137, [1] 31, [2] 11)
+          72  a hardware loop  ([1] 31, [2] 41)
+          59  predication  ([1] 19, [2] 40)
+  146  a constant into a temp  ([0] 67, [1] 22, [2] 57)
+          81  a literal, read in one operand beside a computed value  ([0] 43, [1] 5, [2] 33)
+          33  a uniform, read in one operand beside a constant  ([0] 24, [1] 9)
+          20  a literal, read by a fetch  ([1] 2, [2] 18)
+           4  a literal, read in one operand beside a computed value and a fetched value  ([2] 4)
+           3  a literal, read in one operand beside a computed value and a constant  ([1] 2, [2] 1)
+           1  a literal, read by a kill, a setp or an a0 load  ([1] 1)
+           1  a literal, read where the instruction would read a third constant  ([1] 1)
+           1  a uniform, read by a fetch  ([1] 1)
+           1  a uniform, read in one operand beside a computed value  ([2] 1)
+           1  a uniform, read where the instruction would read a third constant  ([1] 1)
+  158  a constant into an export  ([0] 65, [1] 50, [2] 36, [3] 5, [4] 2)
+          65  a uniform, 5 clamped  ([0] 22, [1] 6, [2] 32, [3] 5)
+          46  the export's own 0 and 1, beside another instruction exporting the register  ([0] 8, [1] 34, [2] 3, [4] 1)
+          30  a literal 0 or 1, only in lanes past its output's GLSL type  ([0] 30)
+           8  a literal 0 or 1, beside another instruction exporting the register  ([0] 4, [1] 4)
+           7  a literal  ([1] 6, [4] 1)
+           1  a literal 0 or 1, the register's only export  ([0] 1)
+           1  the export's own 0 and 1, the register's only export  ([2] 1)
+  157  a fetched value into an export  ([0] 73, [1] 55, [2] 20, [3] 4, [4] 5)
+         111  a vertex fetch's value  ([0] 53, [1] 36, [2] 14, [3] 3, [4] 5)
+          45  a texture fetch's value  ([0] 20, [1] 18, [2] 6, [3] 1)
+           1  a vertex fetch's 0 or 1, beside another instruction exporting the register  ([1] 1)
+   28  an input into an export  ([0] 4, [1] 10, [2] 14)
+          26  an input, 16 clamped  ([0] 4, [1] 9, [2] 13)
+           2  an input, its absolute value  ([1] 1, [2] 1)
+  135  a computed value step 2 can't move  ([0] 89, [1] 15, [2] 31)
+          43  into a temp: an elementwise result whose other lanes are read elsewhere  ([0] 25, [1] 7, [2] 11)
+          27  into an export: computed before the export's alloc and read there too  ([0] 25, [2] 2)
+          25  into an export: its writer's result read elsewhere too  ([0] 20, [1] 4, [2] 1)
+          20  into a temp: its writer's result read in one operand with the copy's other writers' lanes, each weighed alone  ([0] 19, [2] 1)
+          12  into a temp: an elementwise result whose other lanes other copies take into its vector, each weighed alone  ([2] 12)
+           4  into an export: a scalar op's result into an export  ([1] 4)
+           3  into a temp: its writer's result read in one operand with another writer's lanes  ([2] 3)
+           1  into an export: computed before the export's alloc  ([2] 1)
+   10  a clamp into a temp  ([0] 7, [1] 1, [2] 2)
+           3  of a texture fetch's value, 3 clamped  ([0] 2, [2] 1)
+           3  of an input, 3 clamped  ([0] 1, [1] 1, [2] 1)
+           2  of a computed value: its writer's result read unclamped too, 2 clamped  ([0] 2)
+           2  of a uniform, 2 clamped  ([0] 2)
+   10  anything else  ([1] 5, [2] 4, [4] 1)
+           4  a vertex fetch's value into a temp, read in one operand beside a computed value  ([1] 2, [2] 2)
+           3  a vertex fetch's value into a temp, read in one operand beside a constant  ([1] 1, [2] 2)
+           1  a texture fetch's value into a temp, read in one operand beside a computed value  ([4] 1)
+           1  an input into a temp, read in one operand beside a computed value  ([1] 1)
+           1  an input into a temp, read in one operand beside a constant  ([1] 1)
+  954  copies in all  ([0] 442, [1] 239, [2] 256, [3] 9, [4] 8)
+   48  of them clamped  ([0] 33, [1] 1, [2] 14)

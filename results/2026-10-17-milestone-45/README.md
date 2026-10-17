@@ -868,3 +868,28 @@ Dusklight's and vkbench's 157: ALU 6641 → 4639 (−30.1%), copies 2397 → 450
   Epona lit as with the a0 reload, the scene as before.
 - **Broken on purpose,** a fetch filling 0 where 1 belongs and 1 where 0 does: with vulkan4xenon's shaders compiled by
   it, 11 of `test_aurora_points`' checks fail, each an `aurora_*` shader with a filled input.
+
+## Copies left, by kind
+
+"Done when" counts the copies left by kind (agreed on 2026-10-17). `tools/copy_kinds.py` compiles each shader as
+`check_optimize.py` does, optimiser on, and sorts each copy that tool counts by what it copies and what keeps it: the
+program `can_optimize` leaves alone; a constant, a fetched value or an input, by where it goes and, into a temp, by
+which of `rewrite_reader`'s conditions a reader fails; or a computed value, by which of `can_place`'s conditions fails
+for its writers (`src/xsc_optimize.c`). It reads the microcode after the allocator, following each read to the write it
+reads by register component. `can_place`'s conditions on what stands between a writer and the copy's place
+(`place_free`, `unwritten`) depend on where values lived before the allocator packed them, so it doesn't check them;
+every copy found a reason without them.
+
+In WSL, from `xenos-toolchain/`, over the corpus as `steps5_6.json` has it:
+
+```
+python3 tools/copy_kinds.py /mnt/z/dusklight-xenon/platforms/xenon/shaders xsc/testdata/*.spv \
+    /mnt/z/vulkan4xenon/tests/shaders /mnt/z/vulkan4xenon/src/shaders /mnt/z/vulkan4xenon/bench/shaders \
+    --each > ../results/2026-10-17-milestone-45/copy_kinds.txt
+```
+
+It took 35 s. `copy_kinds.txt` lists every copy with its kind, then each kind's count by folder. Its 954 copies over the
+370 shaders that compile are `steps5_6.json`'s, 450 of them Dusklight's and vkbench's: the tool checks each shader's
+count against `check_optimize.py`'s, and that each program it takes as left alone for a loop or predication compiles
+the same with the optimiser on and off. The kinds, and why no step takes each, are recorded against "Done when" in
+docs/scope/45-xost-code-quality.md.
