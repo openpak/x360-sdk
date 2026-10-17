@@ -598,3 +598,114 @@ The a0 reload (`probe_reload.log` for the probe):
 - **vulkan4xenon_test:** 426.
 - **Dusklight,** built against this xsdk with its pack from this xost: Link and Epona lit from the light's own rows,
   the chestnut coat and white mane in the sunset light.
+
+## Step 6: fetches nothing uses dropped
+
+Built on 2026-10-17 and checked on the PC; the console runs are to come. The optimiser's `remove_dead`
+(`src/xsc_optimize.c`) walks the program from its end, keeping what an export, a kill, a setp or an a0 load reads and
+what those reads need in turn. It now drops a vertex or texture fetch none of whose written components is live there,
+as it drops an ALU op, and the work only that fetch's coordinate needed goes in the same walk.
+
+**Which fetches.** A pass over each program's microcode as main's library compiles it, written apart from the
+optimiser, by register component from the end and with every export, kill, setp and a0 load a use, finds 4 fetches
+nothing uses over the corpus, in 3 shaders:
+- Dusklight's `6a05b1f88a016fb2.frag` samples a texture and exports `vec4(sampled.rgb, 1.0).aaaa`, 1.0 everywhere;
+- testdata's `cubedir.vert` declares `a_color` and `a_texcoord` and reads neither;
+- vulkan4xenon's `aurora_attr_defaults.vert` declares `in_pos`, which its case draws without.
+
+It leaves out 12 programs with loops or predicates, which the optimiser leaves alone (`can_optimize`). The scope
+counted 5 of Dusklight's pixel shaders; `6a05` is one. The other four, `60bcbd6f4104ab13.frag`,
+`a478595f52157a73.frag`, `c98a0ca2e68f85a1.frag` and `f3825523049d31cf.frag`, use every sample they take, but take one
+texture at one coordinate two or three times: 5 texture fetches over the corpus repeat an earlier one, the same
+instruction but for its destination, its source unwritten between. Those would go as common subexpressions, fetches
+compared with fetches, not by liveness, so the step leaves them.
+
+**What goes and what stays.**
+- A vertex fetch and a texture fetch write their destination through its swizzle and do nothing else
+  (xenia:src/xenia/gpu/ucode.h:532-601, 677-692): with nothing of what they write read, they go.
+- `setTexLOD` and the gradients' setters write the state the next fetches read and no register (ucode.h:669-674;
+  xenia:src/xenia/gpu/spirv_shader_translator_fetch.cc:521-541), so they stay, even where the fetch that would read
+  that state goes. A fetch reading register LOD or gradients has its own setters right before it, every setter kept in
+  order with every fetch (`ordered`, `src/xsc_program.c`), and a fetch reading neither ignores them. No shader of the
+  corpus has a setter left so.
+- The getters, `getTextureGradients` the one xost emits, write a register alone (ucode.h:603-667), but stay: no shader
+  of the corpus leaves one unread, so dropping them would be new to the console for nothing.
+- A fetch a kill or a setp reads is live, as the walk takes every op that changes state as a use (`fixed`). Loops and
+  predicated code the optimiser leaves alone, so a fetch feeding control flow stays.
+- A fetch's computed LOD comes from its own coordinate's gradients (spirv_shader_translator_fetch.cc:1498-1536), so
+  dropping one changes no other's.
+
+**Grouping, execs and registers.** The optimiser runs before the fetches are grouped and registers allocated, so a
+dropped fetch is just not there for them: `group_fetches` lays out the fetches left, each exec's sequence and serialize
+bits and its vertex fetch mask are worked out from what the exec holds (`exec_entry`; docs/HARDWARE.md, "Serialized
+fetches" and "A fifth vertex fetch"), and the allocator never sees the fetch's register. `6a05`'s program now starts at
+the colours' alloc, as 9 of Dusklight's pixel shaders and vulkan4xenon's `clear.frag` and `triangle.frag` already do.
+
+**Vertex elements.** A vertex shader's container has an element for each vertex fetch, its usage and its slot, and the
+runtime patches each fetch an element names with the host's element of that usage, refusing a layout without one
+(`xsdk_shader_set_vertex_layout`, `src/shader.c`). An element whose fetch went would name slot 0, the control flow, so
+`finish_vertex` (`src/xsc_program.c`) now keeps an element only for a fetch the program still has, in their order. A
+host may then lay the dropped input out or not: an element of its layout no fetch names is skipped, as it always was
+for a layout holding more than a shader reads. vulkan4xenon lays out every attribute of the pipeline
+(vulkan4xenon:src/pipeline.c, `lay_out_vertices`), `probe_shader_cost` the shader's own elements.
+
+**Samplers and resources.** A sampler's constant (`tex0`) and its resource come from the shader's interface before the
+optimiser runs, and stay when its only fetch goes. vulkan4xenon requires the pipeline layout to hold every resource a
+shader lists and binds each sampler at a draw (vulkan4xenon:src/pipeline.c, `gather_resources`; src/queue.c), so a
+host binds what it bound before. Dropping the entry would only let a layout without the binding through.
+
+It ran as the baseline's line with `--json ../results/2026-10-17-milestone-45/step6.json`, in 99 s; `step6.txt` is
+what it printed. The corpus has 385 shaders now, testdata's new `vk_unused_sample.frag` among them. The optimiser on,
+the baseline, main (`reload.json`) and step 6, without the new shader:
+
+| | Corpus | | | Dusklight and vkbench | | |
+|---|---|---|---|---|---|---|
+| Fetches | 614 | 615 | 611 | 313 | 313 | 312 |
+| ALU | 8895 | 6835 | 6835 | 6641 | 4911 | 4911 |
+| Control flow | 2573 | 2222 | 2221 | 1581 | 1267 | 1266 |
+| Registers | 2115 | 1536 | 1534 | 1117 | 785 | 784 |
+| Copies | 3253 | 1247 | 1247 | 2397 | 703 | 703 |
+| Co-issued | 675 | 726 | 726 | 583 | 630 | 630 |
+
+Main's corpus is the baseline's with `vk_dynamic_interpolator.vert`, whose one fetch is the 615th. With
+`vk_unused_sample.frag` the corpus has 6838 ALU instructions, 611 fetches, 2223 control flow instructions and 1535
+registers. Optimiser off, every count is main's.
+
+**The shaders that lose a fetch:**
+- Dusklight's `6a05b1f88a016fb2.frag`: 1 fetch to 0, control flow 3 to 2, registers 2 to 1;
+- testdata's `cubedir.vert`: 3 fetches to 1, registers 2 to 1, its two unread inputs having shared r1;
+- vulkan4xenon's `aurora_attr_defaults.vert`: 2 fetches to 1;
+- testdata's new `vk_unused_sample.frag`, made for the test below: 1 to 0.
+
+Every other program of the corpus, optimiser off and on, compiles byte for byte as main's library compiles it,
+containers, literals and resources.
+
+**Checks:**
+- `check_optimize.py`: 0 differ, 15 not simulated, 16 not compiled.
+- xost's tests, a file at a time in WSL, all pass but `test_xcomb_parity.py`, which runs on Windows.
+  `test_optimize.py` has 6 fetch cases: a texture fetch nothing reads dropped with the add only its coordinate read;
+  one read in one lane, one read by a kill alone and one by a setp alone kept; `setTexLOD` kept where the fetch reading
+  its LOD goes; an unread `getTextureGradients` kept. Two more compile testdata: `cubedir.vert`, whose elements go from
+  3 to 1, each naming a vertex fetch's slot, the position's; and `vk_unused_sample.frag`, whose fetch goes and whose
+  `tex0` constant and sampler resource stay. With main's library the dropped-fetch cases fail and the kept ones pass.
+- Broken on purpose:
+  - every fetch writing nothing live dropped, setters and getters too: the `setTexLOD` and `getTextureGradients` cases
+    fail. The corpus check reports 0 differ, as the simulator doesn't model LOD, but its counts move in 8 shaders:
+    testdata's `vk_grad.frag`, `vk_lod.frag` and `vk_vertex_texture.vert` and vulkan4xenon's `displace.vert`,
+    `lod_bias.frag`, `lod_computed.frag`, `lod_constant.frag` and `lod_gradients.frag` lose their setters and the work
+    their LOD or gradients took;
+  - a fetch taken as unused when its first written component is: the one-lane case fails, and 24 shaders differ, 21
+    of them Dusklight's, each with a fetch whose x nothing reads;
+  - the elements left as they were: the `cubedir.vert` case fails, its two dropped inputs' elements naming slot 0. No
+    shader differs, as the simulator doesn't read the elements; on the console the runtime would patch the control
+    flow with a fetch's fields.
+- Containers: 1 of the 150 programs in Dusklight's pack changes against main's library, `6a05b1f88a016fb2.frag`; its
+  literals and resources are the same.
+- xsdk_test's compiler check: `tools/gen_xsc_shaders.py` gives the committed `tests/xsc_shaders.h` byte for byte; none
+  of its 9 containers changes.
+- `make clean && make -j32`, then `make -j32 XSC_PACK=/mnt/z/dusklight-xenon/platforms/xenon/glsl_pack.c
+  build/probe_shader_cost.xex build/probe_xsc.xex build/probe_relative_constants.xex`: no warnings.
+- Compile time, the pack's 150 programs on the PC as before, best of ten compiles of each and the best of three such
+  runs, two runs each taken in turn with main's library: 73.7 and 74.3 ms against main's 74.3 and 73.8, the slowest
+  program, `glsl_407248b726bcb428_vert`, 3.83 and 3.86 ms against 3.86 and 3.78. The step costs nothing measurable; the
+  console's 1.43 s stays.

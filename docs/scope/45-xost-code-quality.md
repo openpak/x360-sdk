@@ -61,6 +61,12 @@ Each step is built, then verified as below, then the next begins.
 5. **Constants from the fetch.** A vertex attribute's missing components that the shader fills with 0 or 1 come from
    the fetch's destination swizzle, not ALU.
 6. **Fetches nothing uses dropped,** with the exports' liveness the optimiser already tracks.
+   Built on 2026-10-17 and checked on the PC, the console runs to come: `remove_dead` drops a vertex or texture fetch
+   nothing live reads, and a vertex fetch's element goes with it; samplers, setters and getters stay. Over the corpus 4
+   fetches go, in Dusklight's `6a05b1f88a016fb2.frag`, testdata's `cubedir.vert` and vulkan4xenon's
+   `aurora_attr_defaults.vert`. The scope's other four pixel shaders use every sample, but take one sample two or three
+   times, which liveness can't drop. 1 of Dusklight's 150 programs changes. Recorded in
+   `results/2026-10-17-milestone-45/`.
 
 ## Verification, without the user
 
