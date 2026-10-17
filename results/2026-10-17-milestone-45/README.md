@@ -599,6 +599,121 @@ The a0 reload (`probe_reload.log` for the probe):
 - **Dusklight,** built against this xsdk with its pack from this xost: Link and Epona lit from the light's own rows,
   the chestnut coat and white mane in the sunset light.
 
+## Step 5: constants from the fetch
+
+Built on 2026-10-17 and checked on the PC; the console runs are to come. A vertex fetch's destination swizzle gives
+each lane of its register a fetched component, 0 or 1 (xenia:src/xenia/gpu/ucode.h:677-692). With the optimiser on,
+xost's lowering (`fetched_construct`, `src/xsc_lower.c`) now takes a vector built from a vertex input's own components
+and 0 or 1 in the lanes past them as the input itself, its fetch giving the constants.
+
+- **Where the fills came from.** Dusklight's GX shaders build each attribute into a vector before a matrix reads it:
+  `vec4(in_pos, 1.0)` of a vec3, 53 times in its 47 vertex shaders, `vec4(in_tex0_uv, 1.0, 1.0)` of a vec2 68 times,
+  `vec4(in_nrm, 0.0)` 21. glslang makes each a construct of the input's components and the literals, which xost lowered
+  to two copies, the fetched components into a temp and the literal into the rest: `max r2.xyz_, r0, r0` and
+  `max r2.___w, c120, c120`. No pass could take them: nothing computes the literal, and a fetch isn't an ALU op whose
+  result `compute_in_place` can move.
+- **What moves.** A construct whose every part is one vertex input's component in its own lane, or a 0 or 1 in a lane
+  past the input's GLSL type, is the input's register, and its fetch's swizzle gets the 0 or 1. No GLSL reads an input
+  past its type, so nothing else sees those lanes. Where two constructs want the other constant in one lane, the first
+  takes it and the second stays in ALU. A lane the input has stays: `vec4(a_color.rgb, 1.0)` of a vec4 may sit beside
+  a read of its w, as in vulkan4xenon's `branch_data.vert`. So does -0, as the fetch's 0 is +0. The literal is pooled
+  as before, so the manifest is the optimiser-off program's. An export already writes its 0 and 1 itself
+  (`xsdk_xsc_emit_export_constants`), so `gl_Position = vec4(in_position, 0.0, 1.0)` doesn't change. Without the
+  optimiser, every program comes out as before.
+- **The runtime's patch.** `xsdk_shader_set_vertex_layout` sets each fetch's format, offset, stride and destination
+  swizzle for the app's layout, from the container each time. Its `picked_swizzle` maps a selector of x to w to the
+  component the element picks, or 0 or 1 where the format lacks it, and leaves a selector of 0, 1 or keep as it is, as
+  libxenon's patch does (xe.c:902-917). So the compiler's 0 and 1 survive any layout, whatever the format's component
+  count, sign or normalisation, and the patch doesn't change; vulkan4xenon lays out its pipelines' vertices through it.
+  `xsdk_shader_move_textures` rewrites texture fetches alone.
+- **The hardware's rules.** The 0 and 1 are constants, written after the fetch's format conversion, sign,
+  normalisation and exp_adjust, and unclamped (xenia:src/xenia/gpu/shader_interpreter.cc:960-993, 1210-1218;
+  spirv_shader_translator.cc:2602-2611). Xenia is the only source for that order, but the console has run 0 and 1 in
+  the swizzle since milestone 17: the patch's, for components a format lacks, drew alpha 255 and positions in place
+  (docs/HARDWARE.md, "Vertex input"), and xsdk's resolve shader fetches its position `.xy11`
+  (`tools/gen_resolve_vs.py`). The simulator, `xdis/equivalence.py`'s `_store_fetch`, writes 0 and 1 as Xenia's
+  interpreter does; `xdis/simulate.py` keeps a lane for the invalid selector 6, which Xenia writes 0 for and xost never
+  emits.
+
+It ran as the baseline's line with `--json ../results/2026-10-17-milestone-45/step5.json`, in 148 s; `step5.txt` is
+what it printed. The corpus has 385 shaders now, testdata's new `vk_fetch_fills.vert` among them. The optimiser on,
+the baseline, main (`reload.json`) and step 5:
+
+| | Corpus | | | Dusklight and vkbench | | |
+|---|---|---|---|---|---|---|
+| ALU | 8895 | 6835 | 6525 | 6641 | 4911 | 4639 |
+| Co-issued | 675, 7.6% | 726, 10.6% | 726, 11.1% | 583, 8.8% | 630, 12.8% | 630, 13.6% |
+| Copies | 3253 | 1247 | 951 | 2397 | 703 | 450 |
+| Registers | 2115 | 1536 | 1540 | 1117 | 785 | 785 |
+
+**The ALU target is reached.** Without the two shaders testdata gained in the milestone,
+`vk_dynamic_interpolator.vert`'s 12 instructions and `vk_fetch_fills.vert`'s 11, the corpus has 6502 ALU instructions,
+26.9% under the baseline's 8895 and 169 under the milestone's 6671. Dusklight's and vkbench's are 30.1% under. 59 vertex shaders change against
+main, 56 with fewer instructions, and none takes a register more or less; the 4 the corpus gains are the new shader's.
+Co-issued slots stay 726.
+
+**What moved,** in Dusklight's and vkbench's shaders: 108 of their 143 vertex fetches take a 0 or 1, 148 lanes, 127 of
+them 1, in 47 of their 50 vertex shaders; the other 3 export their construct as the position. ALU 4911 to 4639, 272
+fewer: 155 copies of constants (301 to 146), 96 copies of fetched values into temps (97 to 1), which went with the
+fills, 2 copies of a vector built from a fetch into another temp, in the two relative vertex shaders, where 2 copies
+into exports now read the fetch's register instead of that vector, and 19 copies with a scalar op beside them (319 to
+300), each scalar op pairing with another vector op instead. Over the corpus, 384 shaders without the new one, copies
+of constants go from 506 to 325 and of fetched values into temps from 128 to 9. vkbench's `mesh.vert` and
+`mesh_uniform.vert`, and testdata's `vk_five_fetches.vert`, change with no count moving: an instruction reads the
+fetch's 1 where it read the literal's, as `mad oPos, c3, r0.wwww, r2` for `mad oPos, c3, c4.wwww, r2`.
+
+**What's left.** No constant copy left fills a lane past a fetched input's type. Over the corpus, 8 constant copies
+still sit beside a fetched value, none of them such a fill: `vk_dynamic_interpolator.vert`'s 0.5 and 1.0 in a vec4
+input's z and w, `branch_data.vert`'s 1.0 in a vec4's w that the shader reads, `instanced.vert`'s instance index, and
+four `aurora_texgen_*.vert` fills of `vec3(in_corner * 0.5 + 0.5, 0.0)`, beside a computed value. The 9 copies of
+fetched values into temps left move no constant: into an if/else's or a loop's variable (`vk_vertex_if.vert`,
+`branch_data.vert`, `vk_vertex_loop_count.vert`), the instance's place (`instanced.vert`), a vec4 input's xy beside
+its 0.5 and 1.0 (`vk_dynamic_interpolator.vert`), and one in `93d36ce55e3f9bad.vert`, which the optimiser leaves
+alone. Dusklight's and vkbench's 146 constant copies, counted where they're first read:
+- 47 into vertex shaders' exports: 30 only in lanes past an interpolator's GLSL type, such as a vec3 coordinate's 1.0
+  in a vec2 interpolator's z, 16 within it, and vkbench's `sprite.vert`'s position z; and 11 into pixel shaders'
+  colours.
+- 46 into a computed vector's w, in 45 vertex shaders, as `vec4(mv_pos, 1.0)` fills it beside its dot products or a
+  copy of them.
+- 15 read alone in the three vertex shaders the optimiser leaves alone, and 2 in pixel shaders.
+- 25 in pixel shaders, beside other constants or a computed value.
+
+**Checks:**
+- `check_optimize.py`: 0 differ, 15 not simulated, 16 not compiled.
+- Containers against main's library (`7f6f1d6`), containers, literals and resources: with the optimiser off, all 384
+  shaders of the corpus but the new one come out byte for byte as before; with it on, the 59 above differ.
+- xost's tests, a file at a time in WSL, all pass but `test_xcomb_parity.py`, which runs on Windows.
+  `test_fetch_fills.py` checks `vk_fetch_fills.vert`: `in_pos`, a vec3, fetched `.xyz1`; `in_uv`, a vec2, `.xy01`;
+  `in_nrm`, a vec3, `.xyz0`, its second construct, w 1, left to the ALU; `in_color`, a vec4, `.xyzw`, as the fill is a
+  component it has; every fetch `.xyzw` with the optimiser off; the same exports on and off over 100 trials, in 11 ALU
+  instructions against main's 17; and a fill turned to the other constant seen as a difference.
+- Broken on purpose:
+  - a lane the input has filled too: 2 of `test_fetch_fills.py`'s checks fail, `in_color` fetched `.xyz1`, and
+    `branch_data.vert` differs;
+  - a lane another construct filled overwritten with the other constant: 3 of its checks fail and `vk_fetch_fills.vert`
+    differs, the one shader of the corpus with two such constructs of one input;
+  - the fills made with the optimiser off too: the off check fails; `check_optimize.py` reports 0 differ, as both
+    programs change alike, but its optimiser-off counts move, ALU 11310 to 10840.
+- The relative vertex shaders: in Dusklight's `04a469b1240c5698.vert`, `93d36ce55e3f9bad.vert` and
+  `c0ddfd4547c71e5a.vert`, optimiser off and on, each read at a0 has a load since its alloc and no load again goes
+  unread, by `test_dynamic_index.py`'s scan; 93d36 and c0dd keep one reload each.
+- Containers: 45 of the 150 programs in Dusklight's pack change against main's library, all vertex shaders; the other
+  two, which export their construct as the position, and the 103 pixel shaders come out byte for byte as before.
+- xsdk_test's compiler check: `tools/gen_xsc_shaders.py` gives the committed `tests/xsc_shaders.h` byte for byte; none
+  of its 9 shaders builds such a vector.
+- `make clean && make -j32`, then `make -j32 XSC_PACK=/mnt/z/dusklight-xenon/platforms/xenon/glsl_pack.c
+  build/probe_shader_cost.xex build/probe_xsc.xex build/probe_relative_constants.xex`: no warnings.
+- Compile time, the pack's 150 programs on the PC as before, best of ten compiles of each and the best of six runs:
+  68.6 ms against main's 74.6, 8% less, as the optimiser has fewer instructions to work on; the slowest,
+  `glsl_407248b726bcb428_vert`, 3.25 ms against 3.84. At that share the console's 1.43 s would fall by about 0.1 s.
+
+**On the console,** nothing new is needed for the patch, which doesn't change: xsdk_test's vertex test draws positions
+in float2 and float3 and colours without alpha through it, the 0 and 1 it writes checked pixel by pixel. What the step
+adds, the compiler's own 0 and 1, the console sees in `probe_xsc`, from Dusklight's pack built with this xost, whose 45
+changed vertex programs must compile there as on the PC; in vulkan4xenon_test with its shaders compiled with
+`--optimize`, whose `test_aurora_points` draws the 11 changed `aurora_*.vert` with float3 inputs and checks each
+point's colour; and in Dusklight's title scene, drawn with the 45 changed vertex shaders.
+
 ## Step 6: fetches nothing uses dropped
 
 Built on 2026-10-17 and checked on the PC; the console runs are to come. The optimiser's `remove_dead`
