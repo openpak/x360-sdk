@@ -150,9 +150,9 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   the console, so a read at the same index past one loads a0 again first,
   with the instruction that loaded it before
   (xsdk:docs/HARDWARE.md, "a0 doesn't survive an alloc"). So does a read past
-  if/else arms in execs on the predicate where an arm loaded a0 at another
+  a pixel shader's predicated if/else arms where an arm loaded a0 at another
   index, as a0 then holds what the arm that ran loaded (xsdk:docs/HARDWARE.md,
-  "a0 past if/else arms").
+  "a0 and the predicate's execs").
 - gl_InstanceIndex (Vulkan's InstanceIndex) → the float constant register
   past the blocks, before the literals, so no uniform block the GPU may load
   shares its group of 4. The runtime writes the instance's index, a float, into
@@ -412,7 +412,12 @@ lowering (`xsdk:src/xsc_lower_flow.c`) then picks, for each if/else:
   that sets p0 is marked PredicateClean=false. What the arms read from before
   the branch is lowered before the `setp`, an earlier if/else's arms with it.
   An exec on the predicate runs for none of a group of 64 that all fail it, so
-  the arm not taken costs its execs' control flow and no instructions.
+  the arm not taken costs its execs' control flow and no instructions. An arm
+  that loads a0 or reads a constant at it goes in plain execs instead, each
+  instruction predicated as before: on the console a0 doesn't reach into an
+  exec on the predicate, and one skipped loses the a0 it loads
+  (xsdk:docs/HARDWARE.md, "a0 and the predicate's execs"). Past arms where one
+  loaded a0, the next read at a0 loads it again (see the block arrays above).
   A vertex shader keeps selects: its arms in execs on the predicate hung the GPU
   on the console (xsdk:docs/HARDWARE.md, "Branches, vulkan4xenon milestone
   21").
@@ -448,7 +453,8 @@ shader without such a branch lowers byte for byte as before.
 `tests/test_vertex_branches.py` and `tests/test_loop_branches.py` check both
 layouts and every arm on `xdis/simulate.py`, which follows a program's control
 flow as Xenia's interpreter does for one vertex or pixel
-(xenia:src/xenia/gpu/shader_interpreter.cc:26-258).
+(xenia:src/xenia/gpu/shader_interpreter.cc:26-258); `tests/test_dynamic_index.py`
+checks arms using a0 in plain execs and arms without it on the predicate.
 
 ## Not yet / out of scope
 - **Bitwise (`& | ^ ~`) and dynamic shifts** — the Xenos ALU has no bit

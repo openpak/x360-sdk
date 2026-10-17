@@ -73,6 +73,7 @@ def library():
         "xsdk_xsc_program_alu": ([x, p, ctypes.POINTER(Alu)], ctypes.c_void_p),
         "xsdk_xsc_program_tfetch": ([x, p, ctypes.POINTER(Fetch)], ctypes.c_void_p),
         "xsdk_xsc_program_alloc": ([x, p, I64], BOOL),
+        "xsdk_xsc_program_predicate": ([x, p, ctypes.c_uint8], BOOL),
         "xsdk_xsc_program_finish": ([x, p, ctypes.c_void_p, ctypes.c_size_t,
                                      ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)],
                                     BOOL),
@@ -113,8 +114,9 @@ def fetch_struct(fields: dict) -> Fetch:
 
 def pixel_program(inputs: int, usage: int, body, exports, registers: int, optimize: bool) -> bytes:
     """A pixel shader the C builds from ALU fields, or a texture fetch's (those with a dimension), as the compiler
-    would, temps whole till it packs them: inputs interpolators, the body, the colors' alloc, the exports. Raises
-    CompileError where it refuses."""
+    would, temps whole till it packs them: inputs interpolators, the body, the colors' alloc, the exports. A body entry
+    {"predicate": n} has what follows run where the predicate is true (1) or false (2), or everywhere (0), as an
+    if/else's arms do. Raises CompileError where it refuses."""
     x, p = Xsc(), Program()
     container = ctypes.POINTER(ctypes.c_uint8)()
     size = ctypes.c_size_t()
@@ -125,6 +127,9 @@ def pixel_program(inputs: int, usage: int, body, exports, registers: int, optimi
         for r in range(inputs):
             ok = ok and LIB.xsdk_xsc_program_input(ctypes.byref(x), ctypes.byref(p), r, usage)
         for f in body:
+            if "predicate" in f:
+                ok = ok and LIB.xsdk_xsc_program_predicate(ctypes.byref(x), ctypes.byref(p), f["predicate"])
+                continue
             if "dimension" in f:
                 ok = ok and bool(LIB.xsdk_xsc_program_tfetch(ctypes.byref(x), ctypes.byref(p),
                                                              ctypes.byref(fetch_struct(f))))

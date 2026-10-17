@@ -3689,24 +3689,79 @@ A compiler bug in xost, found while the reload above was built, now a rule xost 
   the rule off (a copy of xsdk_test built without it, its compiler check's header made by that compiler), 16,520 of
   16,520, each quad sampling the block at j.
 
-## a0 past if/else arms (2026-10-17)
+## a0 and the predicate's execs (2026-10-17)
 
-A compiler bug in xost, found with the one above, now a rule xost keeps. Built on 2026-10-17 and checked on the PC; the
-console runs are to come.
-- **Hardware fact, Xenia's:** an exec on the predicate runs for none of 64 pixels that all fail it
-  (xenia:src/xenia/gpu/ucode.h:114-124). A pixel shader's if/else on a uniform goes in such execs where the unroller
-  merges it, in a shader with a loop or with `gl_FragDepth` under an if/else (`wanted`, `src/xsc_unroll.c`), so after
-  the arms a0 holds what the arm that ran loaded.
-- **Compiler bug:** the lowering put its record of a0 back as it was before the arms (`emit_predicated`,
-  `src/xsc_lower_flow.c`), so a read at the index from before them loaded nothing: `vk_dynamic_if.frag`, reading
-  `colors[i]`, then `tints[j]` in an arm, then `colors[i]` again, read `colors[j]` wherever the arm ran. No program of
-  milestone 45's corpus or Dusklight's pack had that shape.
-- **The rule:** an arm that loads a0 at another index leaves the record stale, and the next read at the old index emits
-  the same load again (`set_a0`, `src/xsc_lower_block.c`). Selects run both arms everywhere, so the record follows
-  them as they're emitted, and hardware loops already forget a0 at their body and after it.
-- **Checks:** `tests/test_dynamic_index.py` runs `vk_dynamic_if.frag` on `xdis/simulate.py` for each of 16 indices,
-  both arms, optimiser off and on. xsdk_test's raster test compiles it on the console and draws it as a grid of 280
-  quads as above in two draws, the arm taken over the top half and not below it.
+A pixel shader's if/else on a uniform goes in execs on the predicate where the unroller merges it, in a shader with a
+loop or with `gl_FragDepth` under an if/else (`wanted`, `src/xsc_unroll.c`), so the arm not taken is skipped
+(xenia:src/xenia/gpu/ucode.h:114-124). xost's new `vk_dynamic_if.frag` reads `colors[i]`, then on a uniform one arm
+loads a0 with j and reads `tints[j]` while the other reads `tints[i]` at the i loaded before the arms, then reads
+`colors[i]` again. xost put each arm in a `cond_exec_pred` exec, each instruction in it predicated the same way.
+
+**The earlier hang.** xsdk_test's raster test, with xost at `3f35da3` (the reload below) compiling
+`vk_dynamic_if.frag` on the console, drew it as a grid of 280 quads in two draws, the arm reading at j taken over the
+top half: 585 of 1120 quads were wrong over four frames, then frame 5's fence didn't land, the GPU hung, and the tests
+after it couldn't open it (`results/2026-10-17-a0-predicated/xsdk_test_hung.log`). Every wrong quad it logged but one
+held the colour the program gives when the arm's read at a0 writes nothing; that one held the clear colour.
+
+**The probe.** `tests/probe_a0_predicated.c` draws pixel shaders `tools/gen_a0_predicated_probe.py` builds by hand
+with xost's encoders, each over 128 by 72 quads of 10 pixels, every quad's centre checked: the arms' condition a
+uniform, true, false, and true over the top half then false below in two draws; one set of indices for all quads, and
+each quad's own. Each case reads `c[k+a0]` or a plain constant into a register that starts at a marker no read gives,
+and exports it, so a pixel names the constant read or shows nothing was written. 26 cases, 240 draws, run once on
+2026-10-17 (`results/2026-10-17-a0-predicated/probe_a0_predicated.log`); it didn't hang. Hardware facts, the console's:
+- **No a0 in the arms: right.** Plain reads in `cond_exec_pred` arms (case 1), and a read at a0 after the setp with no
+  arms (case 2), passed every quad of every draw.
+- **a0 doesn't reach into an exec on the predicate.** A read at a0 in a `cond_exec_pred` arm that runs, a0 loaded
+  before the arms, wrote nothing in any quad (cases 5, 6, 13, and 21 with the condition false); in about a third of
+  them nothing was drawn at all, the clear colour left.
+- **A skipped exec on the predicate that loads a0 loses it.** With its condition false, a read after the arms at the
+  a0 loaded before them wrote nothing in any quad (cases 7 and 8). Loading a0 again after the arms fixed it, every quad
+  (cases 9 and 10).
+- **xost's encoding with a load in the arm:** a `cond_exec_pred` arm, each instruction predicated too, loading a0 and
+  reading at it: 236 to 384 quads of 9216 a draw, about 3%, wrote nothing in the `(p0)` arm (cases 3, 12, 14 to 17);
+  the same arm with the exec alone on the predicate (case 23), or the instructions alone predicated in a plain exec
+  (case 22), was right in every quad. On `(!p0)` it was right but for one quad of the split draws (case 4).
+- **Plain execs, each instruction predicated:** `vk_dynamic_if.frag`'s arms in that shape (case 20) were right in
+  every quad of every draw, the `(!p0)` arm's read at the a0 loaded before the arms among them, with no load in it.
+- **The condition each quad's own**, so the predicate differs within a vector of 64 pixels: about 6200 quads of 9216
+  wrong with both arms (case 24), and about 2250 with the `(p0)` arm alone, which loads a0 and reads (case 25).
+- **`vk_dynamic_if.frag` as xost compiled it,** without the reload (`d8206eb`, case 18) and with it (`3f35da3`, case
+  19, and 26 over 15 rounds): wrong as above, the quads matching what the raster test logged.
+
+Compiler rules xost keeps, built on 2026-10-17 and checked on the PC; the console runs are to come:
+- **An arm using a0 goes in plain execs.** An arm that loads a0 or reads a constant at it goes in plain execs, each
+  instruction predicated as before, cases 20's and 22's shape (`exec_entry`, `src/xsc_program.c`). An arm that doesn't
+  stays in execs on the predicate, byte for byte as before.
+- **a0 loaded again past the arms.** After arms where one loads a0 at another index, the next read at the index from
+  before them loads it again (`emit_predicated`, `src/xsc_lower_flow.c`; `set_a0`, `src/xsc_lower_block.c`): the
+  lowering had put its record of a0 back as it was before the arms, so `vk_dynamic_if.frag` read `colors[j]` past the
+  arm reading at j, every index wrong on xost's simulator. In a plain exec a predicated `maxasf` whose predicate fails
+  doesn't run (xenia:src/xenia/gpu/shader_interpreter.cc:118-121), so the load again is needed only past the arm that
+  ran; it's one instruction, and the probe didn't try a read past arms in plain execs.
+- **Uniform conditions only.** Arms go on the predicate only in a pixel shader, outside another arm, on a condition
+  `xsdk_xsc_find_varying` doesn't mark (`predicated`, `src/xsc_lower_flow.c`): it marks inputs, `gl_FragCoord` and
+  `gl_FrontFacing` among them, locals, samples, derivatives, what a hardware loop carries from any of those, and
+  everything read from what it marks, the unroller's selects reading their condition. So every pixel of a vector takes
+  the same arm, and the divergent predicate of cases 24 and 25 never comes from xost; an if/else on data becomes
+  selects.
+- **Over the corpus,** milestone 45's, optimiser off and on, and Dusklight's pack: no other program has an arm using a0,
+  only testdata's `vk_loop_uniform_if.frag` and vulkan4xenon's `loop_uniform_if.frag` have execs on the predicate, and
+  every program but `vk_dynamic_if.frag` compiles byte for byte as before.
+- **Checks:** `tests/test_dynamic_index.py` builds a program with one arm loading a0 and reading at it and one reading
+  a plain constant, and wants the first in a plain exec and the second in a `(!p0)` exec; it wants both of
+  `vk_dynamic_if.frag`'s arms in plain execs and runs it on `xdis/simulate.py`, which predicates each instruction, for
+  16 indices, both arms, optimiser off and on. xsdk_test's raster test draws it as `3f35da3` had it.
+- **Xenia doesn't show it:** its a0 changes only at `maxa`, `maxas` and `maxasf`, whatever exec they're in
+  (xenia:src/xenia/gpu/shader_interpreter.cc:600-602, 808-823), and so does xost's simulator.
+
+Still unknown:
+- **The hang's cause.** The probe drew the program that hung in 96 draws without hanging; the raster test drew it
+  among the other grids of its frames, which the probe doesn't.
+- **A divergent predicate.** Cases 24 and 25 fail in xost's old encoding, which also mixes in a0's own failures; a
+  divergent predicate in plain execs, or with no a0 at all, wasn't tried.
+- **a0 past a skipped exec on the predicate that doesn't use it.** Case 7 lost a0 past an arm that loads it; whether
+  an exec on the predicate that doesn't touch a0 loses it too wasn't tried. No program of the corpus reads at a0 past
+  such an exec.
 
 ## xost's code quality, milestone 45 (2026-10-17)
 

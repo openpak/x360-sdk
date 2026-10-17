@@ -9,8 +9,9 @@ arms on a push constant merged the same way, and vk_loop_count_if.frag a hardwar
 in its blocks, and vk_point_sprite.vert and vk_point_coord.frag a point's size and its sprite's coordinates, which the
 raster test draws with too, as it does vk_dynamic_interpolator.vert, which reads a colour at a0 past the interpolators'
 alloc, a0 loaded again before it, vk_dynamic_texcoord.frag, which samples at a coordinate read at a0 that fetch
-grouping keeps past its load, and vk_dynamic_if.frag, which reads at a0 past if/else arms in execs on the predicate, one
-of which loads a0 at another index. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
+grouping keeps past its load, and vk_dynamic_if.frag, which reads at a0 in and past predicated if/else arms, in plain
+execs as they use a0, one of which loads a0 at another index. Prints a C header. Runs in WSL, where make builds the
+compiler for the PC.
 """
 
 import struct

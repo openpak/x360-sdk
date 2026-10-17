@@ -376,6 +376,17 @@ enum { XSC_TEMPS = 128, XSC_WRITTEN_ALU = 1, XSC_WRITTEN_FETCH = 2, XSC_WRITTEN_
 
 static void defs_uses(
 	const XscProgram *p, const XscOp *op, int64_t *defs, size_t *def_count, int64_t *uses, size_t *use_count);
+static bool uses_a0(const XscOp *op);
+
+// Whether a stage loads a0 or reads a constant at it.
+static bool stage_uses_a0(const XscStage *stage)
+{
+	for (size_t i = 0; i < stage->count; i++) {
+		if (uses_a0(stage->ops[i]))
+			return true;
+	}
+	return false;
+}
 
 static bool any_written(const uint8_t written[XSC_TEMPS], const int64_t *temps, size_t count, uint8_t by)
 {
@@ -425,7 +436,8 @@ static CfEntry exec_entry(const XscProgram *p, const XscStage *stage, const Chun
 	// fetch wrong without its bit (docs/HARDWARE.md, "A fifth vertex fetch"). Its vertex fetches lead the exec; the
 	// texture fetches after them take none, unchecked, as what the bits mean past vertex fetches isn't known.
 	const int64_t vc = vertex_fetches ? ((int64_t)1 << vertex_fetches) - 1 : 0;
-	const bool predicated = stage->predicate != XSC_PREDICATE_NONE;
+	// a0 doesn't reach into an exec on the predicate (docs/HARDWARE.md, "a0 and the predicate's execs").
+	const bool predicated = stage->predicate != XSC_PREDICATE_NONE && !stage_uses_a0(stage);
 	const uint32_t opcode = predicated ? XSC_CF_COND_EXEC_PRED : last ? XSC_CF_EXEC_END : XSC_CF_EXEC;
 	return (CfEntry){ .type = CF_EXEC,
 		.opcode = opcode,

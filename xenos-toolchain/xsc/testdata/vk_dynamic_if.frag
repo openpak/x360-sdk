@@ -1,8 +1,8 @@
 #version 450
 // A row read at index i, an if/else on a uniform whose first arm reads a row at index j, then rows at i again. A pixel
-// shader's arms on a uniform go in execs on the predicate, so where the first arm ran a0 holds j after them, and the
-// reads at i must load it again (xsdk:docs/HARDWARE.md, "a0 past if/else arms"). The loop has the unroller merge the
-// if/else (xsdk:src/xsc_unroll.c, wanted).
+// shader's arms on a uniform are predicated, in plain execs as these use a0, so where the first arm ran a0 holds j
+// after them, and the reads at i must load it again (xsdk:docs/HARDWARE.md, "a0 and the predicate's execs"). The loop
+// has the unroller merge the if/else (xsdk:src/xsc_unroll.c, wanted).
 layout(location = 0) in vec4 v_index;
 layout(location = 0) out vec4 o_color;
 layout(set = 0, binding = 0) uniform Rows { vec4 colors[16]; vec4 tints[16]; vec4 mode; } u;

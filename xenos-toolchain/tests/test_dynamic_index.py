@@ -18,10 +18,12 @@ parameters, as vulkan4xenon's milestone 11 needs for Aurora's matrices picked pe
   vk_dynamic_texcoord.frag samples at coords[i] scaled by 1 / w of scales[j], read first: fetch grouping must keep the
   read of coords[i] after i's load, so xdis/simulate.py, its sample giving the coordinate, must give coords[i] / w for
   every i, optimiser off and on.
-- Past a pixel shader's if/else arms in execs on the predicate, a0 holds what the arm that ran loaded
-  (docs/HARDWARE.md, "a0 past if/else arms"). vk_dynamic_if.frag reads colors[i], then on a uniform an arm reads
-  tints[j], then colors[i] again: past the arms a0 must be loaded with i again, so both arms must give what the GLSL
-  says for every i.
+- On the console a0 doesn't reach into an exec on the predicate, and one skipped loses what it loads
+  (docs/HARDWARE.md, "a0 and the predicate's execs"). A pixel shader's if/else arm that loads a0 or reads at it goes
+  in plain execs, each instruction predicated, and one that doesn't stays in an exec on the predicate, as a program
+  built by hand with one of each shows. vk_dynamic_if.frag reads colors[i], then on a uniform an arm reads tints[j],
+  then colors[i] again: both its arms must be plain execs, a0 loaded with i again past them, and both must give what
+  the GLSL says for every i.
 """
 import math
 import struct
@@ -38,7 +40,7 @@ import xdis.simulate as simulate  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
 from xsc.lower import LowerError, lower_ex  # noqa: E402
-from test_vertex_branches import predication  # noqa: E402
+import test_optimize as hand  # noqa: E402
 from test_xsc_lower import TD, oracle_hlsl  # noqa: E402
 
 V = xu.AluVectorOpcode
@@ -368,17 +370,58 @@ def check_texcoord():
     return True
 
 
+def uses_a0(op):
+    return op.scalar_opcode() in (S.kMaxAs, S.kMaxAsf) or op.vector_opcode() == V.kMaxA or (
+        op.is_const_address_register_relative()
+        and any(not op.src_is_temp(n) and op.src_const_is_addressed(n) for n in (1, 2, 3)))
+
+
+def arms(blob):
+    """Each exec holding a predicated instruction: its own condition, None for a plain exec; its instructions'
+    conditions, None for one not predicated; and whether one loads a0 or reads at it."""
+    c = container.Container(blob)
+    execs = []
+    for rec in xu._decode_program(c.ucode_dwords, c.shader_type)[0]:
+        if rec.kind == "cf" and isinstance(rec.detail, xu.ParsedExecInstruction):
+            d = rec.detail
+            execs.append((d.condition if d.type == xu._ExecType.kPredicated else None, [], []))
+        elif rec.kind == "alu" and execs:
+            op = xu.AluInstruction(*rec.raw)
+            execs[-1][1].append(op.predicate_condition() if op.is_predicated() else None)
+            execs[-1][2].append(uses_a0(op))
+    return [(cond, conds, any(a0)) for cond, conds, a0 in execs if any(p is not None for p in conds)]
+
+
+def check_arm_execs():
+    """A setp, then an arm loading a0 and reading at it, and one reading a plain constant, built by hand."""
+    body = [hand.scalar(S.kSetpGt, 0, hand.c(8), 0), {"predicate": 1}, hand.set_a0(hand.r(0)), hand.indexed(2, 4),
+            {"predicate": 2}, hand.move(2, hand.c(5)), {"predicate": 0}]
+    got = arms(hand.build(body, [hand.export(hand.r(2))], False))
+    want = [(None, [True, True], True), (False, [False], False)]
+    if got != want:
+        print(f"  FAIL arms built by hand: execs {got}, want {want}")
+        return False
+    print("  PASS arms built by hand: the one using a0 a plain exec, each instruction (p0); the other a (!p0) exec")
+    return True
+
+
+def plain_arms(shapes):
+    """Whether every arm is plain execs, each instruction predicated alike and one using a0, and both arms there."""
+    plain = all(cond is None and None not in conds and len(set(conds)) == 1 and a0 for cond, conds, a0 in shapes)
+    return plain and {conds[0] for _, conds, _ in shapes} == {True, False}
+
+
 def check_uniform_if():
     name = "vk_dynamic_if.frag"
-    execs, setp = predication(name)
-    if not setp or all(c is None for c, _ in execs):
-        print(f"  FAIL {name}: its arms aren't in execs on the predicate, {[c for c, _ in execs]}")
-        return False
     colors = [[(n + 1) / 64.0, 0.5 - n / 64.0, 0.25, 1.0] for n in range(ROWS)]
     tints = [[0.5 + n / 64.0, 0.25, 1.0 - n / 32.0, 1.0] for n in range(ROWS)]
     for optimize in (False, True):
         blob, manifest = lower_ex(spirv.Module.parse((TD / f"{name}.spv").read_bytes()), XSDK_REGISTERS,
                                   optimize=optimize)
+        if not plain_arms(arms(blob)):
+            print(f"  FAIL {name}: optimiser {'on' if optimize else 'off'}: its arms aren't plain execs with each "
+                  f"instruction predicated, {arms(blob)}")
+            return False
         for mode in (1.0, 0.0):
             consts = registers([x for row in colors + tints + [[mode, 2.0, 0.5, 0.0]] for x in row], 0)
             consts.update({reg: list(values) for reg, values in manifest})
@@ -391,14 +434,14 @@ def check_uniform_if():
                     print(f"  FAIL {name}: optimiser {'on' if optimize else 'off'}, mode {mode}: i {i}, j {j}: "
                           f"{got}, want {want}")
                     return False
-    print(f"  PASS {name}: colors[i] * tint + colors[i] twice, the tint from tints[j] or tints[i] by the arm, for i 0 "
-          f"to {ROWS - 1}, optimiser off and on")
+    print(f"  PASS {name}: both arms plain execs, each instruction predicated; colors[i] * tint + colors[i] twice, the "
+          f"tint from tints[j] or tints[i] by the arm, for i 0 to {ROWS - 1}, optimiser off and on")
     return True
 
 
 def main():
     results = [check_rows(), check_matrices(), check_frag_coord(), check_frag_coord_depth(), check_reloads(),
-               check_interpolator(), check_texcoord(), check_uniform_if()]
+               check_interpolator(), check_texcoord(), check_arm_execs(), check_uniform_if()]
     sys.exit(0 if all(results) else 1)
 
 

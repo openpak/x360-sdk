@@ -20,8 +20,8 @@
 // vulkan4xenon milestone 26, a row of quads drawn as their edges and their corners, a row of cells clipped by planes,
 // and point sprites from xost's shaders compiled on the console; and a grid of quads coloured from a block at their
 // vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), and two
-// coloured by pixel shaders reading at a0 past fetch grouping and past if/else arms (docs/HARDWARE.md, "a0 through
-// fetch grouping" and "a0 past if/else arms").
+// coloured by pixel shaders reading at a0 past fetch grouping and in and past if/else arms (docs/HARDWARE.md, "a0
+// through fetch grouping" and "a0 and the predicate's execs").
 
 enum {
 	WIDTH = 1280,
