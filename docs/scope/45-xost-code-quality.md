@@ -98,11 +98,86 @@ Each step is built, then verified as below, then the next begins.
   optimiser leaves alone, counted by kind (agreed on 2026-10-17, in place of under 5% of the ALU instructions, as
   copies of constants alone are 5.7% of Dusklight's and vkbench's after step 2). The corpus's ALU total is down by at
   least 25% from the baseline.
+  Recorded on 2026-10-17, at steps 5 and 6 together (`results/2026-10-17-milestone-45/`):
+  - **The ALU: met.** The 367 shaders the baseline compiled take 6502 ALU instructions with the optimiser on, 26.9%
+    under the baseline's 8895 and 169 under 6671; Dusklight's and vkbench's 157 take 4639, 30.1% under 6641.
+  - **The copies: not met as worded.** `tools/copy_kinds.py` sorts the 954 copies left in the 370 shaders that compile
+    (`copy_kinds.txt`; README, "Copies left, by kind"), 450 of them Dusklight's and vkbench's, given below as corpus
+    (Dusklight and vkbench). 771 (349) are the three kinds this line names. 146 (82) more stay for the hardware's
+    reasons, though the line doesn't name them: inputs into exports, clamps, fetched values and inputs copied into a
+    vector with other values, and computed values the hardware won't let a step move. 5 (0) step 2 leaves by a rule of
+    its own, and 32 (19) are computed values step 2 should have taken.
+    - *In a program the optimiser leaves alone,* 310 (137). 72 (0) are in hardware loops and 59 (0) in predicated code,
+      control flow the milestone leaves as it is. 179 (137) are in the 10 programs that read a constant at a run-time
+      index, which only `co_issue` works on, as the other passes don't model a0 (`can_optimize`); Dusklight's are in
+      `04a469b1240c5698.vert`, `93d36ce55e3f9bad.vert` and `c0ddfd4547c71e5a.vert`. 97 of those 137 copy a computed
+      value against which the tool finds none of step 2's reasons, were the passes to model a0.
+    - *A constant into a temp,* 146 (67). 89 (43) are read in one operand beside a computed value, 42 of Dusklight's 43
+      a computed vector's w of 1.0, as `vec4(mv_pos, 1.0)` fills it, and 33 (24) beside another constant: an operand
+      reads one register (xenia:src/xenia/gpu/ucode.h:1893-1921). 21 (0) are read by a fetch, whose source is a
+      register (ucode.h:709-714, 792-795); 2 (0) where the reader would read a third constant (`constants_fit`); and 1
+      (0), testdata's `vk_frag_depth.frag`, by a kill, whose operands `propagate_copies` leaves as they are (`fixed`),
+      as before the milestone.
+    - *A constant into an export,* 158 (67): 65 (22) uniforms, 7 (1) other literals, 39 (35) literal 0s and 1s, and
+      47 (9) an export's own 0 and 1 (`xsdk_xsc_emit_export_constants`). Only an ALU instruction writes an export, and
+      nothing computes a constant. 84 (43) of them stand alone beside another instruction exporting the same register,
+      which could write them as its own constant lanes (ucode.h:2051-2059), and 30 of Dusklight's write only lanes past
+      their output's GLSL type, which no pixel shader reads; no step was scoped to merge or drop them.
+    - *A fetched value into an export,* 157 (78): 111 (58) a vertex fetch's, 45 (20) a texture fetch's, and 1 (0) the 1
+      a vertex fetch gives. A fetch writes a register, never an export (ucode.h:695-714, 782-796), so an ALU
+      instruction exports what it fetched.
+    - *An input into an export,* 28 (4), 16 (4) of them clamped and 2 (0) the point coordinate's absolute value.
+      Interpolators and pixel parameters arrive in registers (xenia:src/xenia/gpu/registers.h:159-161), and only an
+      ALU instruction exports.
+    - *A computed value step 2 can't move,* 135 (89):
+      - 43 (25) an elementwise result whose other lanes are read elsewhere. A vector op writes one register
+        (ucode.h:1874), so the result can't both move to the copy's lanes and stay where its other readers read it.
+      - 27 (25) a vertex shader's clip-space zw, computed for the position before the interpolators' alloc and exported
+        again as an interpolator, and 25 (20) other exports whose writer's result is read elsewhere, Dusklight's all a
+        pixel shader's alpha, which its alpha test reads too. An operand reads a temp or a constant, never an export
+        (ucode.h:1893-1921), so a value both read and exported is computed into a temp and copied out.
+      - 3 (0) read by another instruction in one operand with another writer's lanes, which the copy's place doesn't
+        hold.
+      - 5 (0) left by step 2's rule that only a vector op exports, and only after the export's own alloc, as xost's
+        lowering always has: 4 of testdata's, a scalar op's result, which Xenia exports (ucode.h:2041-2060) but xost
+        never has on the console; and vulkan4xenon's `shadow.frag`, computed before the colours' alloc.
+      - **32 (19) step 2 should have taken.** 20 (19) gather several writers' results that another instruction reads
+        together in one operand: in 19 of Dusklight's vertex shaders, the three `dp4`s of `vec4(mv_pos, 1.0)`, which
+        the lighting reads as `mv_pos.xyz` too. 12 (0) are three copies of one `add`'s lanes into one vector, in
+        vulkan4xenon's `loop_if.frag`. Looked at by hand in `0963325b37f04df0.vert`, `20a291c66ca7e0fd.vert` and
+        `loop_if.frag`, nothing between the writers and the copies reads or writes their places, so the step's
+        "vectors built a component at a time" covers them; but `can_place` weighs each writer alone (`can_redirect`:
+        an operand reads one writer's result or none of it), and `compute_in_place` each copy. Not fixed here: the
+        user's to decide.
+    - *A clamp into a temp,* 10 (7): 3 (2) of a texture fetch's value, 3 (1) of an input and 2 (2) of a uniform, as only
+      an ALU op clamps (ucode.h:1876), and 2 (2) of a computed value whose writer's result is read unclamped too. With
+      the 17 in the programs read at a run-time index, Dusklight's and vkbench's `max_sat` copies into temps are 24,
+      against the baseline's 342; 48 (33) copies are clamped in all.
+    - *Anything else,* 10 (1): a fetched value, 8 (1), or an input, 2 (0), copied into a temp that's read in one
+      operand beside a computed value or a constant. An operand reads one register, xost's fetches write theirs whole
+      (README, step 3), and the inputs arrive where the hardware puts them.
 - Co-issued slots and GPRs improve on the baseline, with the numbers recorded.
+  **Met.** Over the 367 shaders the baseline compiled, optimiser on: co-issued slots 675 to 726, 7.6% of the ALU to
+  11.2%, and registers 2115 to 1530 (-27.7%); Dusklight's and vkbench's 583 to 630 and 1117 to 784. On the console
+  Dusklight's pixel shaders take 4.52 registers a shader for 6.19 and its vertex shaders 6.38 for 9.77, at most 16 for
+  17 and 14 for 15. Its two vertex shaders read at a run-time index take a register more each than at the baseline,
+  from step 4.
 - Every shader's exports match with the optimiser on and off, and every console check above passes.
+  **Met.** `check_optimize.py` found no exports differing at any step, the last (`steps5_6.txt`) with 15 shaders not
+  simulated, for hardware loops, the cube instruction and predicates, and 16 testdata shaders xost refuses on purpose.
+  On the console at every step, through the console agent: xsdk_test passed all but its two controller checks, which
+  failed with 0x48F as no controller was connected, 380 checks and 383 from the a0 reload on; vulkan4xenon_test passed
+  426, and 426 in each of two runs with its shaders compiled by the step's optimiser; `probe_shader_cost` drew the
+  baseline's 100 pictures, the 3 that never repeat aside; `probe_xsc` compiled the pack's 150 programs as the PC does;
+  and Dusklight's title scene ran, its frames not compared across steps (above). Each break set failed the checks it
+  aims at (README). Dusklight's pack is built with the final xost in dusklight-xenon `8d1f8d67b4`.
 - Compiling Dusklight's 150 programs on the console, as `probe_xsc` times it, takes about what it did before the
   milestone, 1.32 s.
+  **Met.** 1.32 s at steps 5 and 6, as before the milestone; step 2 had made it 3.39 s, and taking every copy it can
+  before the optimiser's round starts over brought it back (README, "Compile time").
 - `probe_shader_cost` shows the gain on the console, recorded in docs/HARDWARE.md.
+  **Met.** docs/HARDWARE.md, "xost's code quality, milestone 45": against each shader's better baseline run,
+  Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 18.3%, 18.8% together.
 
 ## Not in it
 
