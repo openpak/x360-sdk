@@ -177,7 +177,7 @@ Each step is built, then verified as below, then the next begins.
   passed 426, and 426 in each of two runs with its shaders compiled by the step's optimiser; `probe_shader_cost` drew
   the baseline's 100 pictures, the 3 that never repeat aside; `probe_xsc` compiled the pack's 150 programs as the PC
   does; and Dusklight's title scene ran, its frames not compared across steps (above). Each break set failed the checks
-  it aims at (README). Dusklight's pack is built with the final xost in dusklight-xenon `8d1f8d67b4`.
+  it aims at (README). Dusklight's pack is built with the final xost in dusklight-xenon `9e0a5c255a`.
 - Compiling Dusklight's 150 programs on the console, as `probe_xsc` times it, takes about what it did before the
   milestone, 1.32 s.
   **Met.** 1.32 s at steps 5 and 6 and 1.33 s with step 2's copies placed together, against 1.32 s before the
