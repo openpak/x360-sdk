@@ -30,6 +30,9 @@ enum {
 	MAX_USES = 3,
 };
 
+// A vertex element whose fetch is no longer in the program.
+static const uint32_t DROPPED_SLOT = UINT32_MAX;
+
 bool xsdk_xsc_modifies_predicate(const XscOp *op)
 {
 	return op->kind == XSC_OP_ALU && op->alu.scalar_opcode >= XSC_SCALAR_SETP_EQ &&
@@ -1227,6 +1230,8 @@ static bool finish_vertex(Xsc *x, XscProgram *p, XscContainerParts *parts)
 	parts->program_control = (uint32_t)p->max_reg | 1u << 16 |
 		(uint32_t)(p->interpolator_count ? p->interpolator_count - 1 : 0) << 20 |
 		(p->exports_point_size ? (uint32_t)VS_EXPORT_SPRITE << VS_EXPORT_MODE_SHIFT : 0);
+	for (size_t e = 0; e < p->vertex_element_count; e++)
+		p->vertex_elements[e].slot = DROPPED_SLOT;
 	for (size_t si = 0; si < p->stage_count; si++) {
 		for (size_t i = 0; i < p->stages[si].count; i++) {
 			const XscOp *const op = p->stages[si].ops[i];
@@ -1234,6 +1239,13 @@ static bool finish_vertex(Xsc *x, XscProgram *p, XscContainerParts *parts)
 				p->vertex_elements[op->vertex_element].slot = (uint32_t)op->slot;
 		}
 	}
+	// A fetch the optimiser dropped takes its element along, so the runtime patches only fetches there are.
+	size_t kept = 0;
+	for (size_t e = 0; e < p->vertex_element_count; e++) {
+		if (p->vertex_elements[e].slot != DROPPED_SLOT)
+			p->vertex_elements[kept++] = p->vertex_elements[e];
+	}
+	p->vertex_element_count = kept;
 	if (p->export_stage == XSC_NONE)
 		return xsdk_xsc_fail(x, XSDK_XSC_MALFORMED, "a vertex shader without interpolators allocated");
 	const XscStage *const stage = &p->stages[p->export_stage];

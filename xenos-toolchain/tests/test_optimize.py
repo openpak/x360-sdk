@@ -7,13 +7,15 @@ Each case builds a program twice, without and with the pass, and checks:
     components the first defines;
   - the pass left the number of ALU instructions the case expects: what it may remove it does, and what it mustn't
     touch (a move other values share a register with, a source changed in between, a third constant) it keeps.
-A last case hands the comparison a wrong rewrite, to show it would see one. Runs in WSL, where make builds
-build/host/libxsc.so.
+The fetch cases check fetches the same way, and two testdata shaders what a dropped fetch leaves: a vertex shader's
+elements, one for each fetch left, and a pixel shader's sampler. A last case hands the comparison a wrong rewrite, to
+show it would see one. Runs in WSL, where make builds build/host/libxsc.so.
 
 tools/check_optimize.py runs the same comparison over a folder of real shaders.
 """
 import math
 import random
+import struct
 import sys
 from pathlib import Path
 
@@ -27,6 +29,7 @@ import xdis.container as container  # noqa: E402
 import xdis.container_emit as ce  # noqa: E402
 import xdis.equivalence as equivalence  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
+import xsc.native as native  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
 from xsc.lower import _templates  # noqa: E402
 from xsc_internals import ABS_SOURCE, pixel_program  # noqa: E402
@@ -229,6 +232,96 @@ CASES = [
 ]
 
 
+def tfetch(dest, src, **fields):
+    return dict(T["tf"], dest=dest, src=src, **fields)
+
+
+# A fetch goes when nothing live reads what it writes. setTexLOD and the gradients' setters write state, and they and
+# the getters stay; a kill or a setp reading a fetch keeps it, as they keep any op they read.
+FETCH_CASES = [
+    ("a texture fetch nothing reads goes, and the coordinate work only it needed",
+     [alu(V.kAdd, 2, 0xF, r(0), c(0)), tfetch(3, 2), alu(V.kMul, 4, 0xF, r(1), c(1))],
+     [export(r(4))], 0, 2, True),
+    ("a texture fetch read in one lane stays",
+     [tfetch(2, 0), alu(V.kMul, 3, 0x1, r(2, "wwww"), c(0)), alu(V.kAdd, 4, 0xF, r(1), r(3, "xxxx"))],
+     [export(r(4))], 1, 2, True),
+    ("a texture fetch only a kill reads stays",
+     [tfetch(2, 0), alu(V.kKillGt, 0, 0, r(2), c(0)), alu(V.kMul, 3, 0xF, r(1), c(1))],
+     [export(r(3))], 1, 3, True),
+    ("a texture fetch only a setp reads stays",
+     [tfetch(2, 0), scalar(S.kSetpGt, 0, r(2, "xxxx"), 0), alu(V.kMul, 3, 0xF, r(1), c(1))],
+     [export(r(3))], 1, 3, False),
+    ("setTexLOD stays though the fetch that reads its LOD goes",
+     [tfetch(0, 1, opcode=int(xu.FetchOpcode.kSetTextureLod), src_swizzle=0, dest_swizzle=0o7777),
+      tfetch(2, 0, use_computed_lod=False, use_register_lod=True), alu(V.kMul, 3, 0xF, r(1), c(1))],
+     [export(r(3))], 1, 2, True),
+    ("getTextureGradients stays though nothing reads it",
+     [tfetch(2, 0, opcode=int(xu.FetchOpcode.kGetTextureGradients)), alu(V.kMul, 3, 0xF, r(1), c(1))],
+     [export(r(3))], 1, 2, True),
+]
+
+
+def fetch_count(blob):
+    cont = container.Container(blob)
+    return sum(rec.kind in ("tfetch", "vfetch") for rec in xu._decode_program(cont.ucode_dwords, cont.shader_type)[0])
+
+
+def fetch_case(name, body, exports, expect_fetches, expect_alu, simulated):
+    """simulated is False for a setp, which equivalence.py doesn't run."""
+    plain = build(body, exports, False)
+    optimized = build(body, exports, True)
+    problem = compare(plain, optimized) if simulated else None
+    got = (fetch_count(optimized), alu_count(optimized))
+    ok = problem is None and got == (expect_fetches, expect_alu)
+    seen = f"{problem}; " if problem else ""
+    print(f"  {'PASS' if ok else 'FAIL'} {name}: {seen}{fetch_count(plain)} -> {got[0]} fetches, "
+          f"{alu_count(plain)} -> {got[1]} ALU instructions, {expect_fetches} and {expect_alu} expected")
+    return ok
+
+
+def compiled(name, optimize):
+    return native.compile_spirv((ROOT / "xsc" / "testdata" / name).read_bytes(), XSDK_REGISTERS.pixel,
+                                XSDK_REGISTERS.vertex, optimize)
+
+
+def vertex_elements(blob):
+    """A vertex shader's elements, (slot, usage, usage index) each, which the runtime patches its fetches by
+    (xsdk:src/shader.c, xsdk_shader_set_vertex_layout): the record's count, then the elements four words on."""
+    words = struct.unpack(f">{len(blob) // 4}I", blob)
+    record = words[6] // 4
+    return [(w & 0xFFF, w >> 12 & 0xF, w >> 16 & 0xF) for w in words[record + 10:record + 10 + words[record + 7]]]
+
+
+def unused_inputs_lose_their_elements():
+    """cubedir.vert reads a_position alone: optimised, a_color's and a_texcoord's fetches go with their elements, and
+    the element left names its fetch's slot."""
+    plain, optimized = (compiled("cubedir.vert.spv", o)[0] for o in (False, True))
+    got = []
+    for blob in (plain, optimized):
+        cont = container.Container(blob)
+        slots = [rec.offset for rec in xu._decode_program(cont.ucode_dwords, "vertex")[0] if rec.kind == "vfetch"]
+        elements = vertex_elements(blob)
+        got.append((sorted(slots) == sorted(e[0] for e in elements), sorted(e[1] for e in elements)))
+    problem = compare(plain, optimized)
+    ok = problem is None and got == [(True, [ce.USAGE_POSITION, ce.USAGE_TEXCOORD, ce.USAGE_COLOR]),
+                                     (True, [ce.USAGE_POSITION])]
+    print(f"  {'PASS' if ok else 'FAIL'} cubedir.vert's unused inputs lose their fetches and elements: "
+          f"{problem or got}")
+    return ok
+
+
+def a_dropped_sample_keeps_its_sampler():
+    """vk_unused_sample.frag samples and uses none of it: optimised, the fetch goes, and the container's sampler and the
+    sampler resource stay, so what a host binds doesn't change."""
+    (plain, _, plain_resources), (optimized, _, resources) = (compiled("vk_unused_sample.frag.spv", o)
+                                                             for o in (False, True))
+    got = (fetch_count(plain), fetch_count(optimized), b"tex0\0" in plain, b"tex0\0" in optimized)
+    ok = got == (1, 0, True, True) and resources == plain_resources == [("sampler", 0, 0, 0, 1)]
+    print(f"  {'PASS' if ok else 'FAIL'} a dropped sample keeps its sampler: fetches {got[0]} -> {got[1]}, tex0 "
+          f"{got[2]} -> {got[3]}, resources {plain_resources} -> {resources}")
+    return ok
+
+
 def wrong_rewrite_is_seen():
     """A rewrite that reads the wrong component must show as a difference."""
     plain = build([move(2, r(0, "yxwz")), alu(V.kAdd, 3, 0xF, r(2), c(0))], [export(r(3))], False)
@@ -239,7 +332,8 @@ def wrong_rewrite_is_seen():
 
 
 def main():
-    ok = all([case(*c_) for c_ in CASES]) & wrong_rewrite_is_seen()
+    ok = all([case(*c_) for c_ in CASES]) & all([fetch_case(*c_) for c_ in FETCH_CASES])
+    ok = ok & unused_inputs_lose_their_elements() & a_dropped_sample_keeps_its_sampler() & wrong_rewrite_is_seen()
     print("OK" if ok else "FAILED")
     return 0 if ok else 1
 

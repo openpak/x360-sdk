@@ -3,8 +3,8 @@
 #include "xsc_private.h"
 
 // The optimiser, as xenos-toolchain/xasm/optimize.py rewrites a program's instructions before allocation: common
-// subexpressions, copies propagated, multiply-adds fused, values computed into their copies' places, dead code removed,
-// and scalar ops co-issued.
+// subexpressions, copies propagated, multiply-adds fused, values computed into their copies' places, dead code and
+// unused fetches removed, and scalar ops co-issued.
 
 enum {
 	ALL = 0xF,
@@ -526,6 +526,20 @@ static int component_set(const Source *s, int64_t lanes_mask, int *out)
 
 // ---- the passes; each returns whether it changed the program ----
 
+// A vertex or texture fetch none of whose writes is live; the other fetches set state or are left as they are.
+static bool unused_fetch(const Optimizer *o, const XscOp *op)
+{
+	if (is_alu(op) || (op->kind == XSC_OP_TFETCH && op->fetch.opcode != XSC_FETCH_TEXTURE))
+		return false;
+	KeySet set;
+	defs(op, &set);
+	for (size_t k = 0; k < set.count; k++) {
+		if (o->live[set.keys[k]])
+			return false;
+	}
+	return true;
+}
+
 static bool remove_dead(Optimizer *o, bool *changed)
 {
 	*changed = false;
@@ -562,6 +576,9 @@ static bool remove_dead(Optimizer *o, bool *changed)
 				doomed[doomed_count++] = op;
 				continue;
 			}
+		} else if (unused_fetch(o, op)) {
+			doomed[doomed_count++] = op;
+			continue;
 		}
 		KeySet set;
 		defs(op, &set);

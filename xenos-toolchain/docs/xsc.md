@@ -118,6 +118,13 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   At 2, the console left targets 1 to 3 as they were; Xenia never reads the
   mode (registers.h:145; xsdk:docs/HARDWARE.md, "Float, 10-bit and 64-bit
   targets and four at once").
+- With the optimiser, a vertex input or a texture sample nothing exported, killed
+  or tested reads takes no fetch (`xsdk:src/xsc_optimize.c`, remove_dead). The
+  input's vertex element goes with its fetch, so a host's layout needn't hold it,
+  and an element it holds anyway is ignored (`xsdk:src/shader.c`,
+  `xsdk_shader_set_vertex_layout`); a sampler keeps its constant and resource, so
+  a host binds what it bound before. setTexLOD, the gradients' setters and
+  `getTextureGradients` stay.
 - Bare uniforms → constant registers by Location; scalars read the register's
   `.x`.
 - Uniform and push constant blocks → the block's raw std140 bytes in
