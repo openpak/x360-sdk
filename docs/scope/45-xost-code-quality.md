@@ -53,21 +53,21 @@ Each step is built, then verified as below, then the next begins.
    `results/2026-10-17-milestone-45/`.
 4. **More co-issue.** With the copies gone, more scalar operations stand next to an independent vector one; the
    pairing takes the vector instruction before or after where it sits now when the order allows.
-   Built on 2026-10-17 and checked on the PC, the console runs to come: `co_issue` already paired nearly every scalar op
+   Built and run on the console on 2026-10-17: `co_issue` already paired nearly every scalar op
    the optimiser saw, so it now pairs both ways and in the programs it left alone for reading constants at a run-time
    index. The corpus goes from 660 co-issued slots to 726 and from 6887 ALU instructions to 6821, short of the
    milestone's 6671; Dusklight's two relative vertex shaders lose 22 and 25 instructions and take a register more each,
    the rest of its pack is unchanged. Recorded in `results/2026-10-17-milestone-45/`.
 5. **Constants from the fetch.** A vertex attribute's missing components that the shader fills with 0 or 1 come from
    the fetch's destination swizzle, not ALU.
-   Built on 2026-10-17 and checked on the PC, the console runs to come: with the optimiser on, a vector built from a
+   Built and run on the console on 2026-10-17: with the optimiser on, a vector built from a
    vertex input's own components and 0 or 1 past them is the input itself, its fetch giving the constants, which the
    runtime's patch keeps. The corpus goes from 6835 ALU instructions to 6525, 6502 without the two shaders testdata
    gained, 26.9% under the baseline and past the milestone's 6671; Dusklight's and vkbench's from 4911 to 4639, no
    fill of a fetched attribute left. Registers and co-issued slots stay. Recorded in
    `results/2026-10-17-milestone-45/`.
 6. **Fetches nothing uses dropped,** with the exports' liveness the optimiser already tracks.
-   Built on 2026-10-17 and checked on the PC, the console runs to come: `remove_dead` drops a vertex or texture fetch
+   Built and run on the console on 2026-10-17: `remove_dead` drops a vertex or texture fetch
    nothing live reads, and a vertex fetch's element goes with it; samplers, setters and getters stay. Over the corpus 4
    fetches go, in Dusklight's `6a05b1f88a016fb2.frag`, testdata's `cubedir.vert` and vulkan4xenon's
    `aurora_attr_defaults.vert`. The scope's other four pixel shaders use every sample, but take one sample two or three

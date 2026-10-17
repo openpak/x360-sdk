@@ -838,3 +838,33 @@ Run on 2026-10-17 through the console agent, everything cleaned and built in ful
   its 600th frame captured and as before.
 - **Broken on purpose,** a fetch dropped when its first written component is dead, the others unchecked: 16 of the
   probe's 100 pictures differ from the baseline.
+
+### Steps 5 and 6 together on the console
+
+Step 5 on top of step 6, run on 2026-10-17 through the console agent, everything cleaned and built in full. The corpus
+check with both (`steps5_6.json`, `steps5_6.txt`): 0 differ, 15 not simulated, 16 not compiled. Over the 367 shaders
+the baseline compiled, optimiser on:
+
+| | Baseline | Steps 5 and 6 |
+|---|---|---|
+| ALU | 8895 | 6502 (−26.9%) |
+| Copies | 3253 | 938 (−71.2%) |
+| Co-issued | 675 | 726 |
+| Registers | 2115 | 1530 (−27.7%) |
+| Fetches | 614 | 610 |
+| Control flow | 2573 | 2177 (−15.4%) |
+
+Dusklight's and vkbench's 157: ALU 6641 → 4639 (−30.1%), copies 2397 → 450, co-issued 583 → 630, registers 1117 →
+784.
+
+- **xsdk_test:** 383 passed; the controller checks failed with 0x48F, no controller connected.
+- **`probe_xsc`,** from the pack as this xost makes it: 150 of 150 as on the PC, in 1.32 s, as before the milestone
+  (1.32 s; 3.39 s at step 2).
+- **`probe_shader_cost`** (`probe_step56.log`): pixel shaders 62,947 µs (−19.0%), vertex shaders 13,458 µs (−18.3%)
+  against the baseline; the same 100 pictures; no vertex draw reaching the pixels.
+- **vulkan4xenon_test:** 426 as committed. With its shaders compiled with `--optimize` by this xost, 307 lines of
+  `tests/shaders.c` different from step 6's, 426 in each of two runs.
+- **Dusklight,** built against this xsdk with its pack from this xost, every 150th title frame captured: Link and
+  Epona lit as with the a0 reload, the scene as before.
+- **Broken on purpose,** a fetch filling 0 where 1 belongs and 1 where 0 does: with vulkan4xenon's shaders compiled by
+  it, 11 of `test_aurora_points`' checks fail, each an `aurora_*` shader with a filled input.
