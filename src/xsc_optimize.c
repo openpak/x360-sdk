@@ -1021,12 +1021,15 @@ static bool undefined(const Optimizer *o, int64_t k)
 	return o->write_start[k] == o->write_start[k + 1] && o->write_start[first] != o->write_start[first + 4];
 }
 
-// A writer of what the copy at j copies, and the copy's lanes it gives, which the copy reads through s.
+// A writer of what the copies from j on copy into one temp, and the lanes it gives, which they read through s; each
+// lane's writer, OUTSIDE where none, and the copy that takes it.
 typedef struct {
 	size_t i;
 	size_t j;
 	Source s;
 	int64_t lanes;
+	const int64_t *writers;
+	const size_t *at;
 } Place;
 
 static int64_t result_reg(const XscOp *w)
@@ -1037,6 +1040,17 @@ static int64_t result_reg(const XscOp *w)
 static int64_t result_mask(const XscOp *w)
 {
 	return vector_active(w) ? w->alu.vector_write_mask : w->alu.scalar_write_mask;
+}
+
+// The copy's lanes whose value writer w gave.
+static int64_t lanes_from(const int64_t writers[4], int64_t mask, int64_t w)
+{
+	int64_t lanes = 0;
+	for (int lane = 0; lane < 4; lane++) {
+		if ((mask >> lane & 1) && writers[lane] == w)
+			lanes |= (int64_t)1 << lane;
+	}
+	return lanes;
 }
 
 // The copy's lane that will hold component c of the writer's result, or -1.
@@ -1065,7 +1079,7 @@ static bool lands(const Optimizer *o, const Place *pl)
 	return true;
 }
 
-// Whether nothing from the writer to the copy reads or writes the copy's lanes, nor the writer reads them.
+// Whether nothing from the writer to each lane's copy reads or writes that lane, nor the writer reads it.
 static bool place_free(const Optimizer *o, const Place *pl)
 {
 	const XscAlu *const copy = &o->ops[pl->j]->alu;
@@ -1077,18 +1091,33 @@ static bool place_free(const Optimizer *o, const Place *pl)
 		}
 		return true;
 	}
-	KeySet place = { .count = 0 };
 	for (int c = 0; c < 4; c++) {
-		if (pl->lanes >> c & 1)
-			add_key(&place, key(copy->vector_dest, c));
-	}
-	if (intersects(&o->reads[pl->i], &place))
-		return false;
-	for (size_t k = pl->i + 1; k < pl->j; k++) {
-		if (intersects(&o->reads[k], &place) || intersects(&o->defs[k], &place))
+		if (!(pl->lanes >> c & 1))
+			continue;
+		const int64_t k = key(copy->vector_dest, c);
+		if (has_key(&o->reads[pl->i], k))
 			return false;
+		for (size_t at = pl->i + 1; at < pl->at[c]; at++) {
+			if (has_key(&o->reads[at], k) || has_key(&o->defs[at], k))
+				return false;
+		}
 	}
 	return true;
+}
+
+// The place of writer w, one of the copies' writers or none (no lanes).
+static Place place_of(const Place *pl, int64_t w)
+{
+	Place q = *pl;
+	q.i = (size_t)w;
+	q.lanes = w == OUTSIDE ? 0 : lanes_from(pl->writers, ALL, w);
+	return q;
+}
+
+// Whether op k is one of the copies that go.
+static bool copied_by(const Place *pl, size_t k)
+{
+	return k == pl->at[0] || k == pl->at[1] || k == pl->at[2] || k == pl->at[3];
 }
 
 // Whether nothing between from and to but skip writes key k.
@@ -1128,17 +1157,18 @@ static bool can_redirect(const Optimizer *o, const Place *pl, size_t r)
 		const Source s = source(reader, n);
 		if (!named[n] || !s.temp || s.reg != t)
 			continue;
-		// An operand reads the result alone or none of it.
+		// An operand reads the copies' writers' results alone or none of them.
 		int ours = 0, others = 0;
 		for (int lane = 0; lane < 4; lane++) {
 			if (!(lanes[n] >> lane & 1))
 				continue;
-			if (flow_at(o, r, key(t, s.components[lane])) != (int64_t)pl->i) {
+			const Place q = place_of(pl, flow_at(o, r, key(t, s.components[lane])));
+			if (!q.lanes) {
 				others++;
 				continue;
 			}
-			const int h = holder(o, pl, s.components[lane]);
-			if (h < 0 || !unwritten(o, pl->i, r, pl->j, key(d, h)))
+			const int h = holder(o, &q, s.components[lane]);
+			if (h < 0 || !unwritten(o, q.i, r, pl->at[h], key(d, h)))
 				return false;
 			ours++;
 		}
@@ -1160,9 +1190,11 @@ static void redirect(Optimizer *o, const Place *pl, size_t r)
 		const Source old = source(reader, n);
 		Source moved = old;
 		moved.reg = o->ops[pl->j]->alu.vector_dest;
-		// A lane the reader doesn't read may hold anything.
+		// A lane from another of the copies' writers takes its place; a lane not read may hold anything.
 		for (int lane = 0; lane < 4; lane++) {
-			const int h = holder(o, pl, old.components[lane]);
+			const bool read = lanes[n] >> lane & 1;
+			const Place q = place_of(pl, read ? flow_at(o, r, key(old.reg, old.components[lane])) : (int64_t)pl->i);
+			const int h = holder(o, &q, old.components[lane]);
 			moved.components[lane] = h < 0 ? lane : h;
 		}
 		set_source(reader, n, &moved);
@@ -1185,7 +1217,8 @@ static bool can_place(Optimizer *o, const Place *pl, size_t *users)
 		return false;
 	const size_t count = users_of(o, pl->i, result_reg(w), result_mask(w), users);
 	for (size_t u = 0; u < count; u++) {
-		if (users[u] != pl->j && (copy->alu.is_export || copy->alu.vector_clamp || !can_redirect(o, pl, users[u])))
+		if (!copied_by(pl, users[u]) &&
+			(copy->alu.is_export || copy->alu.vector_clamp || !can_redirect(o, pl, users[u])))
 			return false;
 	}
 	return true;
@@ -1210,7 +1243,7 @@ static void place(Optimizer *o, const Place *pl, size_t *users)
 	const XscAlu *const c = &o->ops[pl->j]->alu;
 	const size_t count = users_of(o, pl->i, result_reg(w), result_mask(w), users);
 	for (size_t u = 0; u < count; u++) {
-		if (users[u] != pl->j)
+		if (!copied_by(pl, users[u]))
 			redirect(o, pl, users[u]);
 	}
 	XscAlu *const f = &w->alu;
@@ -1239,17 +1272,6 @@ static void place(Optimizer *o, const Place *pl, size_t *users)
 		sink(o->p, w, o->ops[pl->j]);
 }
 
-// The copy's lanes whose value writer w gave.
-static int64_t lanes_from(const int64_t writers[4], int64_t mask, int64_t w)
-{
-	int64_t lanes = 0;
-	for (int lane = 0; lane < 4; lane++) {
-		if ((mask >> lane & 1) && writers[lane] == w)
-			lanes |= (int64_t)1 << lane;
-	}
-	return lanes;
-}
-
 // Each lane's writer, an undefined lane taking a defined one's; false where a lane has none.
 static bool copy_writers(const Optimizer *o, size_t j, Source *s, int64_t writers[4])
 {
@@ -1271,8 +1293,75 @@ static bool copy_writers(const Optimizer *o, size_t j, Source *s, int64_t writer
 	return true;
 }
 
-// Whether the copy at j went, each instruction it copies from now writing its lanes.
-static bool try_place(Optimizer *o, size_t j, size_t *users)
+static bool among(const int64_t writers[4], int64_t w)
+{
+	return w != OUTSIDE && (w == writers[0] || w == writers[1] || w == writers[2] || w == writers[3]);
+}
+
+// Whether copy k, after the copy at j, copies more of the first writers' lanes into its temp; if so it joins it.
+static bool joins(
+	const Optimizer *o, size_t j, size_t k, const int64_t first[4], Source *s, int64_t writers[4], size_t at[4])
+{
+	const XscOp *const copy = o->ops[j];
+	const XscOp *const other = o->ops[k];
+	if (k <= j || !is_copy(other) || other->alu.is_export || other->alu.vector_dest != copy->alu.vector_dest ||
+		other->alu.vector_clamp != copy->alu.vector_clamp)
+		return false;
+	const Source t = source(other, 1);
+	const int64_t mask = other->alu.vector_write_mask;
+	if (t.reg != s->reg)
+		return false;
+	for (int lane = 0; lane < 4; lane++) {
+		if ((mask >> lane & 1) &&
+			(writers[lane] != OUTSIDE || !among(first, flow_at(o, k, key(t.reg, t.components[lane])))))
+			return false;
+	}
+	for (int lane = 0; lane < 4; lane++) {
+		if (!(mask >> lane & 1))
+			continue;
+		writers[lane] = flow_at(o, k, key(t.reg, t.components[lane]));
+		s->components[lane] = t.components[lane];
+		at[lane] = k;
+	}
+	return true;
+}
+
+// Whether later copies of the writers' other lanes into the copy's temp join it, to go together.
+static bool gather(Optimizer *o, size_t j, Source *s, int64_t writers[4], size_t at[4], size_t *users)
+{
+	const XscAlu *const copy = &o->ops[j]->alu;
+	if (copy->is_export || copy->vector_dest == s->reg)
+		return false;
+	const int64_t first[4] = { writers[0], writers[1], writers[2], writers[3] };
+	bool any = false;
+	for (int lane = 0; lane < 4; lane++) {
+		const XscOp *const w = first[lane] == OUTSIDE ? NULL : o->ops[first[lane]];
+		const size_t count = w ? users_of(o, (size_t)first[lane], result_reg(w), result_mask(w), users) : 0;
+		for (size_t u = 0; u < count; u++)
+			any = joins(o, j, users[u], first, s, writers, at) || any;
+	}
+	return any;
+}
+
+// Each writer's place in places and how many, or 0 where one can't write its lanes.
+static int fit(Optimizer *o, const Place *copies, Place places[4], size_t *users)
+{
+	int count = 0;
+	int64_t seen = 0;
+	for (int lane = 0; lane < 4; lane++) {
+		const int64_t w = copies->writers[lane];
+		if (w == OUTSIDE || (seen >> lane & 1))
+			continue;
+		places[count] = place_of(copies, w);
+		seen |= places[count].lanes;
+		if (!can_place(o, &places[count++], users))
+			return 0;
+	}
+	return count;
+}
+
+// Whether the copy at j went, with any later copies at[] took, each instruction they copy from now writing its lanes.
+static bool try_place(Optimizer *o, size_t j, size_t at[4], size_t *users)
 {
 	XscOp *const copy = o->ops[j];
 	if (!is_copy(copy))
@@ -1281,32 +1370,39 @@ static bool try_place(Optimizer *o, size_t j, size_t *users)
 	int64_t writers[4];
 	if (!copy_writers(o, j, &s, writers))
 		return false;
-	const int64_t mask = copy->alu.vector_write_mask;
+	at[0] = at[1] = at[2] = at[3] = j;
+	Place copies = { .j = j, .s = s, .writers = writers, .at = at };
 	Place places[4];
-	int count = 0;
-	int64_t seen = 0;
-	for (int lane = 0; lane < 4; lane++) {
-		if (!(mask >> lane & 1) || (seen >> lane & 1))
-			continue;
-		places[count] = (Place){ (size_t)writers[lane], j, s, lanes_from(writers, mask, writers[lane]) };
-		seen |= places[count].lanes;
-		if (!can_place(o, &places[count++], users))
-			return false;
-	}
+	int count = fit(o, &copies, places, users);
+	if (!count && gather(o, j, &copies.s, writers, at, users))
+		count = fit(o, &copies, places, users);
+	if (!count)
+		return false;
 	for (int n = 0; n < count; n++)
 		place(o, &places[n], users);
-	XscOp *doomed = copy;
-	remove_ops(o, &doomed, 1);
+	XscOp *doomed[4];
+	for (int lane = 0; lane < 4; lane++)
+		doomed[lane] = o->ops[at[lane]];
+	remove_ops(o, doomed, 4);
 	return true;
 }
 
 // Takes op j, a copy that went, out of the flow.
-static bool drop_op(Optimizer *o, size_t j)
+static void drop_op(Optimizer *o, size_t j)
 {
 	o->count--;
 	memmove(&o->ops[j], &o->ops[j + 1], (o->count - j) * sizeof *o->ops);
 	memmove(&o->reads[j], &o->reads[j + 1], (o->count - j) * sizeof *o->reads);
 	memmove(&o->defs[j], &o->defs[j + 1], (o->count - j) * sizeof *o->defs);
+}
+
+// Takes the copies that went, j and any after it at[] names, out of the flow, the last first so the others stay put.
+static bool drop_copies(Optimizer *o, size_t j, const size_t at[4])
+{
+	for (size_t k = o->count; k-- > j;) {
+		if (k == at[0] || k == at[1] || k == at[2] || k == at[3])
+			drop_op(o, k);
+	}
 	return index_flow(o);
 }
 
@@ -1320,15 +1416,16 @@ static bool compute_in_place(Optimizer *o, bool *changed)
 	size_t *const users = xsdk_xsc_alloc(o->x, (4 * o->count + 1) * sizeof *users);
 	if (!users)
 		return false;
+	size_t at[4];
 	size_t j = 0;
 	while (j < o->count) {
-		if (!try_place(o, j, users)) {
+		if (!try_place(o, j, at, users)) {
 			j++;
 			continue;
 		}
 		*changed = true;
 		// An export's writer moved down to it, so the program is read again.
-		if (!(o->ops[j]->alu.is_export ? build_flow(o) : drop_op(o, j)))
+		if (!(o->ops[j]->alu.is_export ? build_flow(o) : drop_copies(o, j, at)))
 			return false;
 		fill_readers(o);
 		j = 0;

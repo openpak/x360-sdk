@@ -229,6 +229,19 @@ CASES = [
       move(4, r(3, "xxxx"), 0x2), move(5, r(4), 0x3), alu(V.kAdd, 5, 0x4, r(1, "xxxx"), c(2)),
       alu(V.kMul, 6, 0xF, r(5, "xyzx"), r(1))],
      [export(r(6))], 4),
+    ("three dot products copied into one vector, and read together elsewhere, are computed there",
+     [alu(V.kDp4, 2, 0x1, r(0), c(0)), alu(V.kDp4, 2, 0x2, r(0), c(1)), alu(V.kDp4, 2, 0x4, r(0), c(2)),
+      move(3, r(2), 0x7), move(3, c(3), 0x8), alu(V.kDp4, 4, 0x1, r(3), c(4)),
+      alu(V.kAdd, 5, 0xF, c(5), r(2, "yzxy", negate=True)), alu(V.kMul, 6, 0xF, r(5), r(4, "xxxx"))],
+     [export(r(6))], 8),
+    ("an add's lanes copied one at a time into one vector are computed there, swizzled to their lanes",
+     [move(3, c(3), 0x8), alu(V.kAdd, 2, 0x7, r(0), c(0)), move(3, r(2, "zzzz"), 0x1), move(3, r(2, "xxxx"), 0x2),
+      move(3, r(2, "yyyy"), 0x4), alu(V.kMul, 4, 0xF, r(3), r(1))],
+     [export(r(4))], 4),
+    ("an add's lanes copied one at a time stay where one's place is read before its copy",
+     [move(3, c(3)), alu(V.kAdd, 2, 0x3, r(0), c(0)), move(3, r(2), 0x1), alu(V.kMul, 4, 0xF, r(3), r(1)),
+      move(3, r(2), 0x2), alu(V.kAdd, 5, 0xF, r(3), r(4))],
+     [export(r(5))], 7),
 ]
 
 
