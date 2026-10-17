@@ -98,11 +98,14 @@ Each step is built, then verified as below, then the next begins.
   optimiser leaves alone, counted by kind (agreed on 2026-10-17, in place of under 5% of the ALU instructions, as
   copies of constants alone are 5.7% of Dusklight's and vkbench's after step 2). The corpus's ALU total is down by at
   least 25% from the baseline.
-  Recorded on 2026-10-17, at steps 5 and 6 together (`results/2026-10-17-milestone-45/`):
-  - **The ALU: met.** The 367 shaders the baseline compiled take 6502 ALU instructions with the optimiser on, 26.9%
-    under the baseline's 8895 and 169 under 6671; Dusklight's and vkbench's 157 take 4639, 30.1% under 6641.
-  - **The copies: not met as worded.** Recorded again with step 2's copies placed together (README, "Step 2's copies
-    placed together"). `tools/copy_kinds.py` sorts the 919 copies left in the 370 shaders that compile
+  Recorded on 2026-10-17, with step 2's copies placed together (`results/2026-10-17-milestone-45/`; README, "Step 2's
+  copies placed together"):
+  - **The ALU: met.** The 367 shaders the baseline compiled take 6467 ALU instructions with the optimiser on, 27.3%
+    under the baseline's 8895 and 204 under 6671; Dusklight's and vkbench's 157 take 4620, 30.4% under 6641.
+  - **The copies: met.** Every copy left is one no step can take: the three kinds the line names, the hardware's other
+    reasons, which "no step can take" covers though the line names only three kinds, and step 2's rule on exports,
+    which nothing on the console yet supports changing. `tools/copy_kinds.py` sorts the 919 copies left in the 370
+    shaders that compile
     (`copy_kinds.txt`; README, "Copies left, by kind"), 431 of them Dusklight's and vkbench's, given below as corpus
     (Dusklight and vkbench). 771 (349) are the three kinds this line names. 143 (82) more stay for the hardware's
     reasons, though the line doesn't name them: inputs into exports, clamps, fetched values and inputs copied into a
@@ -162,26 +165,27 @@ Each step is built, then verified as below, then the next begins.
       (README, step 3), and the inputs arrive where the hardware puts them.
 - Co-issued slots and GPRs improve on the baseline, with the numbers recorded.
   **Met.** Over the 367 shaders the baseline compiled, optimiser on: co-issued slots 675 to 726, 7.6% of the ALU to
-  11.2%, and registers 2115 to 1530 (-27.7%); Dusklight's and vkbench's 583 to 630 and 1117 to 784. On the console
+  11.2%, and registers 2115 to 1529 (-27.7%); Dusklight's and vkbench's 583 to 630 and 1117 to 784. On the console
   Dusklight's pixel shaders take 4.52 registers a shader for 6.19 and its vertex shaders 6.38 for 9.77, at most 16 for
   17 and 14 for 15. Its two vertex shaders read at a run-time index take a register more each than at the baseline,
   from step 4.
 - Every shader's exports match with the optimiser on and off, and every console check above passes.
-  **Met.** `check_optimize.py` found no exports differing at any step, the last (`steps5_6.txt`) with 15 shaders not
-  simulated, for hardware loops, the cube instruction and predicates, and 16 testdata shaders xost refuses on purpose.
-  On the console at every step, through the console agent: xsdk_test passed all but its two controller checks, which
-  failed with 0x48F as no controller was connected, 380 checks and 383 from the a0 reload on; vulkan4xenon_test passed
-  426, and 426 in each of two runs with its shaders compiled by the step's optimiser; `probe_shader_cost` drew the
-  baseline's 100 pictures, the 3 that never repeat aside; `probe_xsc` compiled the pack's 150 programs as the PC does;
-  and Dusklight's title scene ran, its frames not compared across steps (above). Each break set failed the checks it
-  aims at (README). Dusklight's pack is built with the final xost in dusklight-xenon `8d1f8d67b4`.
+  **Met.** `check_optimize.py` found no exports differing at any step, the last (`step2_together.txt`) with 15 shaders
+  not simulated, for hardware loops, the cube instruction and predicates, and 16 testdata shaders xost refuses on
+  purpose. On the console at every step, through the console agent: xsdk_test passed all but its two controller checks,
+  which failed with 0x48F as no controller was connected, 380 checks and 383 from the a0 reload on; vulkan4xenon_test
+  passed 426, and 426 in each of two runs with its shaders compiled by the step's optimiser; `probe_shader_cost` drew
+  the baseline's 100 pictures, the 3 that never repeat aside; `probe_xsc` compiled the pack's 150 programs as the PC
+  does; and Dusklight's title scene ran, its frames not compared across steps (above). Each break set failed the checks
+  it aims at (README). Dusklight's pack is built with the final xost in dusklight-xenon `8d1f8d67b4`.
 - Compiling Dusklight's 150 programs on the console, as `probe_xsc` times it, takes about what it did before the
   milestone, 1.32 s.
-  **Met.** 1.32 s at steps 5 and 6, as before the milestone; step 2 had made it 3.39 s, and taking every copy it can
-  before the optimiser's round starts over brought it back (README, "Compile time").
+  **Met.** 1.32 s at steps 5 and 6 and 1.33 s with step 2's copies placed together, against 1.32 s before the
+  milestone; step 2 had made it 3.39 s, and taking every copy it can before the optimiser's round starts over brought
+  it back (README, "Compile time").
 - `probe_shader_cost` shows the gain on the console, recorded in docs/HARDWARE.md.
   **Met.** docs/HARDWARE.md, "xost's code quality, milestone 45": against each shader's better baseline run,
-  Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 18.3%, 18.8% together.
+  Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 19.0%, 19.0% together.
 
 ## Not in it
 

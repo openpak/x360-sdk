@@ -3706,15 +3706,17 @@ Each shader's time summed, against the baseline as each shader's better time in 
 | Step 4, more co-issue (`probe_step4.log`) | 62,921 (-19.0%) | 13,916 (-15.5%) | 4.53, 6.38 | 1342, 3546 |
 | The a0 reload (`probe_reload.log`) | 62,830 (-19.1%) | 13,935 (-15.4%) | 4.53, 6.38 | 1342, 3548 |
 | Step 6, unused fetches dropped (`probe_step6.log`) | 62,894 (-19.0%) | 13,923 (-15.5%) | 4.52, 6.38 | 1342, 3548 |
-| Steps 5 and 6, constants from the fetch (`probe_step56.log`) | 62,947 (-19.0%) | 13,458 (-18.3%) | 4.52, 6.38 | 1342, 3276 |
+| Steps 5 and 6, fetch constants (`probe_step56.log`) | 62,947 (-19.0%) | 13,458 (-18.3%) | 4.52, 6.38 | 1342, 3276 |
+| Step 2's copies together (`probe_together.log`) | 62,913 (-19.0%) | 13,349 (-19.0%) | 4.52, 6.38 | 1342, 3257 |
 
-- **The gain.** Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 18.3%, 18.8% together. 93
+- **The gain.** Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 19.0%, 19.0% together. 93
   of the 150 programs take more than 2% less than their better baseline time, and none more than 2% above their worse.
   Every run drew the same 100 pictures as the baseline, and no vertex draw reached the pixels.
 - **Where it came from.** The pixel shaders' from step 2, and step 3's registers, 4.9% less than at step 2 with 4.53
   registers a shader for 6.21. The vertex shaders' from step 2; step 4, in the two vertex shaders read at a run-time
   index, `93d36ce55e3f9bad.vert` 638.7 to 578.4 us and `c0ddfd4547c71e5a.vert` 704.4 to 635.9; and step 5, 3.3% less
-  than at step 6. Their ALU falls by 33.5%, their time by 18.3%. The baseline's two runs differ by 0.2% in the pixel
+  than at step 6; and step 2's copies placed together, 0.8% less again. Their ALU falls by 33.9%, their time by 19.0%.
+  The baseline's two runs differ by 0.2% in the pixel
   shaders' total, so the pixel shaders' moves after step 3 are noise.
 - **Registers.** Pixel shaders take 4.52 a shader for 6.19 and vertex shaders 6.38 for 9.77. The two vertex shaders read
   at a run-time index take one more each than before the milestone, from step 4: `93d36ce55e3f9bad.vert` 14 and
@@ -3722,12 +3724,13 @@ Each shader's time summed, against the baseline as each shader's better time in 
 - **Compiling the pack on the console,** as `probe_xsc` times its 150 programs from a pack built by each step's xost:
   1.32 s before the milestone, 3.39 s at step 2, 1.42 s once step 2's pass stopped the optimiser's round starting over
   for every copy it took (`probe_xsc_compile_time.log`), 1.45 s at step 4, 1.43 s with the a0 reload and at step 6,
-  and 1.32 s at steps 5 and 6. Every program came out on the console as on the PC.
+  1.32 s at steps 5 and 6, and 1.33 s with step 2's copies placed together (`probe_xsc_together.log`). Every program
+  came out on the console as on the PC.
 - **The PC's counts,** `tools/check_optimize.py` over the 367 shaders the baseline compiled, optimiser on
-  (`baseline.json` against `steps5_6.json`): ALU 8895 to 6502 (-26.9%), copies 3253 to 938 (-71.2%), co-issued slots
-  675 to 726, registers 2115 to 1530 (-27.7%), control flow 2573 to 2177 (-15.4%), fetches 614 to 610. Dusklight's
-  and vkbench's 157: ALU 6641 to 4639 (-30.1%), copies 2397 to 450, co-issued slots 583 to 630, registers 1117 to 784,
-  control flow 1581 to 1239.
+  (`baseline.json` against `step2_together.json`): ALU 8895 to 6467 (-27.3%), copies 3253 to 903 (-72.2%), co-issued
+  slots 675 to 726, registers 2115 to 1529 (-27.7%), control flow 2573 to 2173 (-15.5%), fetches 614 to 610.
+  Dusklight's and vkbench's 157: ALU 6641 to 4620 (-30.4%), copies 2397 to 431, co-issued slots 583 to 630, registers
+  1117 to 784, control flow 1581 to 1239.
 
 The milestone also found that a0 doesn't survive an alloc ("a0 doesn't survive an alloc", above), which had lit
 Dusklight's skinned models from the wrong rows before it and at its step 4.

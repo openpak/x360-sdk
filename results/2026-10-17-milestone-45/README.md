@@ -960,3 +960,18 @@ shader's count against `check_optimize.py`'s, and that each program it takes as 
 compiles the same with the optimiser on and off. At steps 5 and 6 it found 954, 450; the 35 since went with step 2's
 copies placed together (above), and no copy is left of the two kinds it marks "each weighed alone". The kinds, and why
 no step takes each, are recorded against "Done when" in docs/scope/45-xost-code-quality.md.
+
+### Step 2's copies placed together on the console
+
+Run on 2026-10-17 through the console agent, everything cleaned and built in full:
+- **xsdk_test:** 383 passed; the controller checks failed with 0x48F, no controller connected.
+- **`probe_xsc`** (`probe_xsc_together.log`), from the pack as this xost makes it: 150 of 150 as on the PC, in 1.33 s.
+- **`probe_shader_cost`** (`probe_together.log`): pixel shaders 62,913 µs (−19.0%), vertex shaders 13,349 µs
+  (−19.0%); the same 100 pictures; no vertex draw reaching the pixels. 93 of the 150 programs take more than 2% less
+  than their better baseline time, none more than 2% above their worse.
+- **vulkan4xenon_test:** 426 as committed, and 426 in each of two runs with its shaders compiled with `--optimize` by
+  this xost (45 lines of `tests/shaders.c` different from steps 5 and 6's).
+- **Dusklight,** built against this xsdk with its pack from this xost, every 150th title frame captured: the 19 vertex
+  shaders that changed light Link, Epona and the scene as at steps 5 and 6.
+- **Broken on purpose,** a reader's lane from another of a copy's writers given the current writer's place: with
+  vulkan4xenon's shaders compiled by it, `test_aurora_points`' emboss check fails.
