@@ -3728,7 +3728,7 @@ and exports it, so a pixel names the constant read or shows nothing was written.
 - **`vk_dynamic_if.frag` as xost compiled it,** without the reload (`d8206eb`, case 18) and with it (`3f35da3`, case
   19, and 26 over 15 rounds): wrong as above, the quads matching what the raster test logged.
 
-Compiler rules xost keeps, built on 2026-10-17 and checked on the PC; the console runs are to come:
+Compiler rules xost keeps, built and run on the console on 2026-10-17:
 - **An arm using a0 goes in plain execs.** An arm that loads a0 or reads a constant at it goes in plain execs, each
   instruction predicated as before, cases 20's and 22's shape (`exec_entry`, `src/xsc_program.c`). An arm that doesn't
   stays in execs on the predicate, byte for byte as before.
@@ -3762,6 +3762,12 @@ Still unknown:
 - **a0 past a skipped exec on the predicate that doesn't use it.** Case 7 lost a0 past an arm that loads it; whether
   an exec on the predicate that doesn't touch a0 loses it too wasn't tried. No program of the corpus reads at a0 past
   such an exec.
+
+On the console on 2026-10-17, xsdk_test's raster test drew xost's `vk_dynamic_if.frag`, compiled there with both rules,
+over its two grids, the arm taken in the first: 0 of 16,520 quads wrong over 59 frames, in each of two runs, and no
+hang. With the load again past the arms off, 8,260 of 16,520, the arm-taken half. With the plain-exec rule off the
+program is commit `3f35da3`'s, the run in `results/2026-10-17-a0-predicated/xsdk_test_hung.log`: half the arm
+quads wrong, then the GPU hung at frame 5; it wasn't run again.
 
 ## xost's code quality, milestone 45 (2026-10-17)
 
