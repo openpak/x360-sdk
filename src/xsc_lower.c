@@ -22,6 +22,9 @@ enum {
 	OP_SHIFT_RIGHT_LOGICAL = 194,
 	OP_NOT = 200,
 	GLSL_MATRIX_INVERSE = 34,
+	// A fetch's destination swizzle writes 0 or 1 in a lane (xenia:src/xenia/gpu/ucode.h:677-692).
+	FETCH_ZERO = 4,
+	FETCH_ONE = 5,
 };
 
 bool xsdk_xsc_lower_refuse(XscLower *l, const char *format, ...)
@@ -1262,6 +1265,8 @@ static XscOperand constant_operand(XscLower *l, const XscInstr *ins, uint32_t ss
 	return reg == XSC_NONE ? (XscOperand){ 0 } : xsc_const(reg);
 }
 
+static XscOperand construct_value(XscLower *l, const XscInstr *ins, int64_t r);
+
 static XscOperand construct_operand(XscLower *l, const XscInstr *ins)
 {
 	uint32_t count;
@@ -1278,8 +1283,7 @@ static XscOperand construct_operand(XscLower *l, const XscInstr *ins)
 		const int64_t reg = xsdk_xsc_literal_splat(l, xsdk_xsc_scalar_const(l, ops[0]));
 		return reg == XSC_NONE ? (XscOperand){ 0 } : xsc_const(reg);
 	}
-	const int64_t r = xsdk_xsc_fresh(l);
-	return xsdk_xsc_emit_construct(l, ins, r, false) ? xsc_reg(r) : (XscOperand){ 0 };
+	return construct_value(l, ins, xsdk_xsc_fresh(l));
 }
 
 static XscOperand from_reg(int64_t reg)
@@ -1547,22 +1551,87 @@ typedef struct {
 	XscOrigin origin;
 } Part;
 
-bool xsdk_xsc_emit_construct(XscLower *l, const XscInstr *ins, int64_t dst_reg, bool export_)
+// A construct's parts, a lane each; into an export, a 0 or 1 is a literal the export writes itself.
+static Part *construct_parts(XscLower *l, const XscInstr *ins, bool export_, uint32_t *n)
 {
-	uint32_t n;
-	const uint32_t *const ops = xsdk_xsc_operands(ins, &n);
-	Part *const parts = xsdk_xsc_alloc(l->x, ((size_t)n + 1) * sizeof *parts);
-	if (!parts)
-		return false;
-	for (uint32_t i = 0; i < n; i++) {
+	const uint32_t *const ops = xsdk_xsc_operands(ins, n);
+	Part *const parts = xsdk_xsc_alloc(l->x, ((size_t)*n + 1) * sizeof *parts);
+	for (uint32_t i = 0; parts && i < *n; i++) {
 		if (export_ && xsdk_xsc_float_const01(l, ops[i], &parts[i].value)) {
 			parts[i].literal = true;
 			continue;
 		}
 		parts[i].origin = xsdk_xsc_scalar_origin(l, ops[i]);
 		if (xsc_failed(l))
-			return false;
+			return NULL;
 	}
+	return parts;
+}
+
+// A vertex input's components, a float's or a float vector's; 4 for any other type.
+static int64_t input_width(XscLower *l, int64_t reg)
+{
+	const int64_t pointee = l->si->vfetch[reg].var->pointee;
+	const XscType *const t = pointee == XSC_NONE ? NULL : xsdk_xsc_type(l->m, l->types, (uint64_t)pointee);
+	const bool vector = t && t->kind == XSC_TYPE_VECTOR;
+	const XscType *const comp = vector ? xsdk_xsc_type(l->m, l->types, t->comp) : t;
+	return !comp || comp->kind != XSC_TYPE_FLOAT ? 4 : vector ? t->count : 1;
+}
+
+static XscOp *input_fetch(const XscProgram *p, int64_t reg)
+{
+	for (size_t si = 0; si < p->stage_count; si++) {
+		for (size_t i = 0; i < p->stages[si].count; i++) {
+			if (p->stages[si].ops[i]->kind == XSC_OP_VFETCH && p->stages[si].ops[i]->fetch.dest == reg)
+				return p->stages[si].ops[i];
+		}
+	}
+	return NULL;
+}
+
+// The vertex input a construct is, each part the input's component in its lane or a 0 or 1 past its components, which
+// its fetch writes (xenia:src/xenia/gpu/ucode.h:677-692) and the runtime's patch keeps (src/shader.c); XSC_NONE if not.
+static int64_t fetched_construct(XscLower *l, const XscInstr *ins, const Part *parts)
+{
+	const XscType *const t = xsdk_xsc_result_type(l, ins->result_id);
+	uint32_t n;
+	const uint32_t *const ops = xsdk_xsc_operands(ins, &n);
+	if (!l->vertex || !l->p->optimize || !t || t->kind != XSC_TYPE_VECTOR || n > 4)
+		return XSC_NONE;
+	double values[4] = { 0 };
+	bool literal[4] = { false };
+	int64_t reg = XSC_NONE;
+	for (uint32_t i = 0; i < n; i++) {
+		literal[i] = xsdk_xsc_float_const01(l, ops[i], &values[i]);
+		const XscOrigin *const o = &parts[i].origin;
+		if (literal[i])
+			continue;
+		if (o->o.kind != XSC_OPERAND_REG || o->comp != (int64_t)i || o->o.value >= (int64_t)l->si->vfetch_count ||
+			(reg != XSC_NONE && o->o.value != reg))
+			return XSC_NONE;
+		reg = o->o.value;
+	}
+	XscOp *const fetch = reg == XSC_NONE ? NULL : input_fetch(l->p, reg);
+	if (!fetch)
+		return XSC_NONE;
+	const int64_t width = input_width(l, reg);
+	int64_t swizzle = fetch->fetch.dest_swizzle;
+	for (uint32_t i = 0; i < n; i++) {
+		if (!literal[i])
+			continue;
+		const int64_t want = values[i] == 1.0 ? FETCH_ONE : FETCH_ZERO;
+		const int64_t now = swizzle >> (3 * i) & 7;
+		// A lane the input has, a lane another construct gave the other constant, and -0, which the fetch's 0 isn't.
+		if ((int64_t)i < width || (now != (int64_t)i && now != want) || signbit(values[i]))
+			return XSC_NONE;
+		swizzle = (swizzle & ~((int64_t)7 << (3 * i))) | want << (3 * i);
+	}
+	fetch->fetch.dest_swizzle = swizzle;
+	return reg;
+}
+
+static bool emit_parts(XscLower *l, const Part *parts, uint32_t n, int64_t dst_reg, bool export_)
+{
 	if (export_) {
 		int64_t zero_mask = 0, one_mask = 0;
 		for (uint32_t i = 0; i < n; i++) {
@@ -1602,6 +1671,26 @@ bool xsdk_xsc_emit_construct(XscLower *l, const XscInstr *ins, int64_t dst_reg, 
 		j++;
 	}
 	return true;
+}
+
+bool xsdk_xsc_emit_construct(XscLower *l, const XscInstr *ins, int64_t dst_reg, bool export_)
+{
+	uint32_t n;
+	const Part *const parts = construct_parts(l, ins, export_, &n);
+	return parts && emit_parts(l, parts, n, dst_reg, export_);
+}
+
+// A construct's value in register r, or the vertex input it is.
+static XscOperand construct_value(XscLower *l, const XscInstr *ins, int64_t r)
+{
+	uint32_t n;
+	const Part *const parts = construct_parts(l, ins, false, &n);
+	if (!parts)
+		return (XscOperand){ 0 };
+	const int64_t input = fetched_construct(l, ins, parts);
+	if (input != XSC_NONE)
+		return xsc_reg(input);
+	return emit_parts(l, parts, n, r, false) ? xsc_reg(r) : (XscOperand){ 0 };
 }
 
 static bool export_constant_vector(XscLower *l, uint32_t ssa, int64_t dst, bool *done)

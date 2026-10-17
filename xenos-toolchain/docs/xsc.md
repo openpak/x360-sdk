@@ -125,6 +125,15 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   `xsdk_shader_set_vertex_layout`); a sampler keeps its constant and resource, so
   a host binds what it bound before. setTexLOD, the gradients' setters and
   `getTextureGradients` stay.
+- With the optimiser on, a vector built from a VS input's own components,
+  each in its lane, and 0 or 1 in lanes past the input's, as
+  `vec4(in_pos, 1.0)` of a vec3, is the input itself: its fetch's
+  destination swizzle writes the 0 or 1 (xenia:src/xenia/gpu/ucode.h:677-692),
+  which xsdk's and libxenon's patches for the host's layout keep, as they
+  rewrite only the selectors of x to w (xsdk:src/shader.c, picked_swizzle;
+  libxenon:drivers/xenos/xe.c:902-917). A lane the input has, or one another
+  such vector filled with the other constant, stays an ALU copy
+  (`tests/test_fetch_fills.py`).
 - Bare uniforms → constant registers by Location; scalars read the register's
   `.x`.
 - Uniform and push constant blocks → the block's raw std140 bytes in
