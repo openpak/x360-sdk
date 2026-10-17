@@ -3667,3 +3667,67 @@ over a grid of 560 quads in one draw, each its own index of 16, the colour read 
 0 of 33,040 quads wrong over 59 frames, in each of two runs; with the reload off, 33,040 of 33,040. Dusklight's
 skinned models, read at `c[152..154+a0]` past the interpolators' alloc, are lit from their own rows for the first
 time.
+
+## xost's code quality, milestone 45 (2026-10-17)
+
+docs/scope/45-xost-code-quality.md. `tests/probe_shader_cost.c` measured each step on the console, run through the
+console agent (logs: `results/2026-10-17-milestone-45/`, whose README also has the PC's counts and each step's checks).
+- **What it times.** Each of the 150 programs in Dusklight's pack, compiled on the console from the pack's SPIR-V with
+  the optimiser on, as vulkan4xenon compiles them. 4 draws of each are timed by the GPU's clock, copied with the GPU
+  idle before and after, at 498.75 clocks a us, and the best of 3 rounds counts. Each line logs the program's ALU
+  instructions and registers, which equal `tools/check_optimize.py`'s counts for it.
+- **Pixel shaders** each draw two triangles over a 1280x720 target, 921,600 pixels, behind a vertex shader of the
+  probe's own. Every constant holds a fixed sixteenth, the shader's literals over them, and every sampler a 64x64
+  texture, filtered, one level. Each picture is resolved and hashed, so a step that changes what a pixel shader
+  computes shows.
+- **Vertex shaders** each draw 65,535 vertices whose inputs all hold the same four values, so every triangle has no
+  area. A visibility query around one draw shows nothing reaches the pixels.
+
+What it leaves out:
+- **3 pictures that never repeat.** `1510c05add37f2b3.frag`, `29fab4bb2516d607.frag` and `2eefbbd89e53921c.frag` hash
+  differently in every run, the baseline's two as well, so each step's pictures are compared on the other 100. All
+  three sample at coordinates offset by another texture's texel times 255, GX's indirect texturing, so the coordinates
+  run into the thousands. Two other shaders that do the same repeat; why these three don't isn't known.
+- **Interpolators a pixel shader doesn't read.** Each pixel shader is drawn with one past its highest input Location.
+  The probe's first run drew all 16 for every shader, and every pixel shader up to 45 ALU instructions then took about
+  1,852 us, a pixel a clock: interpolating 64 components a pixel set the pace, and hid what their code cost.
+- **Vertex shaders' results.** With no area, their exports reach no pixel, so the probe times them and checks nothing
+  they compute. The PC's simulator compares their exports with the optimiser on and off (`xdis/equivalence.py`), and
+  Dusklight's title scene drew them at every step.
+
+Each shader's time summed, against the baseline as each shader's better time in its two runs
+(`probe_baseline_1.log` and `_2.log`, 0.46% apart a shader on average):
+
+| Run | Pixel shaders, us | Vertex shaders, us | Registers a pixel and a vertex shader | ALU, pixel and vertex |
+|---|---|---|---|---|
+| Baseline | 77,668 | 16,472 | 6.19, 9.77 | 1687, 4930 |
+| Step 2, values computed into place (`probe_step2.log`) | 66,036 (-15.0%) | 14,054 (-14.7%) | 6.21, 7.49 | 1342, 3593 |
+| Step 3, registers packed (`probe_step3.log`) | 62,830 (-19.1%) | 14,056 (-14.7%) | 4.53, 6.34 | 1342, 3593 |
+| Step 4, more co-issue (`probe_step4.log`) | 62,921 (-19.0%) | 13,916 (-15.5%) | 4.53, 6.38 | 1342, 3546 |
+| The a0 reload (`probe_reload.log`) | 62,830 (-19.1%) | 13,935 (-15.4%) | 4.53, 6.38 | 1342, 3548 |
+| Step 6, unused fetches dropped (`probe_step6.log`) | 62,894 (-19.0%) | 13,923 (-15.5%) | 4.52, 6.38 | 1342, 3548 |
+| Steps 5 and 6, constants from the fetch (`probe_step56.log`) | 62,947 (-19.0%) | 13,458 (-18.3%) | 4.52, 6.38 | 1342, 3276 |
+
+- **The gain.** Dusklight's pixel shaders take 19.0% less of the GPU and its vertex shaders 18.3%, 18.8% together. 93
+  of the 150 programs take more than 2% less than their better baseline time, and none more than 2% above their worse.
+  Every run drew the same 100 pictures as the baseline, and no vertex draw reached the pixels.
+- **Where it came from.** The pixel shaders' from step 2, and step 3's registers, 4.9% less than at step 2 with 4.53
+  registers a shader for 6.21. The vertex shaders' from step 2; step 4, in the two vertex shaders read at a run-time
+  index, `93d36ce55e3f9bad.vert` 638.7 to 578.4 us and `c0ddfd4547c71e5a.vert` 704.4 to 635.9; and step 5, 3.3% less
+  than at step 6. Their ALU falls by 33.5%, their time by 18.3%. The baseline's two runs differ by 0.2% in the pixel
+  shaders' total, so the pixel shaders' moves after step 3 are noise.
+- **Registers.** Pixel shaders take 4.52 a shader for 6.19 and vertex shaders 6.38 for 9.77. The two vertex shaders read
+  at a run-time index take one more each than before the milestone, from step 4: `93d36ce55e3f9bad.vert` 14 and
+  `c0ddfd4547c71e5a.vert` 13.
+- **Compiling the pack on the console,** as `probe_xsc` times its 150 programs from a pack built by each step's xost:
+  1.32 s before the milestone, 3.39 s at step 2, 1.42 s once step 2's pass stopped the optimiser's round starting over
+  for every copy it took (`probe_xsc_compile_time.log`), 1.45 s at step 4, 1.43 s with the a0 reload and at step 6,
+  and 1.32 s at steps 5 and 6. Every program came out on the console as on the PC.
+- **The PC's counts,** `tools/check_optimize.py` over the 367 shaders the baseline compiled, optimiser on
+  (`baseline.json` against `steps5_6.json`): ALU 8895 to 6502 (-26.9%), copies 3253 to 938 (-71.2%), co-issued slots
+  675 to 726, registers 2115 to 1530 (-27.7%), control flow 2573 to 2177 (-15.4%), fetches 614 to 610. Dusklight's
+  and vkbench's 157: ALU 6641 to 4639 (-30.1%), copies 2397 to 450, co-issued slots 583 to 630, registers 1117 to 784,
+  control flow 1581 to 1239.
+
+The milestone also found that a0 doesn't survive an alloc ("a0 doesn't survive an alloc", above), which had lit
+Dusklight's skinned models from the wrong rows before it and at its step 4.
