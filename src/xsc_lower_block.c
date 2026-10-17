@@ -170,7 +170,7 @@ static bool set_a0(XscLower *l, uint32_t part, int64_t scale)
 	if (l->a0_set && l->a0_part == part && l->a0_scale == scale) {
 		if (l->a0_allocs == l->p->alloc_count)
 			return true;
-		// a0 doesn't survive an alloc, so the same load goes again (docs/HARDWARE.md, "a0 doesn't survive an alloc").
+		// Past an alloc, or an arm loading another index, a0 doesn't hold it: the load goes again (docs/HARDWARE.md).
 		l->a0_allocs = l->p->alloc_count;
 		return xsdk_xsc_emit_alu(l, &l->a0_load);
 	}

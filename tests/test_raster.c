@@ -19,9 +19,9 @@
 // One cell per piece of raster and blend state, each checked by pixel against what the CPU works out; then, for
 // vulkan4xenon milestone 26, a row of quads drawn as their edges and their corners, a row of cells clipped by planes,
 // and point sprites from xost's shaders compiled on the console; and a grid of quads coloured from a block at their
-// vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), and one
-// coloured by a pixel shader sampling at a coordinate read at a0 past fetch grouping (docs/HARDWARE.md, "a0 through
-// fetch grouping").
+// vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), and two
+// coloured by pixel shaders reading at a0 past fetch grouping and past if/else arms (docs/HARDWARE.md, "a0 through
+// fetch grouping" and "a0 past if/else arms").
 
 enum {
 	WIDTH = 1280,
@@ -68,13 +68,14 @@ enum {
 	// The length of each of vk_dynamic_interpolator.vert's arrays, its scales and its colours.
 	INDEXED_INDICES = 16,
 	MAX_INDEXED_LOGGED = 8,
-	// The pixel shader's grid right of the fill row, 35 by 8 quads the indexed grid's size.
+	// The pixel shaders' grids right of the fill row, each 35 by 8 quads the indexed grid's size.
 	PIXEL_GRID_Y = 20,
 	PIXEL_GRID_COLUMNS = 35,
 	PIXEL_GRID_ROWS = 8,
 	PIXEL_GRID_QUADS = PIXEL_GRID_COLUMNS * PIXEL_GRID_ROWS,
 	PIXEL_GRID_VERTICES = PIXEL_GRID_QUADS * QUAD_VERTICES,
 	TEXCOORD_X = 540,
+	UNIFORM_IF_X = 890,
 	// A position, then the quad's indices i and j for the pixel shader, as triangle_vertex_shader's colour.
 	PIXEL_VERTEX_FLOATS = 8,
 	PIXEL_STRIDE_BYTES = PIXEL_VERTEX_FLOATS * 4,
@@ -83,8 +84,13 @@ enum {
 	BLOCKS_SIDE = 4,
 	BLOCK_SIDE = TEXTURE_SIDE / BLOCKS_SIDE,
 	TEXCOORD_ROWS = 2 * INDEXED_INDICES,
-	// The indexed grid, then the pixel shader's.
-	GRIDS = 2,
+	// vk_dynamic_if.frag's rows: colours, tints and the mode, which picks the arm; its first draw takes the arm reading
+	// at j, over the grid's top half.
+	UNIFORM_IF_ROWS = 2 * INDEXED_INDICES + 1,
+	MODE_ROW = 2 * INDEXED_INDICES,
+	ARM_TAKEN_QUADS = PIXEL_GRID_QUADS / 2,
+	// The indexed grid, then the pixel shaders'.
+	GRIDS = 3,
 };
 
 // Each grid's check, which its count of wrong quads follows.
@@ -93,6 +99,8 @@ static const char *const grid_checks[GRIDS] = {
 	"vertices' index, 0 to 15, picks, read at a0 past the interpolators' alloc",
 	"raster: one draw of xost's vk_dynamic_texcoord.frag compiled on the console samples each of 280 quads' texel at "
 	"coords[i], i 0 to 15, read at a0 past j's load",
+	"raster: two draws of xost's vk_dynamic_if.frag compiled on the console colour each of 280 quads from rows at i "
+	"read before and past an if/else on a uniform whose arm reads at j, the arm taken in the first",
 };
 
 // Point sprites, each centred on a pixel's corner, as wide as its size, from vk_point_sprite.vert.
@@ -688,14 +696,14 @@ typedef struct {
 	const XsdkXscNeed *needs;
 	size_t need_count;
 	uint32_t block;
-	float rows[TEXCOORD_ROWS][4];
+	float rows[UNIFORM_IF_ROWS][4];
 	uint32_t vertices;
 	uint32_t argb[PIXEL_GRID_QUADS];
 	Grid grid;
 } PixelGrid;
 
-// The pixel shader's grid: triangle_vertex_shader passing each quad's indices on, its quads, the texels
-// vk_dynamic_texcoord.frag samples and their fetch constant, and the grid.
+// The pixel shaders' grids: triangle_vertex_shader passing each quad's indices on, both grids' quads, the texels
+// vk_dynamic_texcoord.frag samples and their fetch constant, and each grid.
 typedef struct {
 	XsdkShader vertex;
 	volatile uint32_t *memory;
@@ -703,6 +711,7 @@ typedef struct {
 	XsdkSamplerState sampler;
 	uint32_t slot;
 	PixelGrid texcoord;
+	PixelGrid uniform_if;
 } PixelGrids;
 
 // Index i's colour: red 16i + 8, green its complement and blue it xor 0x5A, so a pixel names the row read.
@@ -731,13 +740,20 @@ static void draw_quads(const PixelGrids *p, const PixelGrid *g, uint32_t first, 
 	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, count * QUAD_VERTICES);
 }
 
-// vk_dynamic_texcoord.frag in one draw.
+// vk_dynamic_texcoord.frag in one draw; vk_dynamic_if.frag in two, its arm reading at j taken in the first, over the
+// grid's top half, and not in the second.
 static void draw_pixel_grids(const PixelGrids *p)
 {
 	const PixelGrid *const t = &p->texcoord;
+	const PixelGrid *const u = &p->uniform_if;
+	const float not_taken[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
 	xsdk_gpu_set_texture(p->slot, &p->texture, &p->sampler);
 	xsdk_gpu_set_pixel_constants(t->block, &t->rows[0][0], TEXCOORD_ROWS);
 	draw_quads(p, t, 0, PIXEL_GRID_QUADS);
+	xsdk_gpu_set_pixel_constants(u->block, &u->rows[0][0], UNIFORM_IF_ROWS);
+	draw_quads(p, u, 0, ARM_TAKEN_QUADS);
+	xsdk_gpu_set_pixel_constants(u->block + MODE_ROW, not_taken, 1);
+	draw_quads(p, u, ARM_TAKEN_QUADS, PIXEL_GRID_QUADS - ARM_TAKEN_QUADS);
 }
 
 // The grid's quads whose centre doesn't hold their colour, the first few logged.
@@ -784,7 +800,8 @@ static bool point_holds(volatile const uint32_t *pixels, const Point *p, uint32_
 static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint32_t vertices,
 	volatile uint32_t *const *buffers, bool has_display, const Sprites *s, const Indexed *r, const PixelGrids *p)
 {
-	const Grid *const grids[GRIDS] = { r ? &r->grid : NULL, p ? &p->texcoord.grid : NULL };
+	const Grid *const grids[GRIDS] = { r ? &r->grid : NULL, p ? &p->texcoord.grid : NULL,
+		p ? &p->uniform_if.grid : NULL };
 	uint32_t quads_checked[GRIDS] = { 0 };
 	uint32_t quads_wrong[GRIDS] = { 0 };
 	uint32_t quads_logged[GRIDS] = { 0 };
@@ -1048,8 +1065,41 @@ static bool make_texcoord(PixelGrids *p)
 	return true;
 }
 
-// triangle_vertex_shader for a position and the indices, the grid's quads, and the grid; false, the grid undrawn, on a
-// failure.
+// vk_dynamic_if.frag's colour: colors[i] times the tint, plus colors[i] twice.
+static uint32_t uniform_if_argb(const float rows[][4], uint32_t i, uint32_t tint)
+{
+	uint32_t argb = 0xFF000000;
+	for (uint32_t c = 0; c < 3; c++) {
+		const float colour = rows[i][c];
+		argb |= to_byte(colour * rows[INDEXED_INDICES + tint][c] + 2.0f * colour) << (16 - 8 * c);
+	}
+	return argb;
+}
+
+// Its rows: colors[n] index n's colour over 4, tints[n] index 15 - n's, and the mode taking the arm, multipliers 1;
+// each quad's colour, its tint at j where the arm is taken, over the grid's top half, and at i below.
+static void make_uniform_if(PixelGrid *g)
+{
+	for (uint32_t n = 0; n < INDEXED_INDICES; n++) {
+		const uint32_t colour = indexed_argb(n);
+		const uint32_t tint = indexed_argb(INDEXED_INDICES - 1 - n);
+		for (uint32_t c = 0; c < 3; c++) {
+			g->rows[n][c] = channel(colour, 16 - 8 * c) / 4.0f;
+			g->rows[INDEXED_INDICES + n][c] = channel(tint, 16 - 8 * c);
+		}
+		g->rows[n][3] = 1.0f;
+		g->rows[INDEXED_INDICES + n][3] = 1.0f;
+	}
+	const float taken[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+	memcpy(g->rows[MODE_ROW], taken, sizeof taken);
+	for (uint32_t quad = 0; quad < PIXEL_GRID_QUADS; quad++) {
+		const uint32_t i = index_i(quad);
+		g->argb[quad] = uniform_if_argb(g->rows, i, quad < ARM_TAKEN_QUADS ? index_j(quad) : i);
+	}
+}
+
+// triangle_vertex_shader for a position and the indices, both grids' quads, and the grids; false, the grids undrawn,
+// on a failure.
 static bool make_pixel_grids(PixelGrids *p)
 {
 	static const XsdkVertexElement indices_layout[] = {
@@ -1061,15 +1111,20 @@ static bool make_pixel_grids(PixelGrids *p)
 			sizeof indices_layout / sizeof indices_layout[0], (const uint32_t[]){ PIXEL_STRIDE_BYTES })))
 		return false;
 	const uint32_t grid_bytes = PIXEL_GRID_VERTICES * PIXEL_STRIDE_BYTES;
-	p->memory = xsdk_gpu_alloc(grid_bytes);
+	p->memory = xsdk_gpu_alloc(2 * grid_bytes);
 	if (!p->memory)
 		return false;
 	write_pixel_grid(p->memory, TEXCOORD_X);
+	write_pixel_grid(p->memory + grid_bytes / 4, UNIFORM_IF_X);
 	__asm__ volatile("sync" ::: "memory");
 	const uint32_t address = xsdk_gpu_address(p->memory);
-	xsdk_gpu_invalidate(address, grid_bytes);
-	return make_pixel_grid(&p->texcoord, "vk_dynamic_texcoord.frag", "texcoord", TEXCOORD_X, address) &&
-		make_texcoord(p);
+	xsdk_gpu_invalidate(address, 2 * grid_bytes);
+	if (!make_pixel_grid(&p->texcoord, "vk_dynamic_texcoord.frag", "texcoord", TEXCOORD_X, address) ||
+		!make_pixel_grid(&p->uniform_if, "vk_dynamic_if.frag", "uniform if", UNIFORM_IF_X, address + grid_bytes) ||
+		!make_texcoord(p))
+		return false;
+	make_uniform_if(&p->uniform_if);
+	return true;
 }
 
 static volatile uint32_t *upload_square(void)
@@ -1118,7 +1173,8 @@ void test_raster(void)
 	check("raster: xost compiles and xsdk loads vk_dynamic_interpolator.vert on the console", indexed_made);
 	PixelGrids grids = { .vertex = { .microcode = NULL } };
 	const bool grids_made = make_pixel_grids(&grids);
-	check("raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag on the console", grids_made);
+	check("raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag and vk_dynamic_if.frag on the console",
+		grids_made);
 	// Without a display, as in Xenia, the frames still draw and are checked.
 	if (patched && vertices && buffers[0] && buffers[1])
 		draw_frames(&vertex, &pixel, xsdk_gpu_address(vertices), buffers, has_display,
@@ -1126,6 +1182,8 @@ void test_raster(void)
 	xsdk_display_close();
 	xsdk_texture_free(&grids.texture);
 	xsdk_gpu_free(grids.memory);
+	if (grids.uniform_if.pixel.microcode)
+		xsdk_shader_free(&grids.uniform_if.pixel);
 	if (grids.texcoord.pixel.microcode)
 		xsdk_shader_free(&grids.texcoord.pixel);
 	if (grids.vertex.microcode)
@@ -1144,6 +1202,7 @@ void test_raster(void)
 	xsdk_xsc_free(&sprite_state.pixel_compiled);
 	xsdk_xsc_free(&sprite_state.vertex_compiled);
 	xsdk_xsc_free(&indexed.compiled);
+	xsdk_xsc_free(&grids.uniform_if.compiled);
 	xsdk_xsc_free(&grids.texcoord.compiled);
 	for (uint32_t i = 0; i < BUFFERS; i++)
 		xsdk_gpu_free(buffers[i]);

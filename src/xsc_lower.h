@@ -82,7 +82,8 @@ typedef struct {
 	uint32_t *local_store;
 	int64_t *sample_reg;
 	int64_t *deriv_reg;
-	// What a0 holds, the instruction that loaded it, and the program's allocs then.
+	// What a0 holds, the instruction that loaded it, and the program's allocs then, SIZE_MAX past an if/else whose arm
+	// loaded another index.
 	bool a0_set;
 	uint32_t a0_part;
 	int64_t a0_scale;

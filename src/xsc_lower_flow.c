@@ -279,6 +279,12 @@ static bool save_caches(XscLower *l, XscSaved *s)
 	return true;
 }
 
+// Whether an arm loaded a0 for another index than it held before the branch.
+static bool moved_a0(const XscLower *l, const XscSaved *s)
+{
+	return l->a0_set != s->a0_set || l->a0_part != s->a0_part || l->a0_scale != s->a0_scale;
+}
+
 static void restore_caches(XscLower *l, const XscSaved *s)
 {
 	const size_t n = l->m->id_limit;
@@ -439,6 +445,7 @@ static bool emit_predicated(XscLower *l, uint32_t branch)
 	for (size_t i = 0; i < m->merge_count; i++)
 		regs[i] = m->merges[i].branch == branch && l->used[m->merges[i].select] ? xsdk_xsc_fresh(l) : XSC_NONE;
 	l->in_arm = true;
+	bool moved = false;
 	for (int arm = 0; arm < 2; arm++) {
 		if (!xsdk_xsc_program_predicate(l->x, l->p, arm ? XSC_PREDICATE_FALSE : XSC_PREDICATE_TRUE))
 			return false;
@@ -448,9 +455,13 @@ static bool emit_predicated(XscLower *l, uint32_t branch)
 			if (ins && (kind == XSC_TYPE_NONE || !emit_arm(l, xsdk_xsc_operand(ins, 1 + (uint32_t)arm), kind, regs[i])))
 				return false;
 		}
+		moved = moved || moved_a0(l, &l->saved);
 		restore_caches(l, &l->saved);
 	}
 	l->in_arm = false;
+	// a0 holds what the arm that ran loaded, so a read at the index from before loads it again (set_a0).
+	if (moved)
+		l->a0_allocs = SIZE_MAX;
 	if (!xsdk_xsc_program_predicate(l->x, l->p, XSC_PREDICATE_NONE))
 		return false;
 	for (size_t i = 0; i < m->merge_count; i++) {

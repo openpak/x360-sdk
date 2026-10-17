@@ -8,8 +8,9 @@ arms on a push constant merged the same way, and vk_loop_count_if.frag a hardwar
 (vulkan4xenon milestone 21); vulkan4xenon milestone 26's vk_clip_distance.vert writes three clip distances from planes
 in its blocks, and vk_point_sprite.vert and vk_point_coord.frag a point's size and its sprite's coordinates, which the
 raster test draws with too, as it does vk_dynamic_interpolator.vert, which reads a colour at a0 past the interpolators'
-alloc, a0 loaded again before it, and vk_dynamic_texcoord.frag, which samples at a coordinate read at a0 that fetch
-grouping keeps past its load. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
+alloc, a0 loaded again before it, vk_dynamic_texcoord.frag, which samples at a coordinate read at a0 that fetch
+grouping keeps past its load, and vk_dynamic_if.frag, which reads at a0 past if/else arms in execs on the predicate, one
+of which loads a0 at another index. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
 """
 
 import struct
@@ -24,7 +25,7 @@ import xsc.native as native  # noqa: E402
 TESTDATA = ROOT / "xenos-toolchain" / "xsc" / "testdata"
 SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert", "vk_vertex_uniform_if.vert",
            "vk_loop_count_if.frag", "vk_clip_distance.vert", "vk_point_sprite.vert", "vk_point_coord.frag",
-           "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag")
+           "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag", "vk_dynamic_if.frag")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",

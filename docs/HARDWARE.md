@@ -3689,6 +3689,25 @@ A compiler bug in xost, found while the reload above was built, now a rule xost 
   the rule off (a copy of xsdk_test built without it, its compiler check's header made by that compiler), 16,520 of
   16,520, each quad sampling the block at j.
 
+## a0 past if/else arms (2026-10-17)
+
+A compiler bug in xost, found with the one above, now a rule xost keeps. Built on 2026-10-17 and checked on the PC; the
+console runs are to come.
+- **Hardware fact, Xenia's:** an exec on the predicate runs for none of 64 pixels that all fail it
+  (xenia:src/xenia/gpu/ucode.h:114-124). A pixel shader's if/else on a uniform goes in such execs where the unroller
+  merges it, in a shader with a loop or with `gl_FragDepth` under an if/else (`wanted`, `src/xsc_unroll.c`), so after
+  the arms a0 holds what the arm that ran loaded.
+- **Compiler bug:** the lowering put its record of a0 back as it was before the arms (`emit_predicated`,
+  `src/xsc_lower_flow.c`), so a read at the index from before them loaded nothing: `vk_dynamic_if.frag`, reading
+  `colors[i]`, then `tints[j]` in an arm, then `colors[i]` again, read `colors[j]` wherever the arm ran. No program of
+  milestone 45's corpus or Dusklight's pack had that shape.
+- **The rule:** an arm that loads a0 at another index leaves the record stale, and the next read at the old index emits
+  the same load again (`set_a0`, `src/xsc_lower_block.c`). Selects run both arms everywhere, so the record follows
+  them as they're emitted, and hardware loops already forget a0 at their body and after it.
+- **Checks:** `tests/test_dynamic_index.py` runs `vk_dynamic_if.frag` on `xdis/simulate.py` for each of 16 indices,
+  both arms, optimiser off and on. xsdk_test's raster test compiles it on the console and draws it as a grid of 280
+  quads as above in two draws, the arm taken over the top half and not below it.
+
 ## xost's code quality, milestone 45 (2026-10-17)
 
 docs/scope/45-xost-code-quality.md. `tests/probe_shader_cost.c` measured each step on the console, run through the

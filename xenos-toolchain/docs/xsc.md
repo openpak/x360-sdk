@@ -149,7 +149,10 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   (xenia:src/xenia/gpu/ucode.h:1138-1150). a0 doesn't survive an alloc on
   the console, so a read at the same index past one loads a0 again first,
   with the instruction that loaded it before
-  (xsdk:docs/HARDWARE.md, "a0 doesn't survive an alloc").
+  (xsdk:docs/HARDWARE.md, "a0 doesn't survive an alloc"). So does a read past
+  if/else arms in execs on the predicate where an arm loaded a0 at another
+  index, as a0 then holds what the arm that ran loaded (xsdk:docs/HARDWARE.md,
+  "a0 past if/else arms").
 - gl_InstanceIndex (Vulkan's InstanceIndex) → the float constant register
   past the blocks, before the literals, so no uniform block the GPU may load
   shares its group of 4. The runtime writes the instance's index, a float, into
