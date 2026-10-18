@@ -24,8 +24,9 @@ loops nested, in an if/else and in an unrolled loop, the grid drawn in the raste
 loops from 100 and by 2 to a block's int, each its own passes, drawn in the raster test too, and
 vk_loop_sample_lod.frag, vk_loop_sample_grad.frag, vk_loop_sample_computed.frag, vk_loop_derivative.frag,
 vk_loop_parallax.frag, vk_vertex_loop_sample.vert and vk_loop_sample_grid.frag, samples and derivatives in hardware
-loops' passes, the grid drawn in the raster test. Prints a C header. Runs in WSL, where make builds the compiler for the
-PC.
+loops' passes, the grid drawn in the raster test; and vk_scalar_input_loop.frag, vk_scalar_input.frag and
+vk_vertex_scalar_input.vert, scalar inputs, held in x alone, read as values. Prints a C header. Runs in WSL, where make
+builds the compiler for the PC.
 """
 
 import struct
@@ -48,7 +49,8 @@ SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert
            "vk_loop_nest2.frag", "vk_loop_nest4.frag", "vk_loop_in_data_if.frag", "vk_loop_in_uniform_if.frag",
            "vk_loop_in_unrolled.frag", "vk_vertex_loop_nest.vert", "vk_loop_nest_grid.frag", "vk_loop_step_grid.frag",
            "vk_loop_sample_lod.frag", "vk_loop_sample_grad.frag", "vk_loop_sample_computed.frag",
-           "vk_loop_derivative.frag", "vk_loop_parallax.frag", "vk_vertex_loop_sample.vert", "vk_loop_sample_grid.frag")
+           "vk_loop_derivative.frag", "vk_loop_parallax.frag", "vk_vertex_loop_sample.vert", "vk_loop_sample_grid.frag",
+           "vk_scalar_input_loop.frag", "vk_scalar_input.frag", "vk_vertex_scalar_input.vert")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",
