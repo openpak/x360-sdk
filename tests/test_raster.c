@@ -25,8 +25,9 @@
 // a later exec (docs/HARDWARE.md, "Slow fetches across execs"); and, for milestone 46 steps 2 and 3, grids whose pixels
 // each leave an unrolled loop and a hardware loop at their own pass, on breaks and continues on data xost gates, and
 // the hardware loop timed with every pixel leaving at its first pass of 255, against a count of 1; for step 4, a grid
-// whose pixels each run loops on counts of their own, from data; and, for step 5, a grid whose pixels each take their
-// own passes at every level of hardware loops nested 3 deep, two of them in the arms of an if/else on data.
+// whose pixels each run loops on counts of their own, from data; for step 5, a grid whose pixels each take their own
+// passes at every level of hardware loops nested 3 deep, two of them in the arms of an if/else on data; and a grid of
+// loops from 100 and by 2 to a block's int, each the passes Shader Model 3 counts, which xsdk works out on the CPU.
 
 enum {
 	WIDTH = 1280,
@@ -138,15 +139,23 @@ enum {
 	DATA_HEIGHT = 320,
 	LOOP_MAX_PASSES = 255,
 	// vk_loop_nest_grid.frag's grid left of everything else, one quad 40 by 480, every pixel checked, its outer and
-	// inner loops counted by the push block's two ints from NEST_COUNTS_BYTES, its loop constants NEST_LOOPS at most.
+	// inner loops counted by the push block's two ints from COUNTS_BYTES.
 	NEST_X = 0,
 	NEST_Y = 120,
 	NEST_WIDTH = 40,
 	NEST_HEIGHT = 480,
 	NEST_OUTER = 4,
 	NEST_INNER = 3,
-	NEST_COUNTS_BYTES = 16,
-	NEST_LOOPS = 4,
+	COUNTS_BYTES = 16,
+	// The most loop constants a grid sets.
+	GRID_LOOPS = 4,
+	// vk_loop_step_grid.frag's grid below vk_loop_nest_grid.frag's, one quad 40 by 120, every pixel checked, its loops
+	// from 100 and by 2 counted by the push block's int at COUNTS_BYTES, past 255.
+	STEPPED_X = 0,
+	STEPPED_Y = 600,
+	STEPPED_WIDTH = 40,
+	STEPPED_HEIGHT = 120,
+	STEPPED_COUNT = 300,
 };
 
 // Each grid's check, which its count of wrong quads follows.
@@ -779,8 +788,8 @@ typedef struct {
 
 // What a loop grid draws with: the shader, its place, its quad and the colour of each place in a cell; for
 // vk_loop_count_grid.frag, its push block's register and its loop constant, and a quad over the whole target after the
-// grid's; for vk_loop_data_grid.frag, the same and the passes its loop constant runs; for vk_loop_nest_grid.frag, its
-// push block's register and each of its loop constants from the first.
+// grid's; for vk_loop_data_grid.frag, the same and the passes its loop constant runs; for vk_loop_nest_grid.frag and
+// vk_loop_step_grid.frag, its push block's register and each of its loop constants from the first.
 typedef struct {
 	XsdkShader pixel;
 	XsdkXscShader compiled;
@@ -796,7 +805,7 @@ typedef struct {
 	uint32_t block;
 	uint32_t loop_constant;
 	uint32_t passes;
-	uint32_t loops[NEST_LOOPS];
+	uint32_t loops[GRID_LOOPS];
 	uint32_t loop_count;
 } LoopGrid;
 
@@ -815,6 +824,7 @@ typedef struct {
 	LoopGrid count;
 	LoopGrid data;
 	LoopGrid nest;
+	LoopGrid stepped;
 } PixelGrids;
 
 // vk_loop_count_grid.frag's place: each pixel's column and row in its cell, or every pixel leaving at the first pass.
@@ -824,9 +834,12 @@ static const float first_pass_place[4] = { 0.0f, 0.0f, 9.0f, 0.0f };
 // scale.
 static const float data_grid_place[4] = { 3.25f, 330.0f, 0.5f, 0.0f };
 // vk_loop_nest_grid.frag's: each pixel's column and row in its cell; and its outer and inner counts, by the push
-// block's ints from NEST_COUNTS_BYTES.
+// block's ints from COUNTS_BYTES.
 static const float nest_grid_place[4] = { 1.0f, 1.0f, 0.0f, 0.0f };
-static const uint32_t nest_counts[2] = { NEST_OUTER, NEST_INNER };
+static const int32_t nest_counts[2] = { NEST_OUTER, NEST_INNER };
+// vk_loop_step_grid.frag's: the scale from passes to a colour, and its count.
+static const float stepped_grid_place[4] = { 1.0f / 255.0f, 0.0f, 0.0f, 0.0f };
+static const int32_t stepped_count = STEPPED_COUNT;
 
 // Index i's colour: red 16i + 8, green its complement and blue it xor 0x5A, so a pixel names the row read.
 static uint32_t indexed_argb(uint32_t i)
@@ -872,7 +885,7 @@ static void draw_loop(const PixelGrids *p, const LoopGrid *l, uint32_t quad, con
 
 // vk_dynamic_texcoord.frag in one draw; vk_dynamic_if.frag in two, its arm reading at j taken in the first, over the
 // grid's top half, and not in the second; vk_slow_fetch.frag in one; vk_loop_grid.frag, vk_loop_count_grid.frag,
-// vk_loop_data_grid.frag and vk_loop_nest_grid.frag in one each.
+// vk_loop_data_grid.frag, vk_loop_nest_grid.frag and vk_loop_step_grid.frag in one each.
 static void draw_pixel_grids(const PixelGrids *p)
 {
 	const PixelGrid *const t = &p->texcoord;
@@ -895,6 +908,7 @@ static void draw_pixel_grids(const PixelGrids *p)
 	draw_loop(p, &p->count, 0, count_grid_place, COUNT_PASSES);
 	draw_loop(p, &p->data, 0, data_grid_place, p->data.passes);
 	draw_loop(p, &p->nest, 0, nest_grid_place, 0);
+	draw_loop(p, &p->stepped, 0, stepped_grid_place, 0);
 }
 
 // The pixels a grid checks a quad, its centre or all of them.
@@ -992,6 +1006,9 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 	uint32_t nest_checked = 0;
 	uint32_t nest_misses = 0;
 	uint32_t nest_logged = 0;
+	uint32_t stepped_checked = 0;
+	uint32_t stepped_misses = 0;
+	uint32_t stepped_logged = 0;
 	States states;
 	make_states(&states);
 	// The depth bias cell needs depth cleared to 1.0, which a float rounding once turned into 0.
@@ -1063,6 +1080,8 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 				data_checked += DATA_WIDTH * DATA_HEIGHT;
 				nest_misses += loop_wrong(&p->nest, buffer, frame, &nest_logged);
 				nest_checked += NEST_WIDTH * NEST_HEIGHT;
+				stepped_misses += loop_wrong(&p->stepped, buffer, frame, &stepped_logged);
+				stepped_checked += STEPPED_WIDTH * STEPPED_HEIGHT;
 			}
 		}
 		if (has_display)
@@ -1117,6 +1136,12 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 		"in the arms of an if/else on data: %u of %u wrong",
 		(unsigned)nest_misses, (unsigned)nest_checked);
 	check(name, fences_landed && nest_checked && nest_misses == 0);
+	(void)snprintf(name, sizeof name,
+		"raster: one draw of xost's vk_loop_step_grid.frag compiled on the console colours every pixel of 48 cells of "
+		"10 by 10 by the passes of loops from 100 and by 2 to a push constant's 300, 200 and 150 as "
+		"xsdk_xsc_loop_passes works them out, and their counters after: %u of %u wrong",
+		(unsigned)stepped_misses, (unsigned)stepped_checked);
+	check(name, fences_landed && stepped_checked && stepped_misses == 0);
 	if (has_display) {
 		check("raster: every frame shown", shown);
 		xsdk_log_write("raster: the last frame stays on screen for %u ms for a capture", (unsigned)TEST_SHOW_MS);
@@ -1479,6 +1504,23 @@ static uint32_t nest_argb(uint32_t column, uint32_t row)
 		to_byte((float)c * 0.015625f);
 }
 
+// vk_loop_step_grid.frag's colour, the same at every place, as tests/test_data_loops.py works it out: the passes of its
+// loops from 100 and by 2 to stepped_count, each stopping at 255, and their counters after.
+static uint32_t stepped_argb(uint32_t column, uint32_t row)
+{
+	(void)column;
+	(void)row;
+	uint32_t a = 0;
+	int32_t i = 100;
+	for (; i < stepped_count && a < LOOP_MAX_PASSES; i++)
+		a++;
+	uint32_t b = 0;
+	int32_t j = 0;
+	for (; j < stepped_count && b < LOOP_MAX_PASSES; j += 2)
+		b++;
+	return 0xFF000000 | a << 16 | b << 8 | to_byte((float)(i + j) * 0.25f / 255.0f);
+}
+
 // Each vertex of the square from x and y, width by height, into memory.
 static void write_square(volatile uint32_t *memory, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
@@ -1557,13 +1599,10 @@ static bool make_data(LoopGrid *g)
 	return true;
 }
 
-// vk_loop_nest_grid.frag's grid, where its push block is, and each loop constant from its need, from the first: a block
-// loop's count from the push block's int at its offset, the fixed loop's passes; false, the grid undrawn, on a failure.
-static bool make_nest(LoopGrid *g)
+// Each of a loop grid's loop constants from its need, from the first: a block loop's passes, as xsdk works them out
+// from the push block's int at the need's offset, in counts, or a fixed loop's passes; false on a need it can't set.
+static bool set_loops(LoopGrid *g, const int32_t *counts, uint32_t count_count)
 {
-	*g = (LoopGrid){ .x = NEST_X, .y = NEST_Y, .width = NEST_WIDTH, .height = NEST_HEIGHT };
-	if (!make_loop(g, "vk_loop_nest_grid.frag", 1, nest_argb) || !find_loop(g, XSDK_XSC_FIXED_LOOP))
-		return false;
 	g->loop_constant = UINT32_MAX;
 	for (size_t i = 0; i < g->need_count; i++) {
 		const XsdkXscNeed *const n = &g->needs[i];
@@ -1573,15 +1612,35 @@ static bool make_nest(LoopGrid *g)
 	for (size_t i = 0; i < g->need_count; i++) {
 		const XsdkXscNeed *const n = &g->needs[i];
 		const uint32_t at = n->reg - g->loop_constant;
-		const uint32_t which = (n->offset_bytes - NEST_COUNTS_BYTES) / sizeof(int32_t);
+		const uint32_t which = (n->offset_bytes - COUNTS_BYTES) / sizeof(int32_t);
 		if (n->kind != XSDK_XSC_BLOCK_LOOP && n->kind != XSDK_XSC_FIXED_LOOP)
 			continue;
-		if (at >= NEST_LOOPS || (n->kind == XSDK_XSC_BLOCK_LOOP && which >= 2))
+		if (at >= GRID_LOOPS || (n->kind == XSDK_XSC_BLOCK_LOOP && which >= count_count))
 			return false;
-		g->loops[at] = xsdk_gpu_loop_constant(n->kind == XSDK_XSC_FIXED_LOOP ? n->regs : nest_counts[which], 0, 1);
+		const uint32_t passes =
+			n->kind == XSDK_XSC_FIXED_LOOP ? n->regs : xsdk_xsc_loop_passes(n->start, n->step, counts[which]);
+		g->loops[at] = xsdk_gpu_loop_constant(passes, 0, 1);
 		g->loop_count = at + 1 > g->loop_count ? at + 1 : g->loop_count;
 	}
 	return true;
+}
+
+// vk_loop_nest_grid.frag's grid, where its push block is, and each loop constant from its need; false, the grid
+// undrawn, on a failure.
+static bool make_nest(LoopGrid *g)
+{
+	*g = (LoopGrid){ .x = NEST_X, .y = NEST_Y, .width = NEST_WIDTH, .height = NEST_HEIGHT };
+	return make_loop(g, "vk_loop_nest_grid.frag", 1, nest_argb) && find_loop(g, XSDK_XSC_FIXED_LOOP) &&
+		set_loops(g, nest_counts, 2);
+}
+
+// vk_loop_step_grid.frag's grid, where its push block is, and each loop constant from its need; false, the grid
+// undrawn, on a failure.
+static bool make_stepped(LoopGrid *g)
+{
+	*g = (LoopGrid){ .x = STEPPED_X, .y = STEPPED_Y, .width = STEPPED_WIDTH, .height = STEPPED_HEIGHT };
+	return make_loop(g, "vk_loop_step_grid.frag", 1, stepped_argb) && find_loop(g, XSDK_XSC_BLOCK_LOOP) &&
+		set_loops(g, &stepped_count, 1);
 }
 
 // triangle_vertex_shader for a position and the indices, both grids' quads, and the grids; false, the grids undrawn,
@@ -1611,7 +1670,7 @@ static bool make_pixel_grids(PixelGrids *p)
 		return false;
 	p->loop = (LoopGrid){ .x = LOOP_X, .y = LOOP_Y, .width = LOOP_WIDTH, .height = LOOP_HEIGHT };
 	if (!make_loop(&p->loop, "vk_loop_grid.frag", 1, loop_argb) || !make_count(&p->count) || !make_data(&p->data) ||
-		!make_nest(&p->nest))
+		!make_nest(&p->nest) || !make_stepped(&p->stepped))
 		return false;
 	make_uniform_if(&p->uniform_if);
 	return true;
@@ -1702,7 +1761,8 @@ void test_raster(void)
 	const bool grids_made = make_pixel_grids(&grids);
 	check(
 		"raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag, vk_dynamic_if.frag, vk_slow_fetch.frag, "
-		"vk_loop_grid.frag, vk_loop_count_grid.frag, vk_loop_data_grid.frag and vk_loop_nest_grid.frag on the console",
+		"vk_loop_grid.frag, vk_loop_count_grid.frag, vk_loop_data_grid.frag, vk_loop_nest_grid.frag and "
+		"vk_loop_step_grid.frag on the console",
 		grids_made);
 	// Without a display, as in Xenia, the frames still draw and are checked.
 	if (patched && vertices && buffers[0] && buffers[1])
@@ -1711,6 +1771,10 @@ void test_raster(void)
 	if (grids_made)
 		time_early_exit(&grids);
 	xsdk_display_close();
+	if (grids.stepped.memory)
+		xsdk_gpu_free(grids.stepped.memory);
+	if (grids.stepped.pixel.microcode)
+		xsdk_shader_free(&grids.stepped.pixel);
 	if (grids.nest.memory)
 		xsdk_gpu_free(grids.nest.memory);
 	if (grids.nest.pixel.microcode)
@@ -1754,6 +1818,7 @@ void test_raster(void)
 	xsdk_xsc_free(&sprite_state.pixel_compiled);
 	xsdk_xsc_free(&sprite_state.vertex_compiled);
 	xsdk_xsc_free(&indexed.compiled);
+	xsdk_xsc_free(&grids.stepped.compiled);
 	xsdk_xsc_free(&grids.nest.compiled);
 	xsdk_xsc_free(&grids.data.compiled);
 	xsdk_xsc_free(&grids.count.compiled);
