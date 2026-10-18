@@ -4066,3 +4066,28 @@ selected by `cnd` on 1.0 and 0.0 flags (src/xsc_unroll.c, `stop_pass`), the shap
 - **Nothing else moved:** no other program of milestone 45's corpus compiles differently, Dusklight's pack among them;
   vulkan4xenon_test passed 439 of 439 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates
   before.
+
+## Breaks and continues on data in hardware loops, milestone 46 step 3 (2026-10-18)
+
+xost gates a break or continue on data in a hardware loop as step 2 gates one in an unrolled loop, with `alive` a flag
+the loop carries from 1: a `setp_eq` on it at the pass's end sets p0 where the pixel has left, and LOOP_END breaks on
+p0, so a group leaves once none of its pixels is left (src/xsc_unroll.c, `carry_alive`; src/xsc_lower_flow.c,
+`emit_loop`). The counter adds `alive`, so after the loop it holds the pass a pixel broke at. Logs:
+`results/2026-10-18-milestone-46-step-3/`.
+- **Every pixel left at its own pass.** xsdk_test's raster grid, `vk_loop_count_grid.frag` compiled on the console, one
+  quad of 112 cells of 10 by 10 pixels, the pixels of each 2x2 quad and each group of 64 leaving at different passes on
+  a continue on data, a break on data in an arm of an if/else and one ending the pass, the counter after the loop added
+  to red: 0 of 660,800 pixels wrong over 59 frames. The console's compiles of it, `vk_loop_break_data.frag`,
+  `vk_loop_count_stop.frag` and `vk_vertex_loop_count_break.vert` matched the PC's.
+- **Leaving early costs nothing.** The same shader over the whole 1280x720 target, every pixel leaving at the first
+  pass, the best of 4 draws each: 1,444,291 GPU clocks under a count of 255 against 1,444,310 under a count of 1, about
+  2.9 ms at 498.75 MHz.
+- **Break builds:**
+  - gating off in the hardware loop: 554,718 of the grid's 660,800 pixels wrong, the early exit timed as before;
+  - the predicated LOOP_END dropped: every pixel right, and 226,244,322 clocks under a count of 255, about 454 ms, 157
+    times a count of 1.
+
+  In both, the console's compiles of the four gated shaders differed from the PC's.
+- **Nothing else moved:** of milestone 45's corpus, only `vk_loop_break_data.frag`, refused before, and step 3's new
+  testdata compile differently; Dusklight's pack is the same byte for byte. vulkan4xenon_test passed 439 of 439 twice,
+  vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.
