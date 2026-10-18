@@ -1199,6 +1199,10 @@ static XscOperand load_operand(XscLower *l, uint32_t ssa, const XscInstr *ins)
 	if (ptr && ptr->opcode == SPV_ACCESS_CHAIN)
 		return scalar_value(l, ssa);
 	const bool known = src < l->m->id_limit;
+	// A scalar interpolant or vertex input holds its value in x alone, so it's spread over a register of its own.
+	const XscTypeKind kind = result_kind(l, ssa);
+	if (known && l->inputs[src] != XSC_NONE && (kind == XSC_TYPE_FLOAT || kind == XSC_TYPE_INT))
+		return scalar_value(l, ssa);
 	if (known && l->inputs[src] != XSC_NONE)
 		return xsc_reg(l->inputs[src]);
 	if (known && l->local_values[src].kind != XSC_OPERAND_NONE)
