@@ -505,10 +505,17 @@ spirv_shader_translator_fetch.cc:521-541).
 - **Ordering:** a fetch keeps its place against every state fetch (`xsdk:src/xsc_program.c`, ordered), so each sample
   reads the state set for it; and a state fetch counts as writing no temp, so the allocator never takes its unused
   destination, which keeps every component (DEST_KEEP), for one.
+- **No wait inside a run:** the console keeps the state per lane and shares it between the pixel groups in flight, so
+  a wait between a setter and the fetch reading it lets another group's setter land first, and the fetch samples at
+  that group's LOD (xsdk:docs/HARDWARE.md, "Loops on the console, milestone 46 step 1"). Fetch grouping takes a run of
+  setters only with its fetch, once all of it is ready, so no work lands inside it, and the run waits at its first
+  setter if any of it would (`xsdk:src/xsc_program.c`, run_end and run_waits; `tests/test_dependent_fetch.py`).
 
 Offsets, a sample index and a minimum LOD, the image operands xsc doesn't take, are refused; they were dropped before.
-`tests/test_lod_gradients.py` checks each on `xdis/simulate.py`, which keeps the state the setters write. None of it is
-checked on the console yet (vulkan4xenon:docs/ROADMAP.md, milestone 22).
+`tests/test_lod_gradients.py` checks each on `xdis/simulate.py`, which keeps the state the setters write. The console
+took each level xost's sequences ask for, a LOD and gradients that differ between pixel groups and a LOD in a loop's
+passes among them (xsdk:docs/HARDWARE.md, "LODs, facing and vertex textures, vulkan4xenon milestone 22" and "Loops on
+the console, milestone 46 step 1").
 
 ## Facing
 

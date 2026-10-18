@@ -377,6 +377,7 @@ enum { XSC_TEMPS = 128, XSC_WRITTEN_ALU = 1, XSC_WRITTEN_FETCH = 2, XSC_WRITTEN_
 static void defs_uses(
 	const XscProgram *p, const XscOp *op, int64_t *defs, size_t *def_count, int64_t *uses, size_t *use_count);
 static bool uses_a0(const XscOp *op);
+static bool state_fetch(const XscOp *op);
 
 // Whether a stage loads a0 or reads a constant at it.
 static bool stage_uses_a0(const XscStage *stage)
@@ -400,7 +401,24 @@ static bool any_written(const uint8_t written[XSC_TEMPS], const int64_t *temps, 
 // The ALU and the fetches run apart, and an instruction waits for everything before it only when serialized: an exec
 // boundary is no wait (docs/HARDWARE.md, "Slow fetches across execs"). So an ALU instruction that reads or writes a
 // temp a fetch wrote since the last serialized instruction, in any exec, is serialized, and so is a fetch that reads a
-// temp anything wrote, a fetch reading a fetch's unchecked. A serialized instruction clears written.
+// temp anything wrote, a fetch reading a fetch's unchecked. A serialized instruction clears written. A run of setters
+// waits at its first if any of it would, so nothing after that waits before the fetch reading the state: another pixel
+// group's setter lands in the gap a wait leaves (docs/HARDWARE.md, "Loops on the console, milestone 46 step 1"), and
+// group_stage keeps a run whole.
+static bool run_waits(const XscProgram *p, const XscStage *stage, XscOp *const *at, const uint8_t written[XSC_TEMPS])
+{
+	for (XscOp *const *op = at; op < stage->ops + stage->count; op++) {
+		int64_t defs[2], uses[3];
+		size_t def_count, use_count;
+		defs_uses(p, *op, defs, &def_count, uses, &use_count);
+		if (any_written(written, uses, use_count, XSC_WRITTEN_ANY))
+			return true;
+		if (!state_fetch(*op))
+			return false;
+	}
+	return false;
+}
+
 static CfEntry exec_entry(
 	const XscProgram *p, const XscStage *stage, const Chunk *chunk, bool last, uint8_t written[XSC_TEMPS])
 {
@@ -412,9 +430,12 @@ static CfEntry exec_entry(
 		int64_t defs[2], uses[3];
 		size_t def_count, use_count;
 		defs_uses(p, op, defs, &def_count, uses, &use_count);
-		const bool waits = op->is_fetch ? any_written(written, uses, use_count, XSC_WRITTEN_ANY)
-										: any_written(written, uses, use_count, XSC_WRITTEN_FETCH) ||
-				any_written(written, defs, def_count, XSC_WRITTEN_FETCH);
+		const XscOp *const before = chunk->ops + k > stage->ops ? *(chunk->ops + k - 1) : NULL;
+		const bool run_start = state_fetch(op) && !(before && state_fetch(before));
+		const bool waits = (run_start && run_waits(p, stage, chunk->ops + k, written)) ||
+			(op->is_fetch ? any_written(written, uses, use_count, XSC_WRITTEN_ANY)
+						  : any_written(written, uses, use_count, XSC_WRITTEN_FETCH) ||
+						any_written(written, defs, def_count, XSC_WRITTEN_FETCH));
 		if (waits) {
 			seq |= (int64_t)2 << (2 * k);
 			memset(written, 0, XSC_TEMPS);
@@ -728,6 +749,23 @@ static bool needs_work(const Grouping *g, XscOp *const *ops, size_t k)
 	return false;
 }
 
+// A setter goes only with the rest of its run, the setters after it and the fetch reading them, once all of it is
+// ready, so no work lands between them (exec_entry). The run's last op, or n if any of it isn't ready.
+static size_t run_end(const Grouping *g, XscOp *const *ops, size_t k)
+{
+	for (size_t j = k + 1; j < g->n; j++) {
+		if (!ops[j]->is_fetch)
+			continue;
+		for (size_t i = 0; i < g->n; i++) {
+			if (g->after[j * g->n + i] && !g->done[i] && !(i >= k && i < j && ops[i]->is_fetch))
+				return g->n;
+		}
+		if (!state_fetch(ops[j]))
+			return j;
+	}
+	return g->n;
+}
+
 static void take_ready_round(Grouping *g, XscOp *const *ops, uint8_t *wanted)
 {
 	const size_t n = g->n;
@@ -752,8 +790,13 @@ static void take_ready_round(Grouping *g, XscOp *const *ops, uint8_t *wanted)
 	// A fetch that waits goes before those that don't, so it doesn't wait for them too.
 	for (int waits = 1; waits >= 0; waits--) {
 		for (size_t k = 0; k < n; k++) {
-			if (ops[k]->is_fetch && ready(g, k) && needs_work(g, ops, k) == waits)
-				take(g, k);
+			if (!ops[k]->is_fetch || !ready(g, k) || needs_work(g, ops, k) != waits)
+				continue;
+			const size_t end = state_fetch(ops[k]) ? run_end(g, ops, k) : k;
+			for (size_t j = k; end < n && j <= end; j++) {
+				if (ops[j]->is_fetch)
+					take(g, j);
+			}
 		}
 	}
 	// Never, but never stall.

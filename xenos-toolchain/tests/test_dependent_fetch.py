@@ -13,13 +13,18 @@ fetches" and "Slow fetches across execs").
   back edge and its skip are paths, and so is passing an exec that may not run: one on the predicate, or whose
   instructions are predicated. Fetches include a vertex shader's, and a fetch reading a fetch's result is serialized
   as one reading the ALU's is, unchecked on the console.
-- In every shader of xsc's testdata, optimiser off and on, no instruction the rule wants is unserialized; where the
-  control flow runs straight through, nothing else is serialized either.
+- A run of setters, setTexLOD and the gradients', and the fetch reading them: nothing after its first setter waits or
+  is ALU work before that fetch, as another pixel group's setter lands in the gap a wait leaves (xsdk:docs/HARDWARE.md,
+  "Loops on the console, milestone 46 step 1"). The first setter waits for its run instead.
+- In every shader of xsc's testdata, optimiser off and on, no instruction the rule wants is unserialized, and the setter
+  runs hold; where the control flow runs straight through, nothing else is serialized either.
 - Hand-built programs: a fetch's result read in a later exec is serialized; a serialized instruction in between
   clears it; a loop carries a fetch's result from the end of its body to its start and, as it may run no times, one
   from before it to past it; an arm on the predicate that waits leaves the other arm to wait too; a fetch waiting for
   the work goes before the fetches that don't, so it alone waits.
 - vk_dependent_fetch.frag has serialized ALU and fetch instructions both, and the simulator gives what the GLSL says.
+- vk_lod_dependent.frag samples at coordinates worked out from another sample, with a LOD and gradients ready sooner:
+  each run's first setter waits for that work, and its fetch doesn't.
 """
 import re
 import sys
@@ -45,6 +50,7 @@ from test_xsc_lower import TD  # noqa: E402
 SCALE = [1.0 / 204.0, 0.0, 0.5 / 204.0, 0.5]
 INDEX = 188
 TEMP = re.compile(r"\br(\d+)\b")
+SETTER = re.compile(r"\bset(TexLOD|GradientH|GradientV)\b")
 SLOTS = {"alu": xu.AluInstruction, "tfetch": xu.TextureFetchInstruction, "vfetch": xu.VertexFetchInstruction}
 
 
@@ -142,13 +148,35 @@ def fail(message):
     raise SystemExit("FAILED")
 
 
+def setter_runs(name, blob):
+    """The instructions, in program order, that start a run of setters; fails if one after a run's first waits or is
+    ALU work before the fetch reading the state."""
+    c = container.Container(blob)
+    ops = [(rec.kind != "alu", bool(SETTER.search(rec.text)), rec.serialize)
+           for rec in xu._decode_program(c.ucode_dwords, c.shader_type)[0] if rec.kind in SLOTS]
+    starts = set()
+    for i, (_, setter, _) in enumerate(ops):
+        if not setter or (i and ops[i - 1][1]):
+            continue
+        starts.add(i)
+        for j in range(i + 1, len(ops)):
+            fetch, later_setter, serialize = ops[j]
+            if not fetch or serialize:
+                fail(f"{name}: instruction {j} {'waits' if fetch else 'is ALU work'} after setter {i}, before its fetch")
+            if not later_setter:
+                break
+    return starts
+
+
 def check_rule(name, blob):
-    """Fails if an instruction the rule wants is unserialized, or, in straight control flow, one it doesn't is."""
+    """Fails if an instruction the rule wants is unserialized, if a setter run breaks, or, in straight control flow, if
+    an instruction the rule doesn't want is serialized, a run's first setter aside."""
     result, straight = hazards(blob)
+    starts = setter_runs(name, blob)
     for i, (serialize, wants) in enumerate(result):
         if wants and not serialize:
             fail(f"{name}: instruction {i} reads across the ALU and the fetches unserialized")
-        if straight and serialize and not wants:
+        if straight and serialize and not wants and i not in starts:
             fail(f"{name}: instruction {i} serialized where nothing reads across")
     return straight
 
@@ -297,6 +325,18 @@ def check_dependent_fetch():
           [lookup[0], lookup[1], 0.0, 1.0])
 
 
+def check_lod_dependent():
+    blob, _ = lower_ex(module("vk_lod_dependent.frag"), XSDK_REGISTERS)
+    starts = setter_runs("vk_lod_dependent.frag", blob)
+    c = container.Container(blob)
+    serialized = [rec.serialize for rec in xu._decode_program(c.ucode_dwords, c.shader_type)[0] if rec.kind in SLOTS]
+    if len(starts) < 3 or not serialized[min(starts)]:
+        fail(f"vk_lod_dependent.frag: setter runs starting at {sorted(starts)}, serialized "
+             f"{[serialized[i] for i in sorted(starts)]}; want three or more, the first waiting for the work")
+    print(f"  PASS vk_lod_dependent.frag: {len(starts)} setter runs, the first waiting at its setter for the work its "
+          "fetch reads, nothing waiting after a setter")
+
+
 def main():
     check_testdata()
     check_later_exec()
@@ -305,6 +345,7 @@ def main():
     check_arms()
     check_waiting_fetch_first()
     check_dependent_fetch()
+    check_lod_dependent()
     print("OK")
 
 
