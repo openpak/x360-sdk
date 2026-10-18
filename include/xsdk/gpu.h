@@ -251,9 +251,9 @@ typedef struct {
 uint32_t xsdk_gpu_tiling_bands(const XsdkTiling *tiling);
 // Sets the pass's targets, as xsdk_gpu_set_targets sets them over the whole target, and records what follows into
 // buffer; STATUS_NOT_IMPLEMENTED for 2 or 4 samples, STATUS_INVALID_PARAMETER for a pass that can't be tiled. Until
-// xsdk_gpu_end_tiles: nothing a recording can't hold, no visibility queries, no targets set, and pixel constants below
-// XSDK_XSC_FRAG_COORD_CONSTANT's group. Depth in bands of up to half of eDRAM's tiles is tested against the
-// hierarchical buffer, from a clear to the depth xsdk_gpu_set_depth_clear set before.
+// xsdk_gpu_end_tiles: nothing a recording can't hold, no visibility queries and no targets set. Depth in bands of up to
+// half of eDRAM's tiles is tested against the hierarchical buffer, from a clear to the depth xsdk_gpu_set_depth_clear
+// set before.
 NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *tiling, XsdkCommandBuffer *buffer);
 // The draws after reach only rows top to bottom - 1, so the bands those rows miss skip them; rows 0 to the height
 // again for every band.
@@ -467,6 +467,9 @@ void xsdk_gpu_set_clip_planes(uint32_t mask, const float planes[][4]);
 enum {
 	// Four floats each; each stage reads its own 256.
 	XSDK_FLOAT_CONSTANTS = 256,
+	// The pixel shader's a title sets: xsdk keeps the group of 4 from here, as xost's gl_FragCoord reads
+	// XSDK_XSC_FRAG_COORD_CONSTANT (include/xsdk/xsc.h), which xsdk moves for each band of a tiled pass.
+	XSDK_PIXEL_CONSTANTS = 252,
 	// 32 to a word; libxenon gives vertex shaders the first 128 and pixel shaders the rest (xe.c:2038-2064).
 	XSDK_BOOL_CONSTANT_WORDS = 8,
 	XSDK_LOOP_CONSTANTS = 32,
@@ -474,12 +477,12 @@ enum {
 
 // Sets the vertex shader's float constants first to first + count - 1 from count * 4 floats, rewriting each 16 touched.
 void xsdk_gpu_set_vertex_constants(uint32_t first, const float *values, uint32_t count);
-// The same for the pixel shader's float constants. xsdk keeps XSDK_XSC_FRAG_COORD_CONSTANT (include/xsdk/xsc.h), which
-// xost's gl_FragCoord reads, at 0.5 and 0.5: setting it moves gl_FragCoord.
+// The same for the pixel shader's float constants, below XSDK_PIXEL_CONSTANTS: from there they're xsdk's, as a title
+// setting them would move gl_FragCoord for the shaders after, and setting one stops at an assert.
 void xsdk_gpu_set_pixel_constants(uint32_t first, const float *values, uint32_t count);
 // Has the GPU load count float constants from first straight from memory at address, as the console takes them:
-// whole groups of 4 from a multiple of 4, from 64-byte aligned memory (docs/HARDWARE.md). The setters' copy doesn't
-// hold loaded values, so a group that's loaded mustn't also be set.
+// whole groups of 4 from a multiple of 4, from 64-byte aligned memory (docs/HARDWARE.md), a pixel shader's below
+// XSDK_PIXEL_CONSTANTS. The setters' copy doesn't hold loaded values, so a group that's loaded mustn't also be set.
 void xsdk_gpu_load_vertex_constants(uint32_t first, uint32_t address, uint32_t count);
 void xsdk_gpu_load_pixel_constants(uint32_t first, uint32_t address, uint32_t count);
 // Sets words of boolean constants, bit n of word w being constant 32 * w + n, as a shader's cexec names it.

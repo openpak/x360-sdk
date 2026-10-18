@@ -345,7 +345,7 @@ static bool draw_and_wait(const ProbeCase *c, const XsdkShader *pixel, uint32_t 
 	fill_constants(c);
 	set_mode(c, draw == NOT_TAKEN);
 	xsdk_gpu_set_target(WIDTH, HEIGHT);
-	xsdk_gpu_set_pixel_constants(0, constants[0], XSDK_FLOAT_CONSTANTS);
+	xsdk_gpu_set_pixel_constants(0, constants[0], XSDK_PIXEL_CONSTANTS);
 	xsdk_gpu_set_shaders(&vertex, pixel);
 	if (draw == BOTH) {
 		draw_cells(layout_index, 0, HALF_CELLS);

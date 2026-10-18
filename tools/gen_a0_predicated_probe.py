@@ -42,9 +42,10 @@ CHECK = 0x5A
 INDEX, PREDICATE, RESULT, SCRATCH = 0, 1, 2, 3
 REGISTERS = 4
 I, J, L, W = 0, 1, 2, 3
-# Rows read at a0, 16 apart from the next so a pixel names the base and the index; plain rows past them.
+# Rows read at a0, 16 apart from the next so a pixel names the base and the index; plain rows past them, below the
+# group from c252 that xsdk keeps (include/xsdk/gpu.h, XSDK_PIXEL_CONSTANTS).
 ARM_ROW, OTHER_ROW, AFTER_ROW, BEFORE_ROW = 32, 64, 96, 128
-PLAIN_TRUE, PLAIN_FALSE, STALE_ROW, MODE_ROW = 160, 176, 192, 255
+PLAIN_TRUE, PLAIN_FALSE, STALE_ROW, MODE_ROW = 160, 176, 192, 240
 # MODE_ROW's value, the arms' condition true and false.
 MODES = ((1.0,) * 4, (-1.0,) * 4)
 EXEC_MOST = 6

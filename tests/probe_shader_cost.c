@@ -238,10 +238,12 @@ static void set_inputs(const XsdkXscShader *compiled, bool pixel)
 {
 	void (*const set)(uint32_t, const float *, uint32_t) =
 		pixel ? xsdk_gpu_set_pixel_constants : xsdk_gpu_set_vertex_constants;
-	set(0, constants[0], XSDK_FLOAT_CONSTANTS);
+	// A pixel shader's constants stop where xsdk keeps gl_FragCoord's (include/xsdk/gpu.h).
+	const uint32_t count = pixel ? XSDK_PIXEL_CONSTANTS : XSDK_FLOAT_CONSTANTS;
+	set(0, constants[0], count);
 	for (size_t i = 0; i < compiled->need_count; i++) {
 		const XsdkXscNeed *const n = &compiled->needs[i];
-		if (n->kind != XSDK_XSC_LITERAL || n->reg >= XSDK_FLOAT_CONSTANTS)
+		if (n->kind != XSDK_XSC_LITERAL || n->reg >= count)
 			continue;
 		const float values[4] = { (float)n->value[0], (float)n->value[1], (float)n->value[2], (float)n->value[3] };
 		set(n->reg, values, 1);
