@@ -4,7 +4,9 @@ The program's control flow runs as Xenia's interpreter runs it for one vertex or
 (xenia:src/xenia/gpu/shader_interpreter.cc:26-258): an exec on the predicate runs when p0 is its condition, an
 exec that ends the program ends it only when it runs, and a hardware loop runs as many passes as the loop constant
 the caller gives says, from aL 0 by 1, a predicated LOOP_END breaking when p0 is its condition; without loop
-constants each loop's body runs once. The ALU's vector and scalar ops are as Xenia's ucode.h describes them
+constants each loop's body runs once. run_group runs several in lockstep, as the GPU runs a group of 64: an exec on
+the predicate runs if any of them needs it, each instruction predicated for each, and a predicated LOOP_END breaks
+only when every one agrees (xenia:src/xenia/gpu/ucode.h:114-124, 372-373); loops nest 4 deep (ucode.h:131). The ALU's vector and scalar ops are as Xenia's ucode.h describes them
 (xenia:src/xenia/gpu/ucode.h, AluScalarOpcode and AluVectorOpcode), with a temp's absolute-value bit, a constant's,
 negation, swizzles, write masks, clamps, a0- and aL-relative constants (MOVA's maxas and maxasf), the predicate and
 kills, and the cube op as Xenia runs it; every value written is rounded to a single, as the GPU keeps it. Exports land in their export registers.
@@ -46,10 +48,11 @@ def single(x: float) -> float:
 
 
 class Result:
-    def __init__(self, exports: dict, killed: bool, registers: dict):
+    def __init__(self, exports: dict, killed: bool, registers: dict, passes: int = 0):
         self.exports = exports        # export register -> [x, y, z, w]
         self.killed = killed          # a kill passed
         self.registers = registers    # temp -> [x, y, z, w] at the end
+        self.passes = passes          # LOOP_ENDs reached, every loop's passes together
 
 
 def _floor(x):
@@ -288,6 +291,8 @@ def _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, tex
 
 # More control flow steps than any program xsc writes takes, so a loop that never ends is caught.
 MAX_STEPS = 1 << 20
+# LOOP_START nests 4 deep (xenia:src/xenia/gpu/ucode.h:131).
+MAX_LOOP_DEPTH = 4
 
 
 def _control_flow(blob):
@@ -315,13 +320,19 @@ def run(blob: bytes, registers: dict | None = None, constants: dict | None = Non
     source swizzle picks; texture_lod(slot, coordinates, lod), given in its place, the same with the fetch's Lod.
     loops: loop constant -> its count of passes; without it each loop's body runs once.
     """
-    regs = {r: [single(x) for x in v] for r, v in (registers or {}).items()}
+    return run_group(blob, [registers or {}], constants, vertex_fetch, texture_fetch, loops, texture_lod)[0]
+
+
+def run_group(blob: bytes, registers: list, constants: dict | None = None, vertex_fetch=None, texture_fetch=None,
+              loops: dict | None = None, texture_lod=None) -> list:
+    """Runs the program for a group of vertices or pixels in lockstep, each one's registers at the start in the list
+    registers, the rest as run gives them; a Result for each, in order."""
     consts = constants or {}
-    exports = {}
-    state = {"a0": 0, "aL": 0, "p0": False, "killed": False, "ps": 0.0, "fetches": 0, "lod": 0.0,
-             "gradients": [[0.0] * 3, [0.0] * 3]}
+    lanes = [({r: [single(x) for x in v] for r, v in each.items()}, {},
+              {"a0": 0, "aL": 0, "p0": False, "killed": False, "ps": 0.0, "fetches": 0, "lod": 0.0,
+               "gradients": [[0.0] * 3, [0.0] * 3]}) for each in registers]
     cf, body = _control_flow(blob)
-    pc, stack, steps = 0, [], 0
+    pc, stack, steps, passes = 0, [], 0, 0
     while pc in cf:
         steps += 1
         if steps > MAX_STEPS:
@@ -331,30 +342,36 @@ def run(blob: bytes, registers: dict | None = None, constants: dict | None = Non
         if isinstance(d, xu.ParsedExecInstruction):
             if d.type == xu._ExecType.kConditional:
                 raise NotImplementedError("simulate: an exec on a boolean constant")
-            runs = d.type == xu._ExecType.kUnconditional or d.condition == state["p0"]
+            runs = d.type == xu._ExecType.kUnconditional or any(d.condition == s["p0"] for _, _, s in lanes)
             for rec in body[pc] if runs else ():
-                _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod)
+                for regs, exports, state in lanes:
+                    _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod)
             if d.is_end and runs:
                 break
         elif isinstance(d, xu.ParsedLoopStartInstruction):
             count = 1 if loops is None else loops.get(d.loop_constant_index, 0)
             if count <= 0:
                 following = d.loop_skip_address
+            elif len(stack) == MAX_LOOP_DEPTH:
+                raise RuntimeError("simulate: a fifth nested loop")
             else:
                 stack.append([0, count])
-                state["aL"] = 0
+                for _, _, state in lanes:
+                    state["aL"] = 0
         elif isinstance(d, xu.ParsedLoopEndInstruction):
+            passes += 1
             stack[-1][0] += 1
-            passes, count = stack[-1]
-            breaks = d.is_predicated_break and d.predicate_condition == state["p0"]
-            if passes < count and not breaks:
-                following = d.loop_body_address
-                state["aL"] = passes
+            done, count = stack[-1]
+            breaks = d.is_predicated_break and all(d.predicate_condition == s["p0"] for _, _, s in lanes)
+            if done < count and not breaks:
+                following, al = d.loop_body_address, done
             else:
                 stack.pop()
-                state["aL"] = stack[-1][0] if stack else 0
+                al = stack[-1][0] if stack else 0
+            for _, _, state in lanes:
+                state["aL"] = al
         pc = following
-    return Result(exports, state["killed"], regs)
+    return [Result(exports, state["killed"], regs, passes) for regs, exports, state in lanes]
 
 
 def _source(op, i, regs, consts, state):
