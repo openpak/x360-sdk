@@ -7,7 +7,8 @@ layout(location = 0) out vec4 o_color;
 
 void main()
 {
-	vec2 place = mod(floor(gl_FragCoord.xy), 10.0);
+	// gl_FragCoord sits on a pixel's centre, so a tenth of it is never near a whole number as rcp rounds it.
+	vec2 place = floor(gl_FragCoord.xy - 10.0 * floor(gl_FragCoord.xy * 0.1));
 	vec4 sum = vec4(0.0, 0.0, 0.0, 1.0);
 	for (int i = 0; i < 8; i++) {
 		if (i == 6)

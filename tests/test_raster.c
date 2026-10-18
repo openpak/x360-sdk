@@ -22,7 +22,8 @@
 // vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), two
 // coloured by pixel shaders reading at a0 past fetch grouping and in and past if/else arms (docs/HARDWARE.md, "a0
 // through fetch grouping" and "a0 and the predicate's execs"), and one by fetches far across a large texture, read in
-// a later exec (docs/HARDWARE.md, "Slow fetches across execs").
+// a later exec (docs/HARDWARE.md, "Slow fetches across execs"); and, for milestone 46 step 2, a grid whose pixels each
+// leave an unrolled loop at their own pass, on breaks and continues on data the unroller gates.
 
 enum {
 	WIDTH = 1280,
@@ -106,6 +107,14 @@ enum {
 	SLOW_QUAD_STEPS = 7,
 	// The indexed grid, then the pixel shaders'.
 	GRIDS = 4,
+	// vk_loop_grid.frag's grid between the point sprites and the slow fetch grid, one quad 100 by 80, every pixel
+	// checked: its column and row in a 10-pixel cell, from gl_FragCoord, pick the passes it leaves its loop at.
+	LOOP_X = 950,
+	LOOP_Y = 320,
+	LOOP_WIDTH = 100,
+	LOOP_HEIGHT = 80,
+	LOOP_CELL = 10,
+	LOOP_PASSES = 8,
 };
 
 // Each grid's check, which its count of wrong quads follows.
@@ -736,6 +745,17 @@ typedef struct {
 	Grid grid;
 } Slow;
 
+// What vk_loop_grid.frag's grid draws with: the shader, its quad, and the colour of each place in a cell.
+typedef struct {
+	XsdkShader pixel;
+	XsdkXscShader compiled;
+	const XsdkXscNeed *needs;
+	size_t need_count;
+	volatile uint32_t *memory;
+	uint32_t vertices;
+	uint32_t argb[LOOP_CELL][LOOP_CELL];
+} LoopGrid;
+
 // The pixel shaders' grids: triangle_vertex_shader passing each quad's indices on, both grids' quads, the texels
 // vk_dynamic_texcoord.frag samples and their fetch constant, and each grid.
 typedef struct {
@@ -747,6 +767,7 @@ typedef struct {
 	PixelGrid texcoord;
 	PixelGrid uniform_if;
 	Slow slow;
+	LoopGrid loop;
 } PixelGrids;
 
 // Index i's colour: red 16i + 8, green its complement and blue it xor 0x5A, so a pixel names the row read.
@@ -776,12 +797,13 @@ static void draw_quads(const PixelGrids *p, const PixelGrid *g, uint32_t first, 
 }
 
 // vk_dynamic_texcoord.frag in one draw; vk_dynamic_if.frag in two, its arm reading at j taken in the first, over the
-// grid's top half, and not in the second; vk_slow_fetch.frag in one.
+// grid's top half, and not in the second; vk_slow_fetch.frag in one; vk_loop_grid.frag in one.
 static void draw_pixel_grids(const PixelGrids *p)
 {
 	const PixelGrid *const t = &p->texcoord;
 	const PixelGrid *const u = &p->uniform_if;
 	const Slow *const s = &p->slow;
+	const LoopGrid *const l = &p->loop;
 	const float not_taken[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
 	xsdk_gpu_set_texture(p->slot, &p->texture, &p->sampler);
 	xsdk_gpu_set_pixel_constants(t->block, &t->rows[0][0], TEXCOORD_ROWS);
@@ -795,6 +817,10 @@ static void draw_pixel_grids(const PixelGrids *p)
 	xsdk_gpu_set_vertices(0, s->vertices, SLOW_VERTICES * PIXEL_STRIDE_BYTES);
 	set_literals(s->needs, s->need_count, false);
 	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, SLOW_VERTICES);
+	xsdk_gpu_set_shaders(&p->vertex, &l->pixel);
+	xsdk_gpu_set_vertices(0, l->vertices, QUAD_VERTICES * PIXEL_STRIDE_BYTES);
+	set_literals(l->needs, l->need_count, false);
+	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, QUAD_VERTICES);
 }
 
 // The pixels a grid checks a quad, its centre or all of them.
@@ -830,6 +856,30 @@ static uint32_t grid_wrong(const Grid *g, volatile const uint32_t *pixels, uint3
 	return wrong;
 }
 
+// The loop grid's pixels whose colour isn't their place's, the first few logged.
+static uint32_t loop_wrong(const LoopGrid *g, volatile const uint32_t *pixels, uint32_t frame, uint32_t *logged)
+{
+	uint32_t wrong = 0;
+	for (uint32_t y = LOOP_Y; y < LOOP_Y + LOOP_HEIGHT; y++) {
+		for (uint32_t x = LOOP_X; x < LOOP_X + LOOP_WIDTH; x++) {
+			const uint32_t want = g->argb[y % LOOP_CELL][x % LOOP_CELL];
+			const uint32_t stored = pixels[tiled_index(x, y, WIDTH)];
+			if (colour_near(stored, want))
+				continue;
+			if (*logged < MAX_INDEXED_LOGGED) {
+				xsdk_log_write(
+					"raster: frame %u: the loop grid's pixel at (%u, %u), column %u and row %u of its cell, "
+					"held %08X, not %08X",
+					(unsigned)frame, (unsigned)x, (unsigned)y, (unsigned)(x % LOOP_CELL), (unsigned)(y % LOOP_CELL),
+					(unsigned)stored, (unsigned)__builtin_bswap32(want));
+				(*logged)++;
+			}
+			wrong++;
+		}
+	}
+	return wrong;
+}
+
 static bool point_holds(volatile const uint32_t *pixels, const Point *p, uint32_t frame, uint32_t *misses)
 {
 	const uint32_t stored = pixels[tiled_index(p->x, p->y, WIDTH)];
@@ -856,6 +906,9 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 	uint32_t quads_checked[GRIDS] = { 0 };
 	uint32_t quads_wrong[GRIDS] = { 0 };
 	uint32_t quads_logged[GRIDS] = { 0 };
+	uint32_t loop_checked = 0;
+	uint32_t loop_misses = 0;
+	uint32_t loop_logged = 0;
 	States states;
 	make_states(&states);
 	// The depth bias cell needs depth cleared to 1.0, which a float rounding once turned into 0.
@@ -918,6 +971,10 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 				quads_wrong[g] += grid_wrong(grids[g], buffer, frame, &quads_logged[g]);
 				quads_checked[g] += grids[g]->quads * grid_side(grids[g]) * grid_side(grids[g]);
 			}
+			if (p) {
+				loop_misses += loop_wrong(&p->loop, buffer, frame, &loop_logged);
+				loop_checked += LOOP_WIDTH * LOOP_HEIGHT;
+			}
 		}
 		if (has_display)
 			shown = shown && NT_SUCCESS(xsdk_display_show(address, WIDTH));
@@ -946,6 +1003,13 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 			(unsigned)quads_checked[g]);
 		check(name, fences_landed && quads_checked[g] && quads_wrong[g] == 0);
 	}
+	char name[320];
+	(void)snprintf(name, sizeof name,
+		"raster: one draw of xost's vk_loop_grid.frag compiled on the console colours every pixel of 80 cells of 10 by "
+		"10 as it leaves an unrolled loop at its own pass, on breaks on data in arms of an if/else, a continue on data "
+		"and a break the unroller folds: %u of %u wrong",
+		(unsigned)loop_misses, (unsigned)loop_checked);
+	check(name, fences_landed && loop_checked && loop_misses == 0);
 	if (has_display) {
 		check("raster: every frame shown", shown);
 		xsdk_log_write("raster: the last frame stays on screen for %u ms for a capture", (unsigned)TEST_SHOW_MS);
@@ -1204,6 +1268,57 @@ static bool make_slow(Slow *s)
 	return true;
 }
 
+// vk_loop_grid.frag's colour at a column and row of its cell, as tests/test_loop_branches.py works it out: the column
+// picks the pass it breaks out at, in arms of an if/else on data, the row the pass it continues past, and none runs
+// pass 6.
+static uint32_t loop_argb(uint32_t column, uint32_t row)
+{
+	float sum[3] = { 0.0f, 0.0f, 0.0f };
+	for (uint32_t i = 0; i < LOOP_PASSES; i++) {
+		if (i == 6)
+			break;
+		sum[0] += 0.0625f;
+		if (i == row)
+			continue;
+		if (column < 5) {
+			sum[1] += 0.0625f;
+			if (i > column)
+				break;
+		} else if (i + 3 > column) {
+			break;
+		}
+		sum[2] += (float)(i + 1) * 0.03125f;
+	}
+	return 0xFF000000 | to_byte(sum[0]) << 16 | to_byte(sum[1]) << 8 | to_byte(sum[2]);
+}
+
+// vk_loop_grid.frag, its quad and each place's colour; false, the grid undrawn, on a failure.
+static bool make_loop(LoopGrid *g)
+{
+	if (!compile_shader("vk_loop_grid.frag", &g->pixel, &g->compiled, &g->needs, &g->need_count))
+		return false;
+	g->memory = xsdk_gpu_alloc(QUAD_VERTICES * PIXEL_STRIDE_BYTES);
+	if (!g->memory)
+		return false;
+	for (uint32_t v = 0; v < QUAD_VERTICES; v++) {
+		const float *const corner = square[v];
+		const float vertex[PIXEL_VERTEX_FLOATS] = { clip_x(LOOP_X + (corner[0] ? LOOP_WIDTH : 0)),
+			clip_y(LOOP_Y + (corner[1] ? LOOP_HEIGHT : 0)), 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+		uint32_t words[PIXEL_VERTEX_FLOATS];
+		memcpy(words, vertex, sizeof words);
+		for (uint32_t i = 0; i < PIXEL_VERTEX_FLOATS; i++)
+			g->memory[v * PIXEL_VERTEX_FLOATS + i] = words[i];
+	}
+	__asm__ volatile("sync" ::: "memory");
+	g->vertices = xsdk_gpu_address(g->memory);
+	xsdk_gpu_invalidate(g->vertices, QUAD_VERTICES * PIXEL_STRIDE_BYTES);
+	for (uint32_t row = 0; row < LOOP_CELL; row++) {
+		for (uint32_t column = 0; column < LOOP_CELL; column++)
+			g->argb[row][column] = loop_argb(column, row);
+	}
+	return true;
+}
+
 // triangle_vertex_shader for a position and the indices, both grids' quads, and the grids; false, the grids undrawn,
 // on a failure.
 static bool make_pixel_grids(PixelGrids *p)
@@ -1227,7 +1342,7 @@ static bool make_pixel_grids(PixelGrids *p)
 	xsdk_gpu_invalidate(address, 2 * grid_bytes);
 	if (!make_pixel_grid(&p->texcoord, "vk_dynamic_texcoord.frag", "texcoord", TEXCOORD_X, address) ||
 		!make_pixel_grid(&p->uniform_if, "vk_dynamic_if.frag", "uniform if", UNIFORM_IF_X, address + grid_bytes) ||
-		!make_texcoord(p) || !make_slow(&p->slow))
+		!make_texcoord(p) || !make_slow(&p->slow) || !make_loop(&p->loop))
 		return false;
 	make_uniform_if(&p->uniform_if);
 	return true;
@@ -1280,14 +1395,18 @@ void test_raster(void)
 	PixelGrids grids = { .vertex = { .microcode = NULL } };
 	const bool grids_made = make_pixel_grids(&grids);
 	check(
-		"raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag, vk_dynamic_if.frag and vk_slow_fetch.frag on "
-		"the console",
+		"raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag, vk_dynamic_if.frag, vk_slow_fetch.frag and "
+		"vk_loop_grid.frag on the console",
 		grids_made);
 	// Without a display, as in Xenia, the frames still draw and are checked.
 	if (patched && vertices && buffers[0] && buffers[1])
 		draw_frames(&vertex, &pixel, xsdk_gpu_address(vertices), buffers, has_display,
 			sprites_made ? &sprite_state : NULL, indexed_made ? &indexed : NULL, grids_made ? &grids : NULL);
 	xsdk_display_close();
+	if (grids.loop.memory)
+		xsdk_gpu_free(grids.loop.memory);
+	if (grids.loop.pixel.microcode)
+		xsdk_shader_free(&grids.loop.pixel);
 	xsdk_texture_free(&grids.slow.texture);
 	if (grids.slow.memory)
 		xsdk_gpu_free(grids.slow.memory);
@@ -1315,6 +1434,7 @@ void test_raster(void)
 	xsdk_xsc_free(&sprite_state.pixel_compiled);
 	xsdk_xsc_free(&sprite_state.vertex_compiled);
 	xsdk_xsc_free(&indexed.compiled);
+	xsdk_xsc_free(&grids.loop.compiled);
 	xsdk_xsc_free(&grids.slow.compiled);
 	xsdk_xsc_free(&grids.uniform_if.compiled);
 	xsdk_xsc_free(&grids.texcoord.compiled);
