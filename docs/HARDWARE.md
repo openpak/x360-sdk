@@ -3977,3 +3977,24 @@ rows at a time, as step 1 found the registers and packets work. Logs: `results/2
 - **Depth whole keeps hierarchical depth off.** Step 1 found bits 18 to 26 of `RB_HIZCONTROL` move the buffer, but a
   recording writes the register with every depth state, so it can't differ a band; and bands keep it on only up to
   1024 tiles of depth, the 1280x1024 milestone 30 checked.
+
+## Render passes past eDRAM in the layer, milestone 44 (2026-10-18)
+
+vulkan4xenon draws a subpass whose attachments pass eDRAM's 2048 tiles as xsdk's tiled pass at one sample: its
+commands go once into a recording each band runs, a load drawn back at the recording's start, a store a band's resolve,
+depth kept whole at eDRAM's top when it fits and otherwise stored a band at a time and drawn back from its texture.
+Logs: vulkan4xenon:results/2026-10-18-milestone-17-part-1/.
+- **The hierarchical buffer rejected pixels it shouldn't at a 2048 pitch.** A 2048x2048 shadow map with a colour
+  attachment ran in 4 bands of 512 rows, each band's depth 832 tiles, under the 1024 xsdk then allowed the buffer: from
+  row 812 on, 300 rows into the second band where the first band's near square had stood, 1,652,496 of 4,194,304
+  texels kept the clear's depth (`vulkan4xenon_test_hiz_on.log`). With the buffer off past the 1280x1024 milestone 30
+  checked ("Hierarchical depth, milestone 30"), which xsdk now keeps to, tiled or not, every texel was right. Why a
+  wider pitch goes wrong isn't known.
+- **xsdk keeps pixel constants c252 to c255.** `xsdk_gpu_set_pixel_constants` and `xsdk_gpu_load_pixel_constants`
+  assert below `XSDK_PIXEL_CONSTANTS`, so nothing moves `gl_FragCoord`'s constant (c255, "Tiled passes at one
+  sample"); the layer refuses a fragment shader whose constants reach c252 and gives `maxUniformBufferRange` as 4032.
+- **Checks.** vulkan4xenon_test passed 439 of 439 twice: four attachments of four formats at 1280x720 stored by one
+  tiled pass and loaded by the next, an untiled pass loading the depth they left at eDRAM's top, a 2048x2048 shadow
+  map stored a band at a time, loaded back and sampled, every texel checked, and the refusals. Each of five break sets
+  failed the checks it names. xsdk_test, vkbench, probe_tiles, probe_shader_cost, probe_a0_predicated and Dusklight
+  ran as before.

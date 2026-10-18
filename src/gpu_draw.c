@@ -64,6 +64,10 @@ enum {
 	TILE_HEIGHT = 16,
 	// A resolve's width is whole columns of 32 pixels.
 	RESOLVE_COLUMN = 32,
+	// The largest target milestone 30 checked the hierarchical buffer at; past it, at a 2048 pitch, the buffer rejected
+	// pixels it shouldn't (docs/HARDWARE.md, "Render passes past eDRAM in the layer, milestone 44").
+	HIZ_MOST_WIDTH = 1280,
+	HIZ_MOST_HEIGHT = 1024,
 	// RB_SURFACE_INFO's fields (xenia:src/xenia/gpu/registers.h:670-679).
 	SURFACE_SAMPLES_SHIFT = 16,
 	SURFACE_HIZ_PITCH_SHIFT = 18,
@@ -251,7 +255,7 @@ void xsdk_gpu_hiz_cleared(uint32_t width, uint32_t height, uint32_t depth_clear)
 {
 	hiz_surface = surface_of(width, height);
 	// Multisampled targets haven't been tried with the buffer on the console.
-	hiz_kept = target_samples == 1;
+	hiz_kept = target_samples == 1 && width <= HIZ_MOST_WIDTH && height <= HIZ_MOST_HEIGHT;
 	// Reversed depth clears to 0 and tests greater-than.
 	hiz_greater = depth_clear < DEPTH_CLEAR_HALF;
 }

@@ -24,8 +24,6 @@ enum {
 	// A bin register's two words, sent high first as Xenia reads them; the console gave the same either way round.
 	BIN_DWORDS = 3,
 	WINDOW_DWORDS = 2 + 3,
-	// Hierarchical depth stays on for a band's depth up to the 1280x1024 milestone 30 checked, half of eDRAM.
-	HIZ_MOST_TILES = XSDK_EDRAM_TILES / 2,
 	// A pass's colour targets and its depth, each resolved once.
 	RESOLVES_KEPT = XSDK_COLOR_TARGETS + 1,
 };
@@ -138,9 +136,9 @@ NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *t, XsdkCommandBuffer *buffer)
 	xsdk_gpu_record_begin(buffer);
 	pass_buffer = buffer;
 	tiling = true;
-	// Each band's resolve clears its depth with the hierarchical buffer, so the recording can test it.
-	const uint32_t depth_tiles = xsdk_gpu_target_tiles(pass.width, band_rows);
-	if (pass.depth && !pass.depth_whole && depth_tiles <= HIZ_MOST_TILES)
+	// Each band's resolve clears its depth with the hierarchical buffer, so the recording can test it, at the sizes
+	// xsdk_gpu_hiz_cleared keeps it on.
+	if (pass.depth && !pass.depth_whole)
 		xsdk_gpu_hiz_cleared(pass.width, band_rows, xsdk_gpu_depth_clear());
 	return STATUS_SUCCESS;
 }
