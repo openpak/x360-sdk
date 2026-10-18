@@ -4132,3 +4132,21 @@ of open loops (src/xsc_unroll.c, src/xsc_lower_flow.c, src/xsc_program.c). Logs:
 - **Nothing else moved:** of milestone 45's corpus, only step 5's new shaders compile differently; Dusklight's pack is
   the same byte for byte. vulkan4xenon_test passed 447 of 447 twice, vkbench 14 of 14, and Dusklight's title scene
   ran at its frame rates before.
+
+## A block loop's passes from its start and step, milestone 46 (2026-10-18)
+
+A loop a block's n counts, from a start by a step, runs ceil((n - start) / step) passes, 0 to 255, as Shader Model 3's
+`loop` takes its count from an integer constant the CPU sets: xost's need carries the start and step, and xsdk_test
+and the layer write `xsdk_xsc_loop_passes` into the loop constant (xenia:src/xenia/gpu/xenos.h:1086-1097). This
+replaces step 4's skipped passes, which ran n passes and stopped at 255 of n rather than of the loop's own. Logs:
+`results/2026-10-18-milestone-46-pass-counts/`.
+- **xsdk_test:** `vk_loop_step_grid.frag` compiled on the console, a loop from 100 and one by 2 to a push constant's
+  300, each its passes and counter after as colours: 200 and 150 passes, 0 of 283,200 pixels wrong over 59 frames.
+  The console's compiles of it and of `vk_loop_count_skip.frag`, from -3 and by 2, matched the PC's.
+- **The layer:** vulkan4xenon_test's new scene, quads at counts 0 to 600 from the bundle and compiled on the console,
+  each loop's passes as worked out: 400 by 2 ran 200 passes and 600 ran 255. vulkan4xenon_test passed 455 of 455
+  twice.
+- **Break builds:** xsdk_test writing the plain n got all 283,200 pixels wrong; the layer writing it failed the new
+  scene's four colour checks and nothing else.
+- **Nothing else moved:** every loop from 0 by 1 compiles as before, and Dusklight's pack is the same but for the two
+  fields each resource gained. vkbench passed 14 of 14, and Dusklight's title scene ran at its frame rates before.
