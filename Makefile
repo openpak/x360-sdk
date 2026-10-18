@@ -74,7 +74,7 @@ PROBE_FAULT_OBJECTS := $(BUILD)/tests/probe_fault.o $(BUILD)/tests/probe_fault_s
 UNROLL_O2_FLAGS := -munroll-only-small-loops -fno-rename-registers
 UNROLL_LOOPS_OBJECTS := $(BUILD)/tests/unroll_loops_o2.o $(BUILD)/tests/unroll_loops_unrolled.o
 
-.PHONY: all clean cmake_check occlusion_tries
+.PHONY: all clean cmake_check occlusion_tries tiles_probe
 # Keep the ELFs and objects that pattern rules build on the way to a .xex.
 .SECONDARY:
 all: $(BUILD)/xsdk_test.xex $(BUILD)/host/libxsc.so $(BUILD)/audio_check.xex $(BUILD)/pacing_test.xex \
@@ -125,6 +125,16 @@ occlusion_tries: $(OCCLUSION_TRIES:%=$(BUILD)/probe_occlusion_%.xex)
 $(OCCLUSION_TRIES:%=$(BUILD)/tests/probe_occlusion_%.o): $(BUILD)/tests/probe_occlusion_%.o: tests/probe_occlusion.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -DOCCLUSION_TRY='"$*"' -c $< -o $@
+
+# Milestone 44 step 1's tiling probe and its break builds, a probe_tiles_<break>.xex each, which must fail the check
+# tests/probe_tiles.c names for it; outside all.
+TILES_BREAKS := nopred flip nomove
+
+tiles_probe: $(BUILD)/probe_tiles.xex $(TILES_BREAKS:%=$(BUILD)/probe_tiles_%.xex)
+
+$(TILES_BREAKS:%=$(BUILD)/tests/probe_tiles_%.o): $(BUILD)/tests/probe_tiles_%.o: tests/probe_tiles.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -DTILES_BREAK='"$*"' -c $< -o $@
 
 $(BUILD)/libxsdk.a: $(SDK_OBJECTS)
 	rm -f $@
