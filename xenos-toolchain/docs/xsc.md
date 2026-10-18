@@ -386,9 +386,10 @@ step 4). The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
 - the pass worked out from the registers, what it reads from before the loop
   lowered once before LOOP_START; then each carried value's register takes its
   value at the pass's end, after all are worked out;
-- `i` a float counting from 0, as xost holds integers, so `float(i)` and a
-  block's array at `i` (`movas` and `c[a0 + base]`) work; the loop constant's
-  aL goes unread;
+- `i` a float counting from 0, or one the loop carries from its start by its
+  step where it starts elsewhere or steps by more than 1, as xost holds
+  integers, so `float(i)` and a block's array at `i` (`movas` and
+  `c[a0 + base]`) work; the loop constant's aL goes unread;
 - `if (c) break;` ending a pass a `setp_*` and a predicated LOOP_END, the break
   on a value every vertex or pixel shares, as LOOP_END breaks only when all 64
   agree (xenia:src/xenia/gpu/ucode.h:372-373); an if/else on data inside the
@@ -406,17 +407,19 @@ step 4). The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
   unroller tells a value every pixel shares as the lowering does
   (`xsdk_xsc_find_varying`).
 
-The manifest gives `("block_loop", loop_id, kind, set, binding, offset_bytes)`:
-the runtime reads the int there for each draw and sets loop constant `loop_id`
-to that many passes, from aL 0 by 1, none for 0 or less; the constant counts to
-255 (xenia:src/xenia/gpu/xenos.h:1086-1097). On the console a pixel shader's
+The manifest gives `("block_loop", loop_id, kind, set, binding, offset_bytes,
+start, step)`: the runtime reads the int `n` there for each draw and sets loop
+constant `loop_id` to `xsdk_xsc_loop_passes(start, step, n)` passes,
+ceil((n - start) / step) as Shader Model 3's loop counts them, from aL 0 by 1,
+none for `n` at `start` or less; the constant counts to 255
+(xenia:src/xenia/gpu/xenos.h:1086-1097). On the console a pixel shader's
 `loop i0` ran 0, 1 and 3 passes as loop constant 0 said (xsdk:docs/HARDWARE.md,
 "Shader constants: partial writes hang the GPU, libxenon's whole blocks
 don't"). A vertex shader's loops take loop constants from 0 and a pixel
-shader's from 16, 16 each, one for each count: both stages read all 32
-(ucode.h:352), and libxenon gives each stage half of the boolean constants the
-same way (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser leaves a
-program with a loop alone, as before. Hardware loops nest 4 deep
+shader's from 16, 16 each, one for each count, start and step: both stages
+read all 32 (ucode.h:352), and libxenon gives each stage half of the boolean
+constants the same way (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser
+leaves a program with a loop alone, as before. Hardware loops nest 4 deep
 (ucode.h:131), each level its own registers and gating, an inner loop's `alive`
 starting from the `running` of the pass it's in; the outer LOOP_START comes
 first and the inner LOOP_END first. One inside an if/else on data runs for every
