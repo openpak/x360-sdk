@@ -539,7 +539,10 @@ spirv_shader_translator_fetch.cc:521-541).
 - **A bias,** `texture()`'s third argument, keeps the computed LOD and adds to it the same way.
 - **Gradients,** `textureGrad`'s, go to `setGradientH` and `setGradientV`, x and y, the z they don't use x again; the
   fetch computes its LOD from them. A cube map's gradients are refused: Xenia takes them in cube space
-  (ucode.h:580-583), unchecked on the console.
+  (ucode.h:580-583), unchecked on the console. On the console the LOD from them is one per 2x2 quad, from its first
+  pixel inside the primitive's gradients, so gradients that differ within a quad don't give each pixel its own LOD
+  (xsdk:docs/HARDWARE.md, "Samples in a loop's pass, milestone 46 step 6"); `xdis/simulate.py`'s quads take the top
+  left's.
 - **Ordering:** a fetch keeps its place against every state fetch (`xsdk:src/xsc_program.c`, ordered), so each sample
   reads the state set for it; and a state fetch counts as writing no temp, so the allocator never takes its unused
   destination, which keeps every component (DEST_KEEP), for one.

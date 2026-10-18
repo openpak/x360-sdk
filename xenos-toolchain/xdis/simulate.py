@@ -14,7 +14,9 @@ kills, and the cube op as Xenia runs it; every value written is rounded to a sin
 Vertex and texture fetches come from functions the caller gives; setTexLOD and the gradients' setters keep the state
 the texture fetches after them read. A group run as quads, each four lanes a 2x2 quad, gives getGradients and a computed
 LOD the coordinates' coarse gradients over the quad, as Xenia's translator takes them
-(xenia:src/xenia/gpu/spirv_shader_translator_fetch.cc:595-634).
+(xenia:src/xenia/gpu/spirv_shader_translator_fetch.cc:595-634), and a fetch at register gradients the top left lane's,
+as the console takes one LOD a quad from its first pixel inside the primitive (xsdk:docs/HARDWARE.md, "Samples in a
+loop's pass, milestone 46 step 6"); every quad here is whole.
 """
 import math
 import struct
@@ -225,13 +227,16 @@ def _coordinates(fetch, regs):
 
 def _quad_gradients(rec, lanes):
     """Gives each lane the texture fetch's coordinates' coarse gradients over its quad, lanes 4q to 4q + 3 its top left,
-    top right, bottom left and bottom right: ddx from the top left to the top right, ddy to the bottom left."""
+    top right, bottom left and bottom right: ddx from the top left to the top right, ddy to the bottom left; and the
+    gradients the top left's setters set."""
     coords = [_coordinates(xu.TextureFetchInstruction(*rec.raw), regs) for regs, _, _ in lanes]
     for q in range(0, len(lanes), 4):
         ddx = [single(coords[q + 1][i] - coords[q][i]) for i in range(3)]
         ddy = [single(coords[q + 2][i] - coords[q][i]) for i in range(3)]
+        top_left = [list(g) for g in lanes[q][2]["gradients"]]
         for _, _, state in lanes[q:q + 4]:
             state["quad"] = (ddx, ddy)
+            state["quad_setters"] = top_left
 
 
 def _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod):
@@ -261,7 +266,8 @@ def _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, tex
             return
         if texture_lod is not None:
             quad = quad if fetch.use_computed_lod() else None
-            gradients = state["gradients"] if fetch.use_register_gradients() else quad
+            setters = state.get("quad_setters", state["gradients"])
+            gradients = setters if fetch.use_register_gradients() else quad
             lod = Lod(fetch.use_computed_lod(), fetch.lod_bias(),
                       state["lod"] if fetch.use_register_lod() else None,
                       tuple(list(g) for g in gradients) if gradients else None)
@@ -353,7 +359,8 @@ def run_group(blob: bytes, registers: list, constants: dict | None = None, verte
               loops: dict | None = None, texture_lod=None, quads: bool = False) -> list:
     """Runs the program for a group of vertices or pixels in lockstep, each one's registers at the start in the list
     registers, the rest as run gives them; a Result for each, in order. With quads, each four lanes are a 2x2 quad of
-    pixels, top left, top right, bottom left and bottom right, whose getGradients and computed LODs read each other."""
+    pixels, top left, top right, bottom left and bottom right, whose getGradients and computed LODs read each other,
+    and whose fetches at register gradients all take the top left's."""
     if quads and len(registers) % 4:
         raise ValueError("simulate: quads of a group that isn't whole quads")
     consts = constants or {}

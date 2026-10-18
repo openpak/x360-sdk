@@ -11,11 +11,14 @@ uniform whose arm samples in a pass stays selects, as no fetch goes on the predi
 Each shader runs on xdis/simulate.py in both models, each pixel or vertex alone and all in one group, with the
 optimiser off and on, its fetches counted in and out of its loops. An implicit LOD and a derivative read the pixel's
 2x2 quad, so those shaders run as quads (simulate.run_group's quads), alone being each quad alone; and each quad's
-pixels take the same passes, as GLSL leaves an implicit LOD and a derivative undefined where they don't:
+pixels take the same passes, as GLSL leaves an implicit LOD and a derivative undefined where they don't. On the
+console a fetch at register gradients takes one LOD a quad, from its first pixel inside the primitive's gradients
+(xsdk:docs/HARDWARE.md, "Samples in a loop's pass, milestone 46 step 6"), as the quads take their top left's:
 
 - vk_loop_sample_lod.frag: textureLod at a LOD the pass works out, left on what it samples, and in an arm of an if/else
   on a push constant, at counts that leave pixels at every pass.
-- vk_loop_sample_grad.frag: textureGrad at gradients the pass works out, in a loop whose count is data.
+- vk_loop_sample_grad.frag: textureGrad at gradients the pass works out, in a loop whose count is data, each pixel
+  alone; and as quads whose pixels' vertical gradients differ, each taking its top left's LOD.
 - vk_loop_sample_computed.frag: texture() at the LOD the GPU works out from coordinates the pass scales, quads.
 - vk_loop_derivative.frag: dFdx and dFdy of a value the pass works out, quads.
 - vk_loop_parallax.frag: parallax occlusion's march, its step count from the view angle, a depth map sampled at
@@ -157,6 +160,11 @@ def check_grad(optimize, tag):
     places = [(x, y) for x in (0.0, 1.0, 2.5, 5.0, 8.0) for y in (0.5, 3.0)]
     check_models(f"{name}, {tag}", blob, [{0: [x, y, 0.0, 0.0]} for x, y in places], literals,
                  {PIXEL_LOOP: MAX_PASSES}, [sample_grad(x, y) for x, y in places], texture_lod=gradients_of)
+    # Quads whose pixels share a count but not a vertical gradient, v_uv.y a step apart: each takes its top left's.
+    quads = [(x, y) for x in (0.25, 1.25, 3.25, 6.25) for y in (0.5, 3.0)]
+    check_models(f"{name}, quads at their top left's gradients, {tag}", blob, quad_lanes(quads), literals,
+                 {PIXEL_LOOP: MAX_PASSES}, [sample_grad(x, y) for x, y in quads for _ in range(4)],
+                 texture_lod=gradients_of, quads=True)
 
 
 def sample_computed(count):
