@@ -74,6 +74,8 @@ enum {
 	// A colour target's red, green, blue and alpha bits in RB_COLOR_MASK (xenia:src/xenia/gpu/registers.h:755-777).
 	COLOR_MASK_BITS = 4,
 	EDRAM_MODE_COLOR_DEPTH = 4,
+	// Depth alone, as retail titles draw depth-only passes (xenia:src/xenia/gpu/xenos.h:886-910).
+	EDRAM_MODE_DEPTH_ONLY = 5,
 	// libxenon's control state from RB_DEPTHCONTROL on, less depth and culling (xe.c:1403-1416).
 	BLEND_ONE_ZERO = 0x00010001,
 	COLOR_CONTROL = 0x87000007,
@@ -183,8 +185,12 @@ static uint32_t placed_depth_tile;
 // Its colour targets, the first's tile kept only when placed.
 static XsdkColorTarget color_targets[XSDK_COLOR_TARGETS] = { { .format = XSDK_TARGET_8_8_8_8 } };
 static uint32_t color_target_count = 1;
+// A tiled pass's target that draws depth alone, its colour target 0 nowhere.
+static bool depth_only;
 // A resolve leaves eDRAM copying with the viewport transform off, where a draw hung the GPU (docs/HARDWARE.md).
 static bool target_undone;
+// The predicate bit the draws carry, header bit 0 (xenia:src/xenia/gpu/command_processor.cc:704-713).
+static uint32_t draw_predicate;
 
 typedef struct {
 	uint32_t pitch_tiles;
@@ -325,13 +331,14 @@ void xsdk_gpu_put_surface(GpuPackets *packets, uint32_t width, uint32_t height, 
 	put_surface(packets, width, height, target, 1);
 }
 
-// Xe_pSetState's control and miscellaneous state (xe.c:1688-1744).
-static void put_target(uint32_t width, uint32_t height)
+// Xe_pSetState's control and miscellaneous state (xe.c:1688-1744), the surface laid out for rows rows.
+static void put_target(uint32_t width, uint32_t height, uint32_t rows)
 {
+	assert(!xsdk_gpu_tiling());
 	// Then RB_BLENDCONTROL1 to 3 after RB_MODECONTROL, for more than one colour target.
 	const uint32_t control[] = { 0, BLEND_ONE_ZERO, COLOR_CONTROL, 0, CLIP_D3D_SPACE,
-		SC_MODE_WINDOW_OFFSET_NO_CULL | msaa_enable(), VTE_VIEWPORT_AND_W0, 0, EDRAM_MODE_COLOR_DEPTH, BLEND_ONE_ZERO,
-		BLEND_ONE_ZERO, BLEND_ONE_ZERO };
+		SC_MODE_WINDOW_OFFSET_NO_CULL | msaa_enable(), VTE_VIEWPORT_AND_W0, 0,
+		depth_only ? EDRAM_MODE_DEPTH_ONLY : EDRAM_MODE_COLOR_DEPTH, BLEND_ONE_ZERO, BLEND_ONE_ZERO, BLEND_ONE_ZERO };
 	// The index range, and the offset added to each index: 0, set here rather than before every draw as libxenon
 	// does (xe.c:191-200), as every draw has a target set after anything that could change it.
 	const uint32_t indices[] = { MAX_VERTEX_INDEX, 0, 0 };
@@ -341,20 +348,21 @@ static void put_target(uint32_t width, uint32_t height)
 	// Xe_pStuff's zeros before every draw (xe.c:1233-1238).
 	const uint32_t polygon_offset[8] = { 0 };
 	// The buffer is laid out by the surface, which another target's depth may also overlap.
-	if (!is_hiz_surface(width, height))
+	if (!is_hiz_surface(width, rows))
 		hiz_kept = false;
 	uint32_t dwords[DRAW_MAX_DWORDS];
 	GpuPackets packets = { .dwords = dwords, .count = 0, .capacity = DRAW_MAX_DWORDS };
 	gpu_put_registers(&packets, PA_SU_POLY_OFFSET_FRONT_SCALE, polygon_offset, 8);
 	gpu_put_registers(&packets, RB_DEPTHCONTROL, control, color_target_count > 1 ? CONTROL_REGISTERS_ALL : 9);
 	xsdk_gpu_put_window(&packets, width, height);
-	put_surface(&packets, width, height, 0, color_target_count);
+	put_surface(&packets, width, rows, 0, color_target_count);
 	gpu_put_register(&packets, COHER_DEST_BASE_1, 0);
 	gpu_put_register(&packets, COHER_DEST_BASE_7, 0);
 	gpu_put_registers(&packets, VGT_MAX_VTX_INDX, indices, 3);
-	gpu_put_register(&packets, RB_COLOR_MASK, (1u << COLOR_MASK_BITS * color_target_count) - 1);
+	gpu_put_register(&packets, RB_COLOR_MASK, depth_only ? 0 : (1u << COLOR_MASK_BITS * color_target_count) - 1);
 	gpu_put_registers(&packets, RB_STENCILREFMASK_BF, viewport, 9);
 	xsdk_gpu_write(&packets);
+	xsdk_gpu_tiles_forget();
 	// A recorded target is set when its buffer runs, not now.
 	if (!xsdk_gpu_recording())
 		target_undone = false;
@@ -363,6 +371,7 @@ static void put_target(uint32_t width, uint32_t height)
 void xsdk_gpu_undo_target(void)
 {
 	target_undone = true;
+	xsdk_gpu_tiles_forget();
 }
 
 void xsdk_gpu_set_target_samples(uint32_t width, uint32_t height, uint32_t samples)
@@ -370,9 +379,10 @@ void xsdk_gpu_set_target_samples(uint32_t width, uint32_t height, uint32_t sampl
 	assert(samples == 1 || samples == 2 || samples == 4);
 	target_samples = samples;
 	target_placed = false;
+	depth_only = false;
 	color_targets[0] = (XsdkColorTarget){ .format = XSDK_TARGET_8_8_8_8 };
 	color_target_count = 1;
-	put_target(width, height);
+	put_target(width, height, height);
 }
 
 void xsdk_gpu_set_target(uint32_t width, uint32_t height)
@@ -387,10 +397,11 @@ void xsdk_gpu_set_target_samples_at(
 	assert(samples == 1 || samples == 2 || samples == 4);
 	target_samples = samples;
 	target_placed = true;
+	depth_only = false;
 	color_targets[0] = (XsdkColorTarget){ .format = XSDK_TARGET_8_8_8_8, .tile = color_tile };
 	color_target_count = 1;
 	placed_depth_tile = depth_tile;
-	put_target(width, height);
+	put_target(width, height, height);
 }
 
 void xsdk_gpu_set_target_at(uint32_t width, uint32_t height, uint32_t color_tile, uint32_t depth_tile)
@@ -398,16 +409,33 @@ void xsdk_gpu_set_target_at(uint32_t width, uint32_t height, uint32_t color_tile
 	xsdk_gpu_set_target_samples_at(width, height, 1, color_tile, depth_tile);
 }
 
+// No colour targets keeps colour target 0, unwritten, on the depth's tiles.
+static void hold_targets(const XsdkColorTarget *targets, uint32_t count, uint32_t depth_tile)
+{
+	assert(count <= XSDK_COLOR_TARGETS);
+	target_samples = 1;
+	target_placed = true;
+	depth_only = !count;
+	color_targets[0] = (XsdkColorTarget){ .format = XSDK_TARGET_8_8_8_8, .tile = depth_tile };
+	memcpy(color_targets, targets, count * sizeof *targets);
+	color_target_count = count ? count : 1;
+	placed_depth_tile = depth_tile;
+}
+
 void xsdk_gpu_set_targets(
 	uint32_t width, uint32_t height, const XsdkColorTarget *targets, uint32_t count, uint32_t depth_tile)
 {
-	assert(count >= 1 && count <= XSDK_COLOR_TARGETS);
-	target_samples = 1;
-	target_placed = true;
-	memcpy(color_targets, targets, count * sizeof *targets);
-	color_target_count = count;
-	placed_depth_tile = depth_tile;
-	put_target(width, height);
+	assert(count >= 1);
+	hold_targets(targets, count, depth_tile);
+	put_target(width, height, height);
+}
+
+void xsdk_gpu_set_band_targets(uint32_t width, uint32_t height, uint32_t rows, const XsdkColorTarget *targets,
+	uint32_t count, uint32_t depth_tile, bool queued)
+{
+	hold_targets(targets, count, depth_tile);
+	if (queued)
+		put_target(width, height, rows);
 }
 
 // IM_LOAD takes address | type, then the size in dwords (xenia:src/xenia/gpu/command_processor.cc:1535-1539).
@@ -518,9 +546,14 @@ void xsdk_gpu_draw(uint32_t primitive_type, uint32_t vertex_count)
 {
 	assert(!target_undone || xsdk_gpu_recording());
 	GpuPackets packets = gpu_reserve_packets(DRAW_DWORDS);
-	gpu_put_type3(&packets, PM4_DRAW_INDX_2, 1);
+	gpu_put(&packets, xsdk_gpu_type3(PM4_DRAW_INDX_2, 1) | draw_predicate);
 	gpu_put(&packets, primitive_type | AUTO_INDEX | vertex_count << VERTEX_COUNT_SHIFT);
 	gpu_packets_done(&packets);
+}
+
+void xsdk_gpu_predicate_draws(bool predicated)
+{
+	draw_predicate = predicated;
 }
 
 static uint32_t stencil_ref_mask(uint8_t reference, uint8_t read_mask, uint8_t write_mask)
@@ -699,7 +732,7 @@ void xsdk_gpu_draw_indexed(uint32_t primitive_type, uint32_t index_address, uint
 	assert(index_count && index_count <= MAX_INDICES && (index_address & (indices_32_bit ? 3u : 1u)) == 0);
 	assert(!target_undone || xsdk_gpu_recording());
 	GpuPackets packets = gpu_reserve_packets(DRAW_INDEXED_DWORDS);
-	gpu_put_type3(&packets, PM4_DRAW_INDX, 4);
+	gpu_put(&packets, xsdk_gpu_type3(PM4_DRAW_INDX, 4) | draw_predicate);
 	gpu_put(&packets, 0);
 	gpu_put(
 		&packets, primitive_type | index_count << VERTEX_COUNT_SHIFT | (uint32_t)indices_32_bit << INDEX_32_BIT_SHIFT);
@@ -711,7 +744,8 @@ void xsdk_gpu_draw_indexed(uint32_t primitive_type, uint32_t index_address, uint
 // D3D's (xenia:src/xenia/gpu/registers.h:516), as tests/probe_occlusion.c ran it on the console (docs/HARDWARE.md).
 void xsdk_gpu_begin_visibility(uint32_t id)
 {
-	assert(id < XSDK_VISIBILITY_IDS);
+	// A tiled pass's bands would each write the query's bit, the last band's standing.
+	assert(id < XSDK_VISIBILITY_IDS && !xsdk_gpu_tiling());
 	GpuPackets packets = gpu_reserve_packets(VISIBILITY_BEGIN_DWORDS);
 	gpu_put_register(&packets, PA_SC_VIZ_QUERY, VIZ_QUERY_ENA | id << VIZ_QUERY_ID_SHIFT);
 	gpu_put_type3(&packets, PM4_VIZ_QUERY, 1);
@@ -721,7 +755,7 @@ void xsdk_gpu_begin_visibility(uint32_t id)
 
 void xsdk_gpu_end_visibility(uint32_t id, uint32_t address)
 {
-	assert(id < XSDK_VISIBILITY_IDS && address % 4 == 0);
+	assert(id < XSDK_VISIBILITY_IDS && address % 4 == 0 && !xsdk_gpu_tiling());
 	GpuPackets packets = gpu_reserve_packets(VISIBILITY_END_DWORDS);
 	gpu_put_type3(&packets, PM4_VIZ_QUERY, 1);
 	gpu_put(&packets, id | VIZ_QUERY_END);

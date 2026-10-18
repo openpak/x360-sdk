@@ -115,9 +115,17 @@ void xsdk_gpu_put_frag_coord_top(uint32_t top)
 	set_floats(1, SHADER_CONSTANT_256_X, XSDK_XSC_FRAG_COORD_CONSTANT, offset, 1);
 }
 
+// Whether constants first to first + count - 1 stay clear of gl_FragCoord's constant's group, which a tiled pass writes
+// a band at a time, so its recording mustn't.
+static bool clear_of_band_group(uint32_t first, uint32_t count)
+{
+	return !xsdk_gpu_tiling() || first + count <= (XSDK_XSC_FRAG_COORD_CONSTANT & ~(FLOAT_GROUP - 1));
+}
+
 // The pixel shader's constant 0 is the 256th; xsdk_gpu_open sets the split (src/gpu_setup.c).
 void xsdk_gpu_set_pixel_constants(uint32_t first, const float *values, uint32_t count)
 {
+	assert(clear_of_band_group(first, count));
 	set_floats(1, SHADER_CONSTANT_256_X, first, values, count);
 }
 
@@ -141,6 +149,7 @@ void xsdk_gpu_load_vertex_constants(uint32_t first, uint32_t address, uint32_t c
 
 void xsdk_gpu_load_pixel_constants(uint32_t first, uint32_t address, uint32_t count)
 {
+	assert(clear_of_band_group(first, count));
 	load_floats(SHADER_CONSTANT_256_X, first, address, count);
 }
 

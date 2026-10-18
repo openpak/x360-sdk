@@ -206,6 +206,65 @@ void xsdk_gpu_set_targets(
 // 32_FLOAT into R32F; the 7e3 one and the 16-bit fixed and float ones of four channels into R16G16B16A16F.
 void xsdk_gpu_resolve_target(uint32_t target, const XsdkTexture *texture, const float clear_rgba[4]);
 
+// Tiled passes, for targets past eDRAM's tiles: the pass's draws are recorded once and run once a band, each band a run
+// of whole rows across the target, moved to eDRAM's top by a window offset of (0, minus its top row) (docs/HARDWARE.md,
+// "Tiling's registers and packets, milestone 44 step 1"). xost's gl_FragCoord gives the target's row in each band, as
+// xsdk writes the band's top into XSDK_XSC_FRAG_COORD_CONSTANT (include/xsdk/xsc.h) first.
+enum {
+	// A band's rows, a multiple of this, as a resolve's destination moves in steps of 32 rows
+	// (xenia:src/xenia/gpu/xenos.h:1160-1173).
+	XSDK_TILE_ROWS = 32,
+	// A bit a band in the bin registers (xenia:src/xenia/gpu/command_processor.cc:815-828).
+	XSDK_TILE_BANDS = 64,
+	// An XsdkTileResolve's target for depth and stencil, into a tiled XSDK_FORMAT_D24S8 texture.
+	XSDK_TILE_DEPTH = XSDK_COLOR_TARGETS,
+};
+
+typedef struct {
+	uint32_t width;
+	uint32_t height;
+	// 1; 2 and 4 are refused for now.
+	uint32_t samples;
+	// The colour targets' formats, xsdk placing them. With none the pass draws depth alone, in eDRAM's depth-only mode,
+	// which runs no pixel shader by Xenia's reading (xenia:src/xenia/gpu/xenos.h:886-910).
+	XsdkColorTarget targets[XSDK_COLOR_TARGETS];
+	uint32_t count;
+	bool depth;
+	// Depth kept whole in eDRAM from tile 0, the bands moving its base, so it lasts from one pass to the next; the
+	// title clears it, as it does untiled, and the hierarchical buffer stays off. Else each band's depth is cleared
+	// with it.
+	bool depth_whole;
+	// A band's rows, a multiple of XSDK_TILE_ROWS, to force more bands; 0 for as few bands as fit.
+	uint32_t band_rows;
+} XsdkTiling;
+
+// A tiled pass's resolve: colour target `target`, into a texture as xsdk_gpu_resolve_target takes it, cleared to
+// clear_rgba, or XSDK_TILE_DEPTH; the texture the pass's size.
+typedef struct {
+	uint32_t target;
+	const XsdkTexture *texture;
+	float clear_rgba[4];
+} XsdkTileResolve;
+
+// The bands a pass takes, or 0 if it can't be tiled: samples other than 1, nothing drawn, a side past 8192, more than
+// XSDK_TILE_BANDS bands, a band_rows not a multiple of XSDK_TILE_ROWS, or a band past eDRAM's tiles.
+uint32_t xsdk_gpu_tiling_bands(const XsdkTiling *tiling);
+// Sets the pass's targets, as xsdk_gpu_set_targets sets them over the whole target, and records what follows into
+// buffer; STATUS_NOT_IMPLEMENTED for 2 or 4 samples, STATUS_INVALID_PARAMETER for a pass that can't be tiled. Until
+// xsdk_gpu_end_tiles: nothing a recording can't hold, no visibility queries, no targets set, and pixel constants below
+// XSDK_XSC_FRAG_COORD_CONSTANT's group. Depth in bands of up to half of eDRAM's tiles is tested against the
+// hierarchical buffer, from a clear to the depth xsdk_gpu_set_depth_clear set before.
+NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *tiling, XsdkCommandBuffer *buffer);
+// The draws after reach only rows top to bottom - 1, so the bands those rows miss skip them; rows 0 to the height
+// again for every band.
+void xsdk_gpu_set_draw_rows(uint32_t top, uint32_t bottom);
+// Ends the recording and queues each band: its targets, the recording, then each of count resolves into the band's rows
+// of its texture, the last clearing depth for the next band. Before the first band, the resolves clear band 0, unless
+// the pass before was laid out and cleared the same and since then no target was set, resolved or run from a
+// recording. A colour target no resolve names isn't cleared between bands. Fails as xsdk_gpu_record_end does, queuing
+// nothing.
+NTSTATUS xsdk_gpu_end_tiles(const XsdkTileResolve *resolves, uint32_t count);
+
 // Loads both shaders with IM_LOAD and sets the program registers; a resolve replaces the vertex shader.
 void xsdk_gpu_set_shaders(const XsdkShader *vertex, const XsdkShader *pixel);
 // After the CPU writes vertices, indices or texels, xsdk_texture_upload's included, and before the draws that read

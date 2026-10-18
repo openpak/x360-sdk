@@ -753,9 +753,10 @@ void xsdk_gpu_execute(const XsdkCommandBuffer *buffer)
 	assert(!recording);
 	if (!buffer->count)
 		return;
-	// The hierarchical buffer doesn't follow what it draws, nor what shaders it loads.
+	// The hierarchical buffer doesn't follow what it draws, nor what shaders it loads, nor tiled passes what it leaves.
 	xsdk_gpu_hiz_drop();
 	xsdk_gpu_forget_shaders();
+	xsdk_gpu_tiles_forget();
 	// From the ring, after what the stream holds: the console hasn't run a buffer from inside another
 	// (docs/HARDWARE.md).
 	close_window();

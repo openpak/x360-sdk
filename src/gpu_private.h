@@ -109,6 +109,10 @@ enum {
 	PM4_INDIRECT_BUFFER = 0x3F,
 	PM4_EVENT_WRITE = 0x46,
 	PM4_ME_INIT = 0x48,
+	// Each takes 64 bits in two words; the one-word forms, 0x60 to 0x63, wedged the GPU (docs/HARDWARE.md, "Tiling's
+	// registers and packets, milestone 44 step 1").
+	PM4_SET_BIN_MASK = 0x50,
+	PM4_SET_BIN_SELECT = 0x51,
 	PM4_EVENT_WRITE_SHD = 0x58,
 };
 
@@ -260,8 +264,27 @@ bool xsdk_gpu_recording(void);
 void xsdk_gpu_hiz_cleared(uint32_t width, uint32_t height, uint32_t depth_clear);
 // Leaves the hierarchical buffer off until depth is next cleared.
 void xsdk_gpu_hiz_drop(void);
+// RB_DEPTH_CLEAR as the later resolves clear depth to.
+uint32_t xsdk_gpu_depth_clear(void);
+
+// A tiled pass's targets, laid out for a band of rows rows, with the viewport and window scissor over width by height
+// as xsdk_gpu_set_targets sets them; no colour targets draws depth alone. Queued, or only held for the draws a pass
+// records.
+void xsdk_gpu_set_band_targets(uint32_t width, uint32_t height, uint32_t rows, const XsdkColorTarget *targets,
+	uint32_t count, uint32_t depth_tile, bool queued);
+// Whether a tiled pass is being recorded (src/gpu_tiles.c).
+bool xsdk_gpu_tiling(void);
+// Something changed eDRAM, so the next tiled pass clears its band 0 first.
+void xsdk_gpu_tiles_forget(void);
+// Whether the draws after carry the predicate bit, which runs them only where the bin select and mask share a bit
+// (docs/HARDWARE.md, "Tiling's registers and packets, milestone 44 step 1").
+void xsdk_gpu_predicate_draws(bool predicated);
 // Writes gl_FragCoord's constant for a band from row top, 0 outside tiled passes (include/xsdk/xsc.h).
 void xsdk_gpu_put_frag_coord_top(uint32_t top);
+// A tiled pass's resolve of colour target `target` or XSDK_TILE_DEPTH: the band at eDRAM's top into rows top to top +
+// rows - 1 of the texture, top a multiple of XSDK_TILE_ROWS, then clearing what it's told.
+void xsdk_gpu_resolve_band(uint32_t target, const XsdkTexture *texture, const float clear_rgba[4], uint32_t top,
+	uint32_t rows, bool clear_color, bool clear_depth);
 // Points the shown surface at another buffer of its size; for the vblank callback, so it never sleeps.
 void xsdk_display_flip(uint32_t address);
 
