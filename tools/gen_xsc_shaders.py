@@ -15,8 +15,10 @@ texture are read in a later exec; and milestone 44's vk_frag_coord_rows.frag, th
 the tiles test draws across bands; and milestone 46's vk_loop_if_break.frag, vk_loop_grid.frag and
 vk_vertex_loop_break.vert, breaks and continues on data in unrolled loops, the grid's pixels each leaving at their own
 pass in the raster test, and vk_loop_count_grid.frag, vk_loop_break_data.frag, vk_loop_count_stop.frag and
-vk_vertex_loop_count_break.vert, the same in hardware loops, the grid drawn and timed in the raster test too. Prints a
-C header. Runs in WSL, where make builds the compiler for the PC.
+vk_vertex_loop_count_break.vert, the same in hardware loops, the grid drawn and timed in the raster test too, and
+vk_loop_float_count.frag, vk_loop_data_count.frag, vk_loop_while.frag, vk_loop_count_skip.frag,
+vk_vertex_loop_data.vert and vk_loop_data_grid.frag, loops whose count is data and block-counted ones from past 0 or by
+past 1, the grid drawn in the raster test. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
 """
 
 import struct
@@ -34,7 +36,8 @@ SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert
            "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag", "vk_dynamic_if.frag", "vk_slow_fetch.frag",
            "vk_frag_coord_rows.frag", "vk_loop_if_break.frag", "vk_loop_grid.frag", "vk_vertex_loop_break.vert",
            "vk_loop_count_grid.frag", "vk_loop_break_data.frag", "vk_loop_count_stop.frag",
-           "vk_vertex_loop_count_break.vert")
+           "vk_vertex_loop_count_break.vert", "vk_loop_float_count.frag", "vk_loop_data_count.frag",
+           "vk_loop_while.frag", "vk_loop_count_skip.frag", "vk_vertex_loop_data.vert", "vk_loop_data_grid.frag")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",
@@ -68,6 +71,9 @@ def main():
                     _, reg, kind, s, b, offset = need
                     print(f"	{{ .kind = XSDK_XSC_BLOCK_LOOP, .reg = {reg}, .regs = 1, .block = {RESOURCE_KINDS[kind]}, "
                           f".set = {s}, .binding = {b}, .offset_bytes = {offset} }},")
+                    continue
+                if need[0] == "fixed_loop":
+                    print(f"	{{ .kind = XSDK_XSC_FIXED_LOOP, .reg = {need[1]}, .regs = {need[2]} }},")
                     continue
                 if need[0] == "clip":
                     print(f"	{{ .kind = XSDK_XSC_CLIP_PLANE, .reg = {need[2]}, .regs = {need[1]} }},")
