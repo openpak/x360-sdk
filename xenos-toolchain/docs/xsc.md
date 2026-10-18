@@ -416,10 +416,15 @@ don't"). A vertex shader's loops take loop constants from 0 and a pixel
 shader's from 16, 16 each, one for each count: both stages read all 32
 (ucode.h:352), and libxenon gives each stage half of the boolean constants the
 same way (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser leaves a
-program with a loop alone, as before. Refused: a loop counted by a block inside
-another loop or an if/else on data, a `discard` or `return` in it, a store into
-part of an output in the loop, and a sample or derivative at coordinates a pass
-works out.
+program with a loop alone, as before. Hardware loops nest 4 deep
+(ucode.h:131), each level its own registers and gating, an inner loop's `alive`
+starting from the `running` of the pass it's in; the outer LOOP_START comes
+first and the inner LOOP_END first. One inside an if/else on data runs for every
+pixel, as both arms do, merged by selects; one inside an unrolled loop is copied
+once a pass, the copies sharing a loop constant (`tests/test_nested_loops.py`).
+Refused: a fifth nested hardware loop, a `discard` or `return` in a loop, a store
+into part of an output in the loop, and a sample or derivative at coordinates a
+pass works out.
 
 `tests/test_hardware_loop_breaks.py` runs each loop with a break or continue on
 data on `xdis/simulate.py` both ways: each pixel alone, its own LOOP_END
@@ -459,7 +464,8 @@ lowering (`xsdk:src/xsc_lower_flow.c`) then picks, for each if/else:
   loaded a0, the next read at a0 loads it again (see the block arrays above).
   A vertex shader keeps selects: its arms in execs on the predicate hung the GPU
   on the console (xsdk:docs/HARDWARE.md, "Branches, vulkan4xenon milestone
-  21").
+  21"). So does an if/else whose arm holds a hardware loop, as a loop isn't an
+  exec.
 - **Selects** otherwise: each a `cnd*` on the comparison branched on, `a - b`
   worked out once a branch, as a pixel shader's if/else has lowered since v1; a
   condition that isn't a float comparison is its 0.0 or 1.0, which `cndgt`
