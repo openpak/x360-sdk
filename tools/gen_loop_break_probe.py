@@ -43,7 +43,7 @@ INTERP, FLOORED, PARITY, BREAK, STATE, STOPPED, FLAGS, NEXT, COND, OUT = range(1
 POSITION, DATA = 1, 2
 # The a0 shapes' result and the sample shapes' registers.
 RESULT = 2
-LOD, SUM, TEXEL, COORD = 4, 5, 6, 7
+LOD, SUM, TEXEL, COORD, DIGIT = 4, 5, 6, 7, 8
 REGISTERS = OUT + 1
 # Pixel shaders take loop constants from 16, vertex shaders from 0, as xost splits them (src/xsc_lower_flow.c:9-16).
 PIXEL_FIRST_LOOP, VERTEX_FIRST_LOOP = 16, 0
@@ -65,6 +65,9 @@ LITERALS = [
     ("gated_init", (0.0, GATED_W + 1.0, 0.0, 0.0)),
     ("xyw", (1.0, 1.0, 0.0, 1.0)), ("outer_step", (1.0, 0.0, float(INNER_PASSES), 0.0)),
     ("inner_step", (0.0, 1.0, -1.0, 0.0)), ("uv_scale", (1 / TEXTURE_SIZE,) * 4), ("xzw", (1.0, 0.0, 1.0, 1.0)),
+    ("quarter", (0.25,) * 4), ("four", (4.0,) * 4), ("minus_half", (-0.5,) * 4),
+    ("digit_scale", (255 / 32,) * 4), ("digit_out", (0.0, 1 / 255, 0.0, 0.0)),
+    ("digit_out_bias", (0.0, 0.25 / 255, 0.0, 0.0)),
 ]
 LITERAL_FIRST = 202
 ROW = {name: LITERAL_FIRST + i for i, (name, _) in enumerate(LITERALS)}
@@ -74,8 +77,8 @@ assert LITERAL_FIRST + len(LITERALS) <= 252 and A0_ROW + 101 < FILL_ROWS
 # (src/xsc_encode.c, xsdk_xsc_template_tfetch).
 DEST_KEEP = 0o7777
 SRC_XY = 0 | 1 << 2
-GRIDS = ("GRID_PIXELS", "GRID_THIN", "GRID_VERTICES")
-CHECKS = ("CHECK_COUNTER", "CHECK_GATED", "CHECK_FIXED", "CHECK_ROW", "CHECK_NONE")
+# The levels setTexLOD picks among in the shapes without a loop, by the quad's base or the pixel's column.
+SET_LEVELS = 4
 BREAKS = {
     "nogate": "gating removed: each pass's end copies its values, so a pixel that left takes later passes'",
     "invert": "the predicated break's condition inverted",
@@ -299,9 +302,10 @@ def a0_shape(shape, brk):
     return [("exec", pre), ("loop", level), ("exec", one_pass), ("end", level, None)], post
 
 
-def sample(computed, brk):
+def sample(computed, digits, brk):
     """A sample each pass, its texel added up and the last kept: at the LOD the pass gives, its index through
-    setTexLOD, or at the LOD the GPU works out from coordinates the pass scales by 2 to the index. The fetches and
+    setTexLOD, or at the LOD the GPU works out from coordinates the pass scales by 2 to the index. With digits, each
+    pass's level goes into a base-4 digit instead, so the export shows which level each pass took. The fetches and
     the work reading them are serialized (docs/HARDWARE.md, "Slow fetches across execs")."""
     start = "uv_scale" if computed else "zero"
     pre = [alu(V.kMax, LOD, 0xF, const(start), const(start)), alu(V.kMax, SUM, 0xF, const("zero"), const("zero")),
@@ -311,16 +315,35 @@ def sample(computed, brk):
         pre, fetches = pre + fetches, []
     scale = [alu(V.kMul, COORD, 0xF, temp(INTERP), temp(LOD))] if computed and brk != "hoist" else []
     advance = alu(V.kAdd, LOD, 0xF, temp(LOD), temp(LOD) if computed else const("one"))
-    one_pass = scale + fetches + [alu(V.kAdd, SUM, 0xF, temp(SUM), temp(TEXEL), serialize=True), advance]
-    post = [alu(V.kMul, OUT, 0xF, temp(SUM), const("y")),
-            alu(V.kMad, tri.EXPORT_COLOR_0, 0xF, temp(TEXEL), const("xzw"), temp(OUT), export=True)]
+    # A level's red is 16 + 32L (texel), so red * 255 / 32 - 0.5 is L.
+    record = ([alu(V.kMad, DIGIT, 0xF, temp(TEXEL, splat(0)), const("digit_scale"), const("minus_half"),
+                   serialize=True), alu(V.kMad, SUM, 0xF, temp(SUM), const("four"), temp(DIGIT))] if digits else
+              [alu(V.kAdd, SUM, 0xF, temp(SUM), temp(TEXEL), serialize=True)])
+    one_pass = scale + fetches + record + [advance]
+    post = ([alu(V.kMad, OUT, 0xF, temp(SUM), const("digit_out"), const("digit_out_bias"))] if digits else
+            [alu(V.kMul, OUT, 0xF, temp(SUM), const("y"))])
+    post.append(alu(V.kMad, tri.EXPORT_COLOR_0, 0xF, temp(TEXEL), const("xzw"), temp(OUT), export=True))
     level = loop_id(False, 0)
     return [("exec", pre), ("loop", level), ("exec", one_pass), ("end", level, None)], post
 
 
+def level_sample(component):
+    """One sample, no loop, at the level setTexLOD gives from the quad's base (component 2) or the pixel's column
+    (component 0), mod SET_LEVELS: the fraction of (n + 0.5) / 4, times 4, less a half, is n mod 4, the fraction never
+    near its wrap however the interpolator rounds. So the pixel groups in flight, or the pixels of one, set different
+    LODs."""
+    post = [alu(V.kMul, LOD, 0xF, temp(INTERP, splat(component)), const("quarter")),
+            alu(V.kFrc, LOD, 0xF, temp(LOD)), alu(V.kMad, LOD, 0xF, temp(LOD), const("four"), const("minus_half")),
+            alu(V.kMul, COORD, 0xF, temp(INTERP), const("uv_scale")), set_lod(LOD, 0), tfetch(COORD, False),
+            alu(V.kMax, tri.EXPORT_COLOR_0, 0xF, temp(TEXEL), temp(TEXEL), export=True, serialize=True)]
+    return [], post
+
+
 def shader(key, brk):
     kind, vertex, *args = key
-    if kind in ("a0", "sample"):
+    if kind == "level":
+        body, post = level_sample(*args)
+    elif kind in ("a0", "sample"):
         body, post = (a0_shape if kind == "a0" else sample)(*args, brk)
     else:
         body, post = {"counter": counter, "gated": gated, "nested": nested}[kind](vertex, brk, *args)
@@ -389,10 +412,16 @@ DRAWS = [
     Draw("5c", "as 5b, a count of 1", ("a0", False, "before"), "GRID_PIXELS", "CHECK_ROW", counts=(1,)),
     Draw("5d", "a0 loaded in the pass and read after LOOP_END, a count of 3", ("a0", False, "after"), "GRID_PIXELS",
          "CHECK_ROW", counts=(3,)),
-    Draw("7a", "a sample in each of 4 passes at the LOD the pass gives through setTexLOD", ("sample", False, False),
-         "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+    Draw("7a", "a sample in each of 4 passes at the LOD the pass gives through setTexLOD",
+         ("sample", False, False, False), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
     Draw("7b", "a sample in each of 4 passes at the computed LOD, the coordinates scaled by 2 each pass",
-         ("sample", False, True), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+         ("sample", False, True, False), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+    Draw("7c", "no loop, one sample at the level setTexLOD gives from the quad's base, mod 4", ("level", False, 2),
+         "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7d", "no loop, one sample at the level setTexLOD gives from the pixel's column, mod 4", ("level", False, 0),
+         "GRID_PIXELS", "CHECK_LEVEL_PIXEL", texture=True),
+    Draw("7e", "as 7a, each pass's level kept as a base-4 digit, 0123 wanted", ("sample", False, False, True),
+         "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
     Draw("6a", "vertex shader, today's uniform break: every vertex leaving at pass 7", ("counter", True),
          "GRID_VERTICES", "CHECK_COUNTER", (0.0, 0.0, 0.0, 7.0)),
     Draw("6b", "vertex shader, the gated values and a divergent break: each quad leaving at its own pass",
@@ -469,7 +498,7 @@ def run(draw, words, sample_point):
     value = result.exports.get(tri.EXPORT_COLOR_0)
     if value is None:
         sys.exit(f"gen_loop_break_probe: {draw.name}: no export")
-    return [to_byte(v) for v in value], int(point_break), base if not draw.vertex else None
+    return [to_byte(v) for v in value], int(point_break), base if not draw.vertex else None, px
 
 
 def stored(rgba):
@@ -478,9 +507,11 @@ def stored(rgba):
     return b << 24 | g << 16 | r << 8 | a
 
 
-def expected(draw, b, base, fixed):
+def expected(draw, b, base, px, fixed):
     """The bytes the probe's check wants under Xenia's model, each pixel leaving at its own pass, or None for any."""
     count = draw.counts[0]
+    if draw.check in ("CHECK_LEVEL_CELL", "CHECK_LEVEL_PIXEL"):
+        return list(texel((base if draw.check == "CHECK_LEVEL_CELL" else px) % SET_LEVELS))
     if draw.check in ("CHECK_COUNTER", "CHECK_NONE"):
         return [min(b, count), min(b, 255), CHECK, 255]
     if draw.check == "CHECK_GATED":
@@ -499,7 +530,9 @@ def model_fixed(draw):
     sampled."""
     if draw.key[0] == "sample":
         r, _, b, a = texel(draw.counts[0] - 1)
-        return [r, sum(1 << level for level in range(draw.counts[0])), b, a]
+        levels = range(draw.counts[0])
+        return [r, sum(level * 4 ** (len(levels) - 1 - level) for level in levels) if draw.key[3] else
+                sum(1 << level for level in levels), b, a]
     if draw.key[3]:
         outer, inner = draw.counts
         return [outer, outer * min(inner, INNER_PASSES), 0, 0]
@@ -511,8 +544,8 @@ def check_draw(draw, words):
     """Stops unless the simulator gives every sample point the bytes the check wants."""
     fixed = model_fixed(draw) if draw.check == "CHECK_FIXED" else None
     for point in ((c, p) for c in SAMPLE_CELLS for p in SAMPLE_PLACES):
-        got, b, base = run(draw, words, point)
-        want = expected(draw, b, base, fixed)
+        got, b, base, px = run(draw, words, point)
+        want = expected(draw, b, base, px, fixed)
         if got != want:
             sys.exit(f"gen_loop_break_probe: {draw.name} at cell {point[0]}, place {point[1]}: the simulator gives "
                      f"{got}, the check wants {want}")
@@ -523,8 +556,8 @@ def fails(draw, words):
     """Whether the simulator shows the check failing at some sample point."""
     fixed = model_fixed(draw) if draw.check == "CHECK_FIXED" else None
     for point in ((c, p) for c in SAMPLE_CELLS for p in SAMPLE_PLACES):
-        got, b, base = run(draw, words, point)
-        want = expected(draw, b, base, fixed)
+        got, b, base, px = run(draw, words, point)
+        want = expected(draw, b, base, px, fixed)
         if draw.check == "CHECK_GATED":
             got, want = got[:3], want[:3]
         if got != want:

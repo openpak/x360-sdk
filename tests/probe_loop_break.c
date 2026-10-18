@@ -17,7 +17,16 @@
 
 typedef enum { GRID_PIXELS, GRID_THIN, GRID_VERTICES, GRIDS } Grid;
 
-typedef enum { CHECK_COUNTER, CHECK_GATED, CHECK_FIXED, CHECK_ROW, CHECK_NONE } Check;
+typedef enum {
+	CHECK_COUNTER,
+	CHECK_GATED,
+	CHECK_FIXED,
+	CHECK_ROW,
+	CHECK_NONE,
+	// A sample at the level setTexLOD gave, the quad's base or the pixel's column mod SET_LEVELS.
+	CHECK_LEVEL_CELL,
+	CHECK_LEVEL_PIXEL,
+} Check;
 
 typedef struct {
 	const char *name;
@@ -72,6 +81,7 @@ enum {
 	GPU_CLOCKS_PER_MS = 498750,
 	TEXTURE_SIZE = 128,
 	TEXTURE_LEVELS = 8,
+	SET_LEVELS = 4,
 	WINDOW_WIDTH = 40,
 	WINDOW_HEIGHT = 20,
 	WRONG_LOGGED = 4,
@@ -417,6 +427,12 @@ static Outcome row_outcome(uint32_t stored, const Point *p)
 	return n == PROBE_A0_ROW + p->base ? AS_MODEL : OTHER_ROW;
 }
 
+// Level L's texel as a resolve stores it: blue L ^ CHECK, green 1 << L, red 16 + 32L, alpha 255.
+static uint32_t level_stored(uint32_t level)
+{
+	return (level ^ CHECK) << 24 | (1u << level) << 16 | (16 + 32 * level) << 8 | BYTE_MOST;
+}
+
 static Outcome outcome(const ProbeDraw *d, uint32_t stored, const Point *p, Tally *t)
 {
 	if (stored == CLEAR_STORED)
@@ -428,6 +444,10 @@ static Outcome outcome(const ProbeDraw *d, uint32_t stored, const Point *p, Tall
 		return gated_outcome(d, stored, p, t);
 	case CHECK_ROW:
 		return row_outcome(stored, p);
+	case CHECK_LEVEL_CELL:
+		return stored == level_stored(p->base % SET_LEVELS) ? AS_MODEL : OTHER;
+	case CHECK_LEVEL_PIXEL:
+		return stored == level_stored(p->x % CELL_PIXELS % SET_LEVELS) ? AS_MODEL : OTHER;
 	default:
 		return stored == d->fixed ? AS_MODEL : OTHER;
 	}
