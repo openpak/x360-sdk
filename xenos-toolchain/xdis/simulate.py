@@ -343,10 +343,12 @@ def run_group(blob: bytes, registers: list, constants: dict | None = None, verte
         if isinstance(d, xu.ParsedExecInstruction):
             if d.type == xu._ExecType.kConditional:
                 raise NotImplementedError("simulate: an exec on a boolean constant")
-            runs = d.type == xu._ExecType.kUnconditional or any(d.condition == s["p0"] for _, _, s in lanes)
+            on = [d.type == xu._ExecType.kUnconditional or d.condition == s["p0"] for _, _, s in lanes]
+            runs = any(on)
             for rec in body[pc] if runs else ():
-                for regs, exports, state in lanes:
-                    _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod)
+                for (regs, exports, state), lane_on in zip(lanes, on):
+                    if lane_on:
+                        _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod)
             if d.is_end and runs:
                 break
         elif isinstance(d, xu.ParsedLoopStartInstruction):
