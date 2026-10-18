@@ -14,7 +14,9 @@ execs as they use a0, one of which loads a0 at another index, and vk_slow_fetch.
 texture are read in a later exec; and milestone 44's vk_frag_coord_rows.frag, the pixel's place as its colour, which
 the tiles test draws across bands; and milestone 46's vk_loop_if_break.frag, vk_loop_grid.frag and
 vk_vertex_loop_break.vert, breaks and continues on data in unrolled loops, the grid's pixels each leaving at their own
-pass in the raster test. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
+pass in the raster test, and vk_loop_count_grid.frag, vk_loop_break_data.frag, vk_loop_count_stop.frag and
+vk_vertex_loop_count_break.vert, the same in hardware loops, the grid drawn and timed in the raster test too. Prints a
+C header. Runs in WSL, where make builds the compiler for the PC.
 """
 
 import struct
@@ -30,7 +32,9 @@ TESTDATA = ROOT / "xenos-toolchain" / "xsc" / "testdata"
 SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert", "vk_vertex_uniform_if.vert",
            "vk_loop_count_if.frag", "vk_clip_distance.vert", "vk_point_sprite.vert", "vk_point_coord.frag",
            "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag", "vk_dynamic_if.frag", "vk_slow_fetch.frag",
-           "vk_frag_coord_rows.frag", "vk_loop_if_break.frag", "vk_loop_grid.frag", "vk_vertex_loop_break.vert")
+           "vk_frag_coord_rows.frag", "vk_loop_if_break.frag", "vk_loop_grid.frag", "vk_vertex_loop_break.vert",
+           "vk_loop_count_grid.frag", "vk_loop_break_data.frag", "vk_loop_count_stop.frag",
+           "vk_vertex_loop_count_break.vert")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",
