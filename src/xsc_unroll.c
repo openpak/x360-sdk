@@ -23,6 +23,7 @@ enum {
 	SC_PUSH_CONSTANT = 9,
 	OP_LOGICAL_AND = 167,
 	OP_LOGICAL_NOT = 168,
+	OP_UNREACHABLE = 255,
 	BUILTIN_POSITION = 0,
 	BUILTIN_FRAG_DEPTH = 22,
 	MODEL_VERTEX = 0,
@@ -1531,9 +1532,10 @@ static bool find_blocks(Unroller *u, size_t entry, size_t end)
 			i++;
 			continue;
 		}
+		// An if/else whose arms all break or continue meets at a block glslang ends with OpUnreachable.
 		size_t j = i + 1;
 		while (j < end && m->instrs[j].opcode != SPV_BRANCH && m->instrs[j].opcode != SPV_BRANCH_CONDITIONAL &&
-			!is_return(m->instrs[j].opcode))
+			!is_return(m->instrs[j].opcode) && m->instrs[j].opcode != OP_UNREACHABLE)
 			j++;
 		if (!xsdk_xsc_room(u->x, &u->blocks, u->block_count, &capacity, sizeof *u->blocks))
 			return false;

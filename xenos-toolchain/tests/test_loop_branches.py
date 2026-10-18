@@ -127,46 +127,53 @@ def vertex_loop(x, y):
     return total
 
 
-def check_data_breaks():
-    for optimize in (False, True):
-        tag = f"optimiser {'on' if optimize else 'off'}"
-        name = "vk_loop_if_break.frag"
-        blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
-        constants = push_constants(name, [STEP])
-        constants.update({r: list(v) for r, v in manifest})
-        # Past 0.125, 0.25, 0.375 and 0.5 its sum breaks at passes 0 to 3; 1.0 never breaks.
-        for x in (0.0, 0.2, 0.3, 0.45, 1.0):
-            got = simulate.run(blob, registers={0: [x, 0.0, 0.0, 0.0]}, constants=constants).exports[0]
-            check(f"{name} at x {x}, {tag}", got, loop_if_break(x, STEP))
+def check_if_break(optimize, tag):
+    name = "vk_loop_if_break.frag"
+    blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
+    constants = push_constants(name, [STEP])
+    constants.update({r: list(v) for r, v in manifest})
+    # Past 0.125, 0.25, 0.375 and 0.5 its sum breaks at passes 0 to 3; 1.0 never breaks.
+    for x in (0.0, 0.2, 0.3, 0.45, 1.0):
+        got = simulate.run(blob, registers={0: [x, 0.0, 0.0, 0.0]}, constants=constants).exports[0]
+        check(f"{name} at x {x}, {tag}", got, loop_if_break(x, STEP))
 
-        name = "vk_loop_grid.frag"
-        blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
-        constants = {r: list(v) for r, v in manifest}
-        constants[native.FRAG_COORD_CONSTANT] = [0.5, 0.5, 0.0, 0.0]
-        param = container.Container(blob).context_misc >> PARAM_GEN_POS_SHIFT & 0xFF
-        wrong = []
-        for column in range(10):
-            for row in range(10):
-                registers = {0: [0.0] * 4, param: [float(640 + column), float(370 + row), 0.0, 0.0]}
-                got = simulate.run(blob, registers=registers, constants=constants).exports[0]
-                want = loop_grid(column, (370 + row) % 10)
-                if any(abs(g - w) > 1e-4 for g, w in zip(got, want)):
-                    wrong.append((column, row, got, want))
-        if wrong:
-            raise SystemExit(f"  FAIL {name}, {tag}: {len(wrong)} of 100 pixels wrong, first {wrong[0]}")
+
+def check_grid(optimize, tag):
+    name = "vk_loop_grid.frag"
+    blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
+    constants = {r: list(v) for r, v in manifest}
+    constants[native.FRAG_COORD_CONSTANT] = [0.5, 0.5, 0.0, 0.0]
+    param = container.Container(blob).context_misc >> PARAM_GEN_POS_SHIFT & 0xFF
+    wrong = []
+    for column in range(10):
+        for row in range(10):
+            registers = {0: [0.0] * 4, param: [float(640 + column), float(370 + row), 0.0, 0.0]}
+            got = simulate.run(blob, registers=registers, constants=constants).exports[0]
+            want = loop_grid(column, (370 + row) % 10)
+            if any(abs(g - w) > 1e-4 for g, w in zip(got, want)):
+                wrong.append((column, row, got, want))
+    if not wrong:
         print(f"  PASS {name}, {tag}: all 100 places in a cell")
+        return
+    column, row, got, want = wrong[0]
+    check(f"{name}, {tag}: {len(wrong)} of 100 places wrong, the first column {column}, row {row}", got, want)
 
-        name = "vk_vertex_loop_break.vert"
-        blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
-        constants = {r: list(v) for r, v in manifest}
-        position = [0.25, -0.5, 0.5, 1.0]
-        # Breaks at passes 0, 2, 3 and 4, and never; continues past the same passes, and never.
-        for x in (0.0, 2.0, 3.0, 4.0, -1.0):
-            for y in (0.0, 2.0, 3.0, 4.0, 9.0):
-                fetched = [[x, y, 0.0, 0.0], position]
-                exports = simulate.run(blob, registers={0: [0.0] * 4}, constants=constants,
-                                       vertex_fetch=lambda n, fetch, index: fetched[n]).exports
-                check(f"{name} at x {x}, y {y}, {tag}", exports[0], vertex_loop(x, y))
+
+def check_vertex_loop(optimize, tag):
+    name = "vk_vertex_loop_break.vert"
+    blob, manifest = lower_ex(module(name), XSDK_REGISTERS, optimize)
+    constants = {r: list(v) for r, v in manifest}
+    position = [0.25, -0.5, 0.5, 1.0]
+    # Breaks at passes 0, 2, 3 and 4, and never; continues past the same passes, and never.
+    for x in (0.0, 2.0, 3.0, 4.0, -1.0):
+        for y in (0.0, 2.0, 3.0, 4.0, 9.0):
+            fetched = [[x, y, 0.0, 0.0], position]
+            exports = simulate.run(blob, registers={0: [0.0] * 4}, constants=constants,
+                                   vertex_fetch=lambda n, fetch, index: fetched[n]).exports
+            check(f"{name} at x {x}, y {y}, {tag}", exports[0], vertex_loop(x, y))
+
+
+DATA_BREAK_CHECKS = (check_if_break, check_grid, check_vertex_loop)
 
 
 def check_folded():
@@ -204,7 +211,9 @@ def main():
     for u in (0.0, 0.125, 0.375, 0.625, 0.875):
         got = simulate.run(blob, registers={0: [u, 0.5, 0.0, 0.0]}, constants=constants).exports[0]
         check(f"vk_loop_if.frag at u {u}", got, loop_if(u))
-    check_data_breaks()
+    for optimize in (False, True):
+        for data_check in DATA_BREAK_CHECKS:
+            data_check(optimize, f"optimiser {'on' if optimize else 'off'}")
     print("OK")
 
 
