@@ -21,6 +21,8 @@ enum {
 	SC_UNIFORM = 2,
 	SC_OUTPUT = 3,
 	SC_PUSH_CONSTANT = 9,
+	OP_LOGICAL_AND = 167,
+	OP_LOGICAL_NOT = 168,
 	BUILTIN_POSITION = 0,
 	BUILTIN_FRAG_DEPTH = 22,
 	MODEL_VERTEX = 0,
@@ -96,11 +98,27 @@ typedef struct {
 } Hardware;
 
 // The innermost loop a walk unrolls: its merge and continue blocks, and the one of them a pass left for, 0 for none.
+// A break or continue on data gates it: running, 1.0 while the pixel or vertex runs the pass, and alive, while it's in
+// the loop, each 0 while every one is; what each local and output held where its pixel stopped in the pass; the
+// counter where it broke, and where a continue on data left the pass. arms says how deep in arms its passes start.
 typedef struct {
 	uint32_t merge;
 	uint32_t cont;
 	uint32_t left;
+	size_t arms;
+	uint32_t iv;
+	uint32_t running;
+	uint32_t alive;
+	State stopped;
+	uint32_t broke_at;
+	uint32_t continued_at;
 } Unrolled;
+
+// An arm of an if/else on data the walk is in: its condition, and whether it's the arm taken where that holds.
+typedef struct {
+	uint32_t condition;
+	bool when;
+} Arm;
 
 // What a hardware loop carries a value of: a local, or an output's slot.
 typedef struct {
@@ -124,6 +142,7 @@ typedef struct {
 	size_t fconst_capacity;
 	uint32_t int_tid;
 	uint32_t float_tid;
+	uint32_t bool_tid;
 	uint32_t counter;
 	XscInstr *minted;
 	size_t minted_count;
@@ -153,6 +172,11 @@ typedef struct {
 	size_t merge_capacity;
 	// How deep the walk is in arms of an if/else on data and in loops it unrolls, and the hardware loop it's in.
 	size_t arms;
+	Arm *path;
+	size_t path_capacity;
+	// The flag the last gating select is on, and the branch of its own it has.
+	uint32_t gate_flag;
+	uint32_t gate_branch;
 	size_t unrolling;
 	Unrolled *unrolled;
 	Hardware *hardware;
@@ -367,6 +391,8 @@ static bool read_constants(Unroller *u)
 			float_type[ins->result_id] = true;
 			if (width == 32 && !u->float_tid)
 				u->float_tid = ins->result_id;
+		} else if (ins->opcode == SPV_TYPE_BOOL && !u->bool_tid) {
+			u->bool_tid = ins->result_id;
 		}
 	}
 	for (size_t i = 0; i < m->instr_count; i++) {
@@ -857,6 +883,122 @@ static bool merge_states(Unroller *u, const State after[2])
 	return true;
 }
 
+// ---- breaks and continues on data in an unrolled loop ----
+
+// A select on a flag, which the lowering makes a cnd as it does a merge's, the flag a branch of its own with no arms;
+// one value unset is the other.
+static bool gate(Unroller *u, uint32_t flag, uint32_t type, uint32_t when, uint32_t otherwise, uint32_t *out)
+{
+	if (when == otherwise || !when || !otherwise) {
+		*out = when ? when : otherwise;
+		return true;
+	}
+	if (u->gate_flag != flag) {
+		if (!xsdk_xsc_room(u->x, &u->branches, u->branch_count, &u->branch_capacity, sizeof *u->branches))
+			return false;
+		u->branches[u->branch_count++] = (XscBranch){ flag, false, u->counter, u->counter };
+		u->gate_flag = flag;
+		u->gate_branch = (uint32_t)(u->branch_count - 1);
+	}
+	const uint32_t operands[3] = { flag, when, otherwise };
+	if (!emit_value(u, SPV_SELECT, type, operands, 3, out) ||
+		!xsdk_xsc_room(u->x, &u->merges, u->merge_count, &u->merge_capacity, sizeof *u->merges))
+		return false;
+	u->merges[u->merge_count++] = (XscMerge){ *out, u->gate_branch };
+	return true;
+}
+
+static bool logical(Unroller *u, uint32_t opcode, uint32_t a, uint32_t b, uint32_t *out)
+{
+	const uint32_t operands[2] = { a, b };
+	return emit_value(u, opcode, u->bool_tid, operands, opcode == OP_LOGICAL_NOT ? 1 : 2, out);
+}
+
+// a && b, a flag of 0 holding for every pixel.
+static bool both(Unroller *u, uint32_t a, uint32_t b, uint32_t *out)
+{
+	if (!a || !b) {
+		*out = a ? a : b;
+		return true;
+	}
+	return logical(u, OP_LOGICAL_AND, a, b, out);
+}
+
+// Each local but the loop's counter, and each output: cnd(flag, what the walk holds, what kept holds), into the walk's
+// or into kept.
+static bool gate_all(Unroller *u, const Unrolled *ul, uint32_t flag, State *kept, bool into_kept)
+{
+	for (size_t i = 0; i < u->local_count; i++) {
+		const uint32_t v = u->locals[i];
+		if (v != ul->iv &&
+			!gate(u, flag, pointee(u, v), u->env[v], kept->locals[i], into_kept ? &kept->locals[i] : &u->env[v]))
+			return false;
+	}
+	for (size_t i = 0; i < u->slot_count; i++) {
+		if (!u->slots[i].ignored &&
+			!gate(u, flag, u->slots[i].type, u->slot_value[i], kept->slots[i],
+				into_kept ? &kept->slots[i] : &u->slot_value[i]))
+			return false;
+	}
+	return true;
+}
+
+// A break or continue on data, or one the unroller folds where some pixels have stopped already, as
+// docs/scope/46-loops.md designs it: where the pixel stops, each value keeps a stopped copy,
+// stopped = cnd(running && c, value now, stopped), c the arms' conditions since the pass began; then
+// running = running && !c, and a break clears alive too and keeps the counter.
+static bool stop_pass(Unroller *u, Unrolled *ul, bool is_break)
+{
+	if (!u->bool_tid)
+		return refuse(u, "a break or continue on data without a bool type");
+	uint32_t active = ul->running;
+	for (size_t k = ul->arms; k < u->arms; k++) {
+		uint32_t c = u->path[k].condition;
+		if ((!u->path[k].when && !logical(u, OP_LOGICAL_NOT, c, 0, &c)) || !both(u, active, c, &active))
+			return false;
+	}
+	uint32_t still;
+	const uint32_t running = ul->running;
+	if (!gate_all(u, ul, active, &ul->stopped, true) || !logical(u, OP_LOGICAL_NOT, active, 0, &still) ||
+		!both(u, running, still, &ul->running))
+		return false;
+	if (is_break) {
+		if (!gate(u, active, pointee(u, ul->iv), u->env[ul->iv], ul->broke_at, &ul->broke_at))
+			return false;
+		if (ul->alive == running)
+			ul->alive = ul->running;
+		else if (!both(u, ul->alive, still, &ul->alive))
+			return false;
+	} else {
+		if (ul->continued_at && ul->continued_at != u->env[ul->iv])
+			return refuse(u, "a continue on data where the loop's counter differs (v1)");
+		ul->continued_at = u->env[ul->iv];
+	}
+	ul->left = ul->cont;
+	return true;
+}
+
+// The walk reaching the loop's merge or continue block. A break or continue every running pixel takes ends the loop
+// or the pass, as the unroller folds it, the pass's end keeping a pixel that stopped before as it was; one on data, or
+// a break a pixel still in the loop doesn't reach, is gated.
+static bool leave(Unroller *u, bool is_break)
+{
+	Unrolled *const ul = u->unrolled;
+	if (u->arms == ul->arms && (!is_break || ul->running == ul->alive)) {
+		ul->left = is_break ? ul->merge : ul->cont;
+		return true;
+	}
+	return stop_pass(u, ul, is_break);
+}
+
+// A pass's end: each value where its pixel stopped, if one did.
+static bool end_pass(Unroller *u, Unrolled *ul)
+{
+	if (ul->continued_at && ul->continued_at != u->env[ul->iv])
+		return refuse(u, "a continue on data where the loop's counter differs (v1)");
+	return !ul->running || gate_all(u, ul, ul->running, &ul->stopped, false);
+}
+
 static bool walk(Unroller *u, uint32_t start, uint32_t stop, bool has_stop, uint32_t *exit, bool *ended);
 
 // The condition's new id; an integer comparison the interpreter folds away is made now that it's needed.
@@ -870,8 +1012,9 @@ static bool condition_id(Unroller *u, const Block *b, LocalMap *lm, uint32_t *id
 	return true;
 }
 
-// Both arms of an if/else on data, each from the state before it, then their states merged.
-static bool data_branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t merge)
+// Both arms of an if/else on data, each from the state before it, then their states merged. An arm a break or continue
+// ended gives the merge nothing, as its pixels have stopped; where both arms end so, the walk ends too.
+static bool data_branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t merge, bool *ended)
 {
 	uint32_t condition;
 	if (!condition_id(u, b, lm, &condition))
@@ -879,6 +1022,7 @@ static bool data_branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t merg
 	State before = { 0 };
 	State after[2] = { { 0 }, { 0 } };
 	uint32_t exits[2];
+	bool left[2] = { false, false };
 	bool work = false;
 	const uint32_t first_id = u->counter;
 	if (!save(u, &before))
@@ -887,15 +1031,18 @@ static bool data_branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t merg
 		const uint32_t label = xsdk_xsc_operand(b->term, 1 + (uint32_t)arm);
 		const size_t first = u->emitted_count;
 		restore(u, &before);
-		bool ended = false;
 		exits[arm] = b->label;
-		u->arms++;
-		const bool walked = label == merge || walk(u, label, merge, true, &exits[arm], &ended);
+		if (!xsdk_xsc_room(u->x, &u->path, u->arms, &u->path_capacity, sizeof *u->path))
+			return false;
+		u->path[u->arms++] = (Arm){ condition, arm == 0 };
+		const bool walked = label == merge || walk(u, label, merge, true, &exits[arm], &left[arm]);
 		u->arms--;
 		if (!walked)
 			return false;
-		if (ended)
-			return refuse(u, "a break, discard or return inside an if/else on data");
+		if (left[arm] && !(u->unrolled && u->unrolled->left))
+			return refuse(u, "a discard or return inside an if/else on data");
+		if (left[arm])
+			u->unrolled->left = 0;
 		work = work || works(u, first);
 		if (!save(u, &after[arm]))
 			return false;
@@ -907,6 +1054,16 @@ static bool data_branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t merg
 		.exit = { exits[0], exits[1] },
 		.condition = condition,
 		.branch = (uint32_t)(u->branch_count - 1) };
+	if (left[0] || left[1]) {
+		const int live = left[0] ? 1 : 0;
+		after[1 - live] = after[live];
+		u->meeting.exit[0] = u->meeting.exit[1] = exits[live];
+		u->meeting.known = true;
+	}
+	if (left[0] && left[1]) {
+		u->unrolled->left = u->unrolled->cont;
+		*ended = true;
+	}
 	return merge_states(u, after);
 }
 
@@ -947,7 +1104,7 @@ static bool branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t *next, bo
 	bool known;
 	const bool value = const_bool(u, xsdk_xsc_operand(b->term, 0), &known);
 	if (!known)
-		return data_branch(u, b, lm, merge);
+		return data_branch(u, b, lm, merge, ended);
 	const uint32_t taken = xsdk_xsc_operand(b->term, value ? 1 : 2);
 	uint32_t exit = b->label;
 	if (taken != merge && !walk(u, taken, merge, true, &exit, ended))
@@ -1286,8 +1443,9 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 	if (!cont)
 		return xsdk_xsc_fail(u->x, XSDK_XSC_MALFORMED, "no continue block");
 	int trips = 0;
-	Unrolled unrolled = { .merge = *merge, .cont = continue_lbl };
+	Unrolled unrolled = { .merge = *merge, .cont = continue_lbl, .arms = u->arms, .iv = test.iv };
 	Unrolled *const outer = u->unrolled;
+	State kept = { 0 };
 	u->unrolling++;
 	u->unrolled = &unrolled;
 	while (loop_runs(u, &test)) {
@@ -1298,20 +1456,28 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 		uint32_t exit;
 		bool ended = false;
 		unrolled.left = 0;
-		if (!walk(u, body, continue_lbl, true, &exit, &ended))
+		unrolled.continued_at = 0;
+		if (!save(u, &unrolled.stopped) || !walk(u, body, continue_lbl, true, &exit, &ended))
 			return false;
 		if (ended && !unrolled.left)
 			return refuse(u, "a discard or return inside a loop (v1)");
+		if (!end_pass(u, &unrolled))
+			return false;
 		if (unrolled.left == *merge)
 			break;
-		if (!interpret(u, cont, &lm))
+		// The continue block steps a pixel that continued and leaves one that broke as it was.
+		if ((unrolled.alive && !save(u, &kept)) || !interpret(u, cont, &lm) ||
+			(unrolled.alive && !gate_all(u, &unrolled, unrolled.alive, &kept, false)))
 			return false;
+		unrolled.running = unrolled.alive;
 		if (env_get(u, test.iv) == before)
 			return refuse(u, "loop induction variable does not advance");
 	}
 	u->unrolled = outer;
 	u->unrolling--;
-	return true;
+	// After the loop, the counter of a pixel that broke is where it broke.
+	return !unrolled.alive ||
+		gate(u, unrolled.alive, pointee(u, test.iv), u->env[test.iv], unrolled.broke_at, &u->env[test.iv]);
 }
 
 // Walks blocks from start until stop; exit takes the last block walked, and ended whether a return ended the walk, or
@@ -1342,7 +1508,8 @@ static bool walk(Unroller *u, uint32_t start, uint32_t stop, bool has_stop, uint
 		}
 		const Unrolled *const ul = u->unrolled;
 		if (!*ended && ul && (cur == ul->merge || (cur == ul->cont && cur != stop))) {
-			u->unrolled->left = cur;
+			if (!leave(u, cur == ul->merge))
+				return false;
 			*ended = true;
 		}
 		const bool leaves = u->hardware && (cur == u->hardware->merge || (cur == u->hardware->cont && cur != stop));
