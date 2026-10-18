@@ -214,7 +214,8 @@ $(BUILD)/probe/probe_loop_break_cases.h: tools/gen_loop_break_probe.py tools/gen
 $(BUILD)/tests/probe_loop_break.o: CFLAGS += -I$(BUILD)/probe
 $(BUILD)/tests/probe_loop_break.o: $(BUILD)/probe/probe_loop_break_cases.h
 
-$(BUILD)/tests/probe_loop_break_%.o: tests/probe_loop_break.c $(BUILD)/probe/probe_loop_break_cases.h
+$(LOOP_BREAKS:%=$(BUILD)/tests/probe_loop_break_%.o): $(BUILD)/tests/probe_loop_break_%.o: tests/probe_loop_break.c \
+	$(BUILD)/probe/probe_loop_break_cases.h
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -I$(BUILD)/probe -DLOOP_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
 

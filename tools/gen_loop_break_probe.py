@@ -61,7 +61,8 @@ LITERALS = [
     ("bias", (0.25 / 255,) * 4), ("count_scale", (1 / 255, 1 / 255, 0.0, 0.0)),
     ("check", (0.25 / 255, 0.25 / 255, (CHECK + 0.25) / 255, 1.0)), ("step", (1.0, -1.0, 0.0, 0.0)),
     ("x", (1.0, 0.0, 0.0, 0.0)), ("y", (0.0, 1.0, 0.0, 0.0)), ("z", (0.0, 0.0, 1.0, 0.0)), ("w", (0.0, 0.0, 0.0, 1.0)),
-    ("gated_step", (1.0, 0.0, 1.0, 0.0)), ("fifty", (GATED_W + 1.0,) * 4), ("gated_init", (0.0, GATED_W + 1.0, 0.0, 0.0)),
+    ("gated_step", (1.0, 0.0, 1.0, 0.0)), ("fifty", (GATED_W + 1.0,) * 4),
+    ("gated_init", (0.0, GATED_W + 1.0, 0.0, 0.0)),
     ("xyw", (1.0, 1.0, 0.0, 1.0)), ("outer_step", (1.0, 0.0, float(INNER_PASSES), 0.0)),
     ("inner_step", (0.0, 1.0, -1.0, 0.0)), ("uv_scale", (1 / TEXTURE_SIZE,) * 4), ("xzw", (1.0, 0.0, 1.0, 1.0)),
 ]
@@ -183,8 +184,8 @@ def control_flow(items):
         else:
             start = open_loops.pop()
             flow[start] = enc.build_cf_loop_start(address=n + 1, loop_id=entry[1])
-            flow[n] = enc.build_cf_loop_end(address=start + 1, loop_id=entry[1], is_predicated_break=entry[2] is not None,
-                                            condition=bool(entry[2]))
+            flow[n] = enc.build_cf_loop_end(address=start + 1, loop_id=entry[1],
+                                            is_predicated_break=entry[2] is not None, condition=bool(entry[2]))
     assert not open_loops
     return tri.pack(flow, instructions), first
 
@@ -209,7 +210,8 @@ def vertex_shader(body, post):
         "vertex", struct.pack(f">{len(dwords)}I", *dwords), constants=[],
         program_control=tri.program_control(vs_num_reg=REGISTERS - 1, vs_resource=1, vs_export_count=0),
         context_misc=0, interpolators=[ce.Interpolator(tri.EXPORT_INTERPOLATOR_0, ce.USAGE_COLOR, 0)],
-        vertex_elements=[ce.VertexElement(first, tri.USAGE_POSITION, 0), ce.VertexElement(first + 1, ce.USAGE_COLOR, 0)],
+        vertex_elements=[ce.VertexElement(first, tri.USAGE_POSITION, 0),
+                         ce.VertexElement(first + 1, ce.USAGE_COLOR, 0)],
         creator=tri.CREATOR)
 
 

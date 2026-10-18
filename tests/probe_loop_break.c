@@ -88,7 +88,6 @@ typedef enum {
 	AS_MODEL,
 	PAST,
 	BEFORE,
-	OTHER_B,
 	WRONG_VALUES,
 	MARKER,
 	OTHER_ROW,
@@ -101,7 +100,6 @@ static const char *const outcome_names[OUTCOMES] = {
 	"as Xenia's model",
 	"more passes than its own",
 	"fewer passes than its own",
-	"its B not the probe's",
 	"i or w not its own pass's",
 	"the marker, nothing written",
 	"another row",
@@ -118,6 +116,8 @@ typedef struct {
 	uint32_t outcomes[OUTCOMES];
 	// The ungated count against its own pass, a counter's or a gated shape's n.
 	uint32_t spans[SPANS];
+	// Points whose exported B isn't the probe's, which are judged by the shader's own.
+	uint32_t other_b;
 	char wrong[TEXT_BYTES];
 	uint32_t wrong_logged;
 } Tally;
@@ -384,14 +384,15 @@ static Outcome count_outcome(uint32_t count, uint32_t own)
 	return count == own ? AS_MODEL : count > own ? PAST : BEFORE;
 }
 
-// A counter's bytes: its count, its B, CHECK and 255; its own pass is B, or the loop's count if fewer.
+// A counter's bytes: its count, its B, CHECK and 255; its own pass is its B, or the loop's count if fewer. B over 255
+// exports as 255, which caps the count anyway.
 static Outcome counter_outcome(const ProbeDraw *d, uint32_t stored, const Point *p, Tally *t)
 {
 	if (blue(stored) != CHECK || alpha(stored) != BYTE_MOST)
 		return OTHER;
-	if (green(stored) != min_u32(p->b, BYTE_MOST))
-		return OTHER_B;
-	const uint32_t own = min_u32(p->b, d->counts[0]);
+	const uint32_t b = green(stored);
+	t->other_b += b != min_u32(p->b, BYTE_MOST);
+	const uint32_t own = min_u32(b, d->counts[0]);
 	add_span(t, red(stored), own);
 	return count_outcome(red(stored), own);
 }
@@ -399,10 +400,10 @@ static Outcome counter_outcome(const ProbeDraw *d, uint32_t stored, const Point 
 // The gated shape's i, w, B and ungated n: i B and w B + PROBE_GATED_W whatever the GPU's passes, n B if it breaks.
 static Outcome gated_outcome(const ProbeDraw *d, uint32_t stored, const Point *p, Tally *t)
 {
-	if (blue(stored) != p->b)
-		return OTHER_B;
-	add_span(t, alpha(stored), d->breaks ? p->b : d->counts[0]);
-	return red(stored) == p->b && green(stored) == p->b + PROBE_GATED_W ? AS_MODEL : WRONG_VALUES;
+	const uint32_t b = blue(stored);
+	t->other_b += b != p->b;
+	add_span(t, alpha(stored), d->breaks ? b : d->counts[0]);
+	return red(stored) == b && green(stored) == b + PROBE_GATED_W ? AS_MODEL : WRONG_VALUES;
 }
 
 // c[n] as the a0 shapes read it: red n, green 255 - n, blue n ^ CHECK, alpha 255.
@@ -457,8 +458,8 @@ static void append(char *text, size_t size, const char *format, uint32_t a, cons
 static const char *counter_verdict(const Tally *t)
 {
 	const uint32_t *const o = t->outcomes;
-	if (o[OTHER_B] || o[OTHER] || o[NOT_DRAWN])
-		return "FAILED: points whose B or bytes aren't the shader's as the probe works them out";
+	if (o[OTHER] || o[NOT_DRAWN])
+		return "FAILED: points not the shader's export";
 	if (!o[PAST] && !o[BEFORE])
 		return "each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)";
 	if (!o[BEFORE])
@@ -517,7 +518,9 @@ static bool log_result(const ProbeDraw *d, const Tally *t, uint64_t clocks_taken
 	char timing[64] = "";
 	if (d->timed)
 		snprintf(timing, sizeof timing, "%.1f us, ", (double)clocks_taken * 1000.0 / GPU_CLOCKS_PER_MS);
-	const uint32_t points = point_count(d);
+	if (t->other_b)
+		append(text, sizeof text, "; %u %s", t->other_b, "with a B not the probe's, judged by their own");
+	const uint32_t points = d->check == CHECK_NONE ? 0 : point_count(d);
 	bool passed = t->outcomes[AS_MODEL] == points;
 	const char *verdict = passed ? "PASS" : "DIFFERS";
 	if (d->check == CHECK_COUNTER) {
