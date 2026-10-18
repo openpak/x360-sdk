@@ -56,6 +56,8 @@ typedef enum {
 	// User clip plane regs, 0 to 5, from constant register reg: gl_ClipDistance[regs] = dot(gl_Position, the plane)
 	// (xenos-toolchain/docs/xsc.md, "Interface conventions").
 	XSDK_XSC_CLIP_PLANE,
+	// Loop constant reg for loops whose count is data, regs passes, 255, from aL 0 by 1: each leaves on its condition.
+	XSDK_XSC_FIXED_LOOP,
 } XsdkXscNeedKind;
 
 typedef enum {

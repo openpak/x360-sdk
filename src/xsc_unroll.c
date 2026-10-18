@@ -6,8 +6,8 @@
 
 // Loops unrolled and locals turned into SSA values, as xenos-toolchain/xsc/unroll.py does it. An if/else on data runs
 // both arms, and each local, output and Phi they leave apart is merged by a select where they meet. A loop a block's
-// int counts is walked once, for a hardware loop, what it carries a value at the top of each pass; a break or continue
-// on data in its pass is gated as in an unrolled loop, alive a value it carries from 1.
+// int counts, or whose count is data, is walked once, for a hardware loop, what it carries a value at the top of each
+// pass; a break or continue on data in its pass is gated as in an unrolled loop, alive a value it carries from 1.
 
 enum {
 	MAX_TRIP = 4096,
@@ -16,9 +16,11 @@ enum {
 	OP_I_MUL = 132,
 	OP_S_DIV = 135,
 	OP_I_EQUAL = 170,
+	OP_I_NOT_EQUAL = 171,
 	OP_S_GREATER_THAN = 173,
 	OP_S_LESS_THAN_EQUAL = 179,
 	OP_IN_BOUNDS_ACCESS_CHAIN = 66,
+	SC_UNIFORM_CONSTANT = 0,
 	SC_UNIFORM = 2,
 	SC_OUTPUT = 3,
 	SC_PUSH_CONSTANT = 9,
@@ -1207,6 +1209,19 @@ static bool varies(Unroller *u, const Hardware *hw, uint32_t c, bool *data)
 	return true;
 }
 
+// A break or continue on c being when, outside any arm of the pass, gated: a hardware loop's own condition, or a pass
+// it skips.
+static bool gated_leave(Unroller *u, Unrolled *ul, uint32_t c, bool when, bool is_break)
+{
+	if (!xsdk_xsc_room(u->x, &u->path, u->arms, &u->path_capacity, sizeof *u->path))
+		return false;
+	u->path[u->arms++] = (Arm){ c, when };
+	const bool stopped = stop_pass(u, ul, is_break);
+	u->arms--;
+	ul->left = 0;
+	return stopped;
+}
+
 // if (c) break; ending a pass: on a value every vertex or pixel shares, where no break or continue in the pass stopped
 // one before, a predicated LOOP_END as it always was; otherwise gated, as a break on data in the pass is.
 static bool hardware_break(Unroller *u, const Block *b, LocalMap *lm, bool when)
@@ -1222,13 +1237,7 @@ static bool hardware_break(Unroller *u, const Block *b, LocalMap *lm, bool when)
 		hw->break_condition = c;
 		return true;
 	}
-	if (!xsdk_xsc_room(u->x, &u->path, u->arms, &u->path_capacity, sizeof *u->path))
-		return false;
-	u->path[u->arms++] = (Arm){ c, when };
-	const bool stopped = stop_pass(u, hw->gated, true);
-	u->arms--;
-	hw->gated->left = 0;
-	return stopped;
+	return gated_leave(u, hw->gated, c, when, true);
 }
 
 // A structured if/else: on a constant condition, the taken arm alone, then the merge, unless the arm ended the walk; on
@@ -1337,7 +1346,9 @@ static bool loop_runs(const Unroller *u, const LoopTest *t)
 	return t->body_when_true ? r : !r;
 }
 
-static bool loop_test(Unroller *u, const XscInstr *cterm, uint32_t merge, LoopTest *t, uint32_t *body)
+// The loop's test, i against a constant, i a local holding a constant on entry, for a loop the unroller unrolls;
+// constant false for any other, a loop whose count is data.
+static bool loop_test(Unroller *u, const XscInstr *cterm, uint32_t merge, LoopTest *t, uint32_t *body, bool *constant)
 {
 	const uint32_t cond = xsdk_xsc_operand(cterm, 0);
 	const uint32_t t_lbl = xsdk_xsc_operand(cterm, 1);
@@ -1346,9 +1357,10 @@ static bool loop_test(Unroller *u, const XscInstr *cterm, uint32_t merge, LoopTe
 		return refuse(u, "loop exit does not target the merge block");
 	*body = t_lbl == merge ? f_lbl : t_lbl;
 	t->body_when_true = *body == t_lbl;
+	*constant = false;
 	const XscInstr *const cmp = xsdk_xsc_by_result(u->m, cond);
 	if (!cmp || !is_compare(cmp->opcode))
-		return refuse(u, "loop condition is not an integer comparison");
+		return true;
 	t->compare = cmp->opcode;
 	const uint32_t a = xsdk_xsc_operand(cmp, 0);
 	const uint32_t b = xsdk_xsc_operand(cmp, 1);
@@ -1361,11 +1373,10 @@ static bool loop_test(Unroller *u, const XscInstr *cterm, uint32_t merge, LoopTe
 		t->iv = xsdk_xsc_operand(lb, 0);
 		t->iv_left = false;
 	} else {
-		return refuse(u, "condition not (induction var vs constant)");
+		return true;
 	}
 	int64_t ignored;
-	if (!env_get(u, t->iv) || !find_int(u, env_get(u, t->iv), &ignored))
-		return refuse(u, "induction var not constant on loop entry");
+	*constant = env_get(u, t->iv) && find_int(u, env_get(u, t->iv), &ignored);
 	return true;
 }
 
@@ -1378,9 +1389,10 @@ static bool is_block(const Unroller *u, uint32_t var)
 	return storage == SC_UNIFORM || storage == SC_PUSH_CONSTANT;
 }
 
-// i < a block's int, i a local holding 0 as the loop starts, the loop's false arm its exit; the chain to the int.
+// i < a block's int, i a local holding a constant as the loop starts, the loop's false arm its exit; the chain to the
+// int, and the constant.
 static bool counted_by_block(
-	const Unroller *u, const XscInstr *cterm, uint32_t merge, uint32_t *iv, const XscInstr **chain)
+	const Unroller *u, const XscInstr *cterm, uint32_t merge, uint32_t *iv, const XscInstr **chain, int64_t *start)
 {
 	const XscInstr *const cmp = xsdk_xsc_by_result(u->m, xsdk_xsc_operand(cterm, 0));
 	if (!cmp || xsdk_xsc_operand(cterm, 2) != merge ||
@@ -1394,9 +1406,8 @@ static bool counted_by_block(
 		return false;
 	*iv = xsdk_xsc_operand(counter, 0);
 	*chain = xsdk_xsc_by_result(u->m, xsdk_xsc_operand(bound, 0));
-	int64_t start;
 	return *chain && is_chain((*chain)->opcode) && is_block(u, xsdk_xsc_operand(*chain, 0)) &&
-		find_int(u, env_get(u, *iv), &start) && start == 0;
+		find_int(u, env_get(u, *iv), start);
 }
 
 static size_t block_index(const Unroller *u, uint32_t label)
@@ -1454,6 +1465,49 @@ static bool steps_by_one(const Unroller *u, uint32_t cont, uint32_t iv)
 	return stores == 1 && stepped;
 }
 
+// What the continue block's i = i + step adds, a constant past 0, where nothing else from the loop's header to its
+// merge stores i; 0 otherwise.
+static int64_t block_step(const Unroller *u, uint32_t header, uint32_t merge, uint32_t cont, uint32_t iv)
+{
+	const size_t last = block_index(u, merge);
+	int64_t step = 0;
+	size_t stores = 0;
+	for (size_t bi = block_index(u, header); bi < last && bi < u->block_count; bi++) {
+		const Block *const b = &u->blocks[bi];
+		for (size_t i = b->first; i < b->first + b->count; i++) {
+			const XscInstr *const ins = &u->m->instrs[i];
+			if (ins->opcode != SPV_STORE || xsdk_xsc_operand(ins, 0) != iv)
+				continue;
+			stores++;
+			const XscInstr *const add = xsdk_xsc_by_result(u->m, xsdk_xsc_operand(ins, 1));
+			for (uint32_t k = 0; b->label == cont && add && add->opcode == OP_I_ADD && k < 2; k++) {
+				const XscInstr *const ld = xsdk_xsc_by_result(u->m, xsdk_xsc_operand(add, k));
+				if (ld && ld->opcode == SPV_LOAD && xsdk_xsc_operand(ld, 0) == iv)
+					(void)find_int(u, xsdk_xsc_operand(add, 1 - k), &step);
+			}
+		}
+	}
+	return stores == 1 && step > 0 ? step : 0;
+}
+
+// Whether a block loads an int a block or a bare uniform holds, which the shader can't read but as a loop's count
+// (xsc_lower.c, int_operand_of).
+static bool loads_held_int(const Unroller *u, const Block *b)
+{
+	for (size_t i = b->first; i < b->first + b->count; i++) {
+		const XscInstr *const ins = &u->m->instrs[i];
+		const XscInstr *const type = xsdk_xsc_by_result(u->m, ins->result_type);
+		if (ins->opcode != SPV_LOAD || !type || type->opcode != SPV_TYPE_INT)
+			continue;
+		const XscInstr *const chain = xsdk_xsc_by_result(u->m, xsdk_xsc_operand(ins, 0));
+		const uint32_t base = chain && is_chain(chain->opcode) ? xsdk_xsc_operand(chain, 0) : xsdk_xsc_operand(ins, 0);
+		const XscInstr *const v = xsdk_xsc_by_result(u->m, base);
+		if (is_block(u, base) || (v && v->opcode == SPV_VARIABLE && xsdk_xsc_operand(v, 0) == SC_UNIFORM_CONSTANT))
+			return true;
+	}
+	return false;
+}
+
 // Each local but the induction variable and each whole output the loop stores, and holds a value of before it, a value
 // at the top of each pass; one it holds none of before is the pass's own, in own, and holds none after.
 static bool carry_in(Unroller *u, uint32_t iv, const bool *stored, Carry *carries, size_t *count, bool *own)
@@ -1485,12 +1539,72 @@ static bool carry_in(Unroller *u, uint32_t iv, const bool *stored, Carry *carrie
 	return true;
 }
 
-// The loop's pass walked once from the values at its top; then what it carries holds the loop's results.
-static bool expand_hardware_loop(
-	Unroller *u, const Block *header, uint32_t merge, uint32_t cont, uint32_t body, uint32_t iv, const XscInstr *chain)
+// The continue block, its stores kept where flag is 0, as for a pixel that left the loop or skipped the pass; 0 for
+// none.
+static bool step_pass(Unroller *u, const Unrolled *ul, const Block *cont, uint32_t flag, LocalMap *lm)
+{
+	State kept = { 0 };
+	return (!flag || save(u, &kept)) && interpret(u, cont, lm) && (!flag || gate_all(u, ul, flag, &kept, false));
+}
+
+// Whether a loop tests its condition at its end, a do/while, its continue block branching back or out.
+static bool tests_at_end(const Block *cont)
+{
+	return cont->term && cont->term->opcode == SPV_BRANCH_CONDITIONAL;
+}
+
+// The top of a hardware loop's pass. Where a block's int counts it but i starts past 0 or steps past 1, a pass the
+// counter isn't at i is skipped, a continue, and took says which pixels run it. A loop whose count is data carries
+// alive from its first pass, so all of the pass is gated, and its condition, tested at the top but in a do/while, is a
+// break, the pass going on at the condition's arm into the loop.
+static bool top_of_pass(
+	Unroller *u, Unrolled *ul, const XscHardwareLoop *loop, uint32_t iv, uint32_t *first, uint32_t *took)
+{
+	if (loop->count) {
+		uint32_t skipped;
+		const uint32_t operands[2] = { loop->counter, u->env[iv] };
+		if (!emit_value(u, OP_I_NOT_EQUAL, u->bool_tid, operands, 2, &skipped) ||
+			!gated_leave(u, ul, skipped, true, false))
+			return false;
+		*took = ul->running;
+		return true;
+	}
+	if (!carry_alive(u, ul))
+		return false;
+	if (tests_at_end(block_of(u, ul->cont)))
+		return true;
+	const Block *const test = block_of(u, *first);
+	const bool exit_when = xsdk_xsc_operand(test->term, 1) == ul->merge;
+	LocalMap lm = { 0 };
+	uint32_t c;
+	if (!interpret(u, test, &lm) || !condition_id(u, test, &lm, &c) || !gated_leave(u, ul, c, exit_when, true))
+		return false;
+	*first = xsdk_xsc_operand(test->term, exit_when ? 2 : 1);
+	return true;
+}
+
+// The end of a hardware loop's pass whose counter isn't i, its values gated: the continue block run for each pixel
+// still in the loop that took the pass, then a do/while's condition, a break.
+static bool end_of_pass(Unroller *u, Unrolled *ul, const Block *cont, uint32_t took)
+{
+	uint32_t flag, c;
+	LocalMap lm = { 0 };
+	if (!both(u, ul->alive, took, &flag) || !step_pass(u, ul, cont, flag, &lm))
+		return false;
+	if (!tests_at_end(cont))
+		return true;
+	ul->running = ul->alive;
+	return condition_id(u, cont, &lm, &c) && gated_leave(u, ul, c, xsdk_xsc_operand(cont->term, 1) == ul->merge, true);
+}
+
+// The loop's pass walked once from the values at its top; then what it carries holds the loop's results. A block's int
+// counts it, through chain, its passes skipped where i, iv, starts past 0 or steps past 1; or its count is data, chain
+// NULL and iv 0.
+static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merge, uint32_t cont, uint32_t first,
+	uint32_t iv, const XscInstr *chain, bool skip)
 {
 	if (u->hardware || u->arms || u->unrolling)
-		return refuse(u, "a loop counted by a block inside an if/else on data or another loop (v1)");
+		return refuse(u, "a hardware loop inside an if/else on data or another loop (v1)");
 	bool *const stored = xsdk_xsc_alloc(u->x, u->env_limit);
 	bool *const own = xsdk_xsc_alloc(u->x, u->env_limit);
 	Carry *const carries = xsdk_xsc_alloc(u->x, (u->local_count + MAX_SLOTS + 1) * sizeof *carries);
@@ -1498,16 +1612,20 @@ static bool expand_hardware_loop(
 	if (!stored || !own || !carries || !stored_in_loop(u, header->label, merge, stored, &parts))
 		return false;
 	if (parts)
-		return refuse(u, "a store into part of an output inside a loop counted by a block (v1)");
+		return refuse(u, "a store into part of an output inside a hardware loop (v1)");
 	XscHardwareLoop loop = { .carried_first = u->carried_count, .first = u->counter };
 	LocalMap lm = { 0 };
 	size_t carry_count = 0;
-	if (!clone_generic(u, chain, &lm) || !carry_in(u, iv, stored, carries, &carry_count, own) ||
-		!emit_value(u, XSC_OP_LOOP_PHI, pointee(u, iv), NULL, 0, &loop.counter))
+	// The pass counter is i itself where a block's int counts the loop from 0 by 1; any other i is carried.
+	const uint32_t counted = chain && !skip ? iv : 0;
+	const uint32_t counter_type = iv ? pointee(u, iv) : u->float_tid;
+	if ((chain && !clone_generic(u, chain, &lm)) || !carry_in(u, counted, stored, carries, &carry_count, own) ||
+		!emit_value(u, XSC_OP_LOOP_PHI, counter_type, NULL, 0, &loop.counter))
 		return false;
-	loop.count = local_or_self(&lm, chain->result_id);
-	u->env[iv] = loop.counter;
-	Unrolled gated = { .merge = merge, .cont = cont, .arms = u->arms, .iv = iv, .hardware = true };
+	loop.count = chain ? local_or_self(&lm, chain->result_id) : 0;
+	if (counted)
+		u->env[iv] = loop.counter;
+	Unrolled gated = { .merge = merge, .cont = cont, .arms = u->arms, .iv = counted, .hardware = true };
 	Hardware hw = { .merge = merge,
 		.cont = cont,
 		.arms = u->arms,
@@ -1516,22 +1634,22 @@ static bool expand_hardware_loop(
 		.carry_count = carry_count,
 		.carried_first = loop.carried_first };
 	uint32_t exit;
+	uint32_t took = 0;
 	bool ended = false;
 	if (!save(u, &gated.top) || !save(u, &gated.stopped))
 		return false;
 	u->hardware = &hw;
 	u->unrolled = &gated;
-	const bool walked = walk(u, body, cont, true, &exit, &ended);
+	const bool walked =
+		(counted || top_of_pass(u, &gated, &loop, iv, &first, &took)) && walk(u, first, cont, true, &exit, &ended);
 	u->hardware = NULL;
 	u->unrolled = NULL;
 	if (!walked)
 		return false;
 	if (ended && !gated.left)
-		return refuse(u, "a discard or return inside a loop counted by a block (v1)");
-	if (!end_pass(u, &gated))
+		return refuse(u, "a discard or return inside a hardware loop (v1)");
+	if (!end_pass(u, &gated) || (!counted && !end_of_pass(u, &gated, block_of(u, cont), took)))
 		return false;
-	if (u->env[iv] != loop.counter || !steps_by_one(u, cont, iv))
-		return refuse(u, "a loop counted by a block stepping other than i++ in its continue block (v1)");
 	for (size_t i = 0; i < carry_count; i++) {
 		XscCarried *const c = &u->carried[loop.carried_first + i];
 		uint32_t *const value = carries[i].local ? &u->env[carries[i].target] : &u->slot_value[carries[i].target];
@@ -1556,9 +1674,10 @@ static bool expand_hardware_loop(
 		else if (own[v] && slot_of(u, v, XSC_NONE, 0, 0, &slot))
 			u->slot_value[slot] = 0;
 	}
-	if (!emit_value(u, XSC_OP_LOOP_RESULT, pointee(u, iv), NULL, 0, &loop.counter_result))
+	if (!emit_value(u, XSC_OP_LOOP_RESULT, counter_type, NULL, 0, &loop.counter_result))
 		return false;
-	u->env[iv] = loop.counter_result;
+	if (counted)
+		u->env[iv] = loop.counter_result;
 	loop.carried_count = carry_count;
 	loop.break_condition = hw.break_condition;
 	loop.break_when = hw.break_when;
@@ -1569,7 +1688,23 @@ static bool expand_hardware_loop(
 	return true;
 }
 
-// Unrolls the loop whose header is header_lbl; its merge label through merge (unroll.py expand_loop).
+// A loop whose count is data: a hardware loop of 255 passes, the most a loop constant counts, left on its condition
+// (docs/scope/46-loops.md). Refused where the condition reads a block's or a bare uniform's int, so a bare uniform's
+// loop takes the lowering of its own (xsc_lower_loop.c).
+static bool expand_data_loop(Unroller *u, const Block *header, uint32_t merge, const Block *cont, uint32_t first)
+{
+	const bool at_end = tests_at_end(cont);
+	const uint32_t a = at_end ? xsdk_xsc_operand(cont->term, 1) : 0;
+	const uint32_t b = at_end ? xsdk_xsc_operand(cont->term, 2) : 0;
+	if (at_end && !((a == header->label && b == merge) || (a == merge && b == header->label)))
+		return refuse(u, "a loop's continue construct of more than one block (v1)");
+	if (loads_held_int(u, at_end ? cont : block_of(u, first)))
+		return refuse(u, "a loop's condition on a block's or uniform's int, other than i < b.n (v1)");
+	return expand_hardware_loop(u, header, merge, cont->label, first, 0, NULL, false);
+}
+
+// Unrolls the loop whose header is header_lbl, or keeps it for a hardware loop where a block's int or data counts it;
+// its merge label through merge (unroll.py expand_loop).
 static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 {
 	const XscInstr *lm_ins = NULL;
@@ -1578,26 +1713,38 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 	const uint32_t continue_lbl = xsdk_xsc_operand(lm_ins, 1);
 	if (!header->term || header->term->opcode != SPV_BRANCH)
 		return refuse(u, "unexpected loop header terminator");
-	const Block *const cond_block = block_of(u, xsdk_xsc_operand(header->term, 0));
+	const uint32_t first = xsdk_xsc_operand(header->term, 0);
+	const Block *const cond_block = block_of(u, first);
 	if (!cond_block)
 		return xsdk_xsc_fail(u->x, XSDK_XSC_MALFORMED, "no loop condition block");
+	const Block *const cont = block_of(u, continue_lbl);
+	if (!cont)
+		return xsdk_xsc_fail(u->x, XSDK_XSC_MALFORMED, "no continue block");
+	if (tests_at_end(cont))
+		return expand_data_loop(u, header, *merge, cont, first);
 	if (!cond_block->term || cond_block->term->opcode != SPV_BRANCH_CONDITIONAL)
 		return refuse(u, "loop condition is not a BranchConditional");
 	uint32_t iv;
 	const XscInstr *chain;
-	if (counted_by_block(u, cond_block->term, *merge, &iv, &chain))
-		return expand_hardware_loop(u, header, *merge, continue_lbl, xsdk_xsc_operand(cond_block->term, 1), iv, chain);
+	int64_t start;
+	if (counted_by_block(u, cond_block->term, *merge, &iv, &chain, &start)) {
+		if (start < 0 || !block_step(u, header->label, *merge, continue_lbl, iv))
+			return refuse(u,
+				"a loop counted by a block from below 0, or stepping i other than by a constant past 0 in "
+				"its continue block alone (v1)");
+		return expand_hardware_loop(u, header, *merge, continue_lbl, xsdk_xsc_operand(cond_block->term, 1), iv, chain,
+			start || !steps_by_one(u, continue_lbl, iv));
+	}
 	LoopTest test = { 0 };
 	uint32_t body = 0;
-	if (!loop_test(u, cond_block->term, *merge, &test, &body))
+	bool constant;
+	if (!loop_test(u, cond_block->term, *merge, &test, &body, &constant))
 		return false;
-	const Block *const cont = block_of(u, continue_lbl);
-	if (!cont)
-		return xsdk_xsc_fail(u->x, XSDK_XSC_MALFORMED, "no continue block");
+	if (!constant)
+		return expand_data_loop(u, header, *merge, cont, first);
 	int trips = 0;
 	Unrolled unrolled = { .merge = *merge, .cont = continue_lbl, .arms = u->arms, .iv = test.iv };
 	Unrolled *const outer = u->unrolled;
-	State kept = { 0 };
 	u->unrolling++;
 	u->unrolled = &unrolled;
 	while (loop_runs(u, &test)) {
@@ -1618,8 +1765,7 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 		if (unrolled.left == *merge)
 			break;
 		// The continue block steps a pixel that continued and leaves one that broke as it was.
-		if ((unrolled.alive && !save(u, &kept)) || !interpret(u, cont, &lm) ||
-			(unrolled.alive && !gate_all(u, &unrolled, unrolled.alive, &kept, false)))
+		if (!step_pass(u, &unrolled, cont, unrolled.alive, &lm))
 			return false;
 		unrolled.running = unrolled.alive;
 		if (env_get(u, test.iv) == before)

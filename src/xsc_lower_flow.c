@@ -4,7 +4,8 @@
 
 // Control flow the unroller left as values: the selects where an if/else's arms meet (xsc_unroll.c), each a cnd on the
 // comparison it branched on, or, where every vertex or pixel takes the same arm and an arm works anything out, the
-// arms in execs on the predicate, so the arm not taken is skipped; and loops a block's int counts, as hardware loops.
+// arms in execs on the predicate, so the arm not taken is skipped; and loops a block's int or data counts, as hardware
+// loops.
 
 enum {
 	SC_INPUT = 1,
@@ -14,6 +15,8 @@ enum {
 	VERTEX_FIRST_LOOP = 0,
 	PIXEL_FIRST_LOOP = 16,
 	LOOPS_A_STAGE = 16,
+	// A loop whose count is data runs the most passes a loop constant counts (xenia:src/xenia/gpu/xenos.h:1086-1097).
+	FIXED_PASSES = 255,
 	REGISTER_BYTES = 16,
 	MEMBER_BYTES = 4,
 	IMAGE_SAMPLE_FIRST = SPV_IMAGE_SAMPLE_IMPLICIT_LOD,
@@ -514,7 +517,7 @@ XscOperand xsdk_xsc_merge_operand(XscLower *l, uint32_t ssa)
 // ---- hardware loops ----
 
 // Where the count is: the block holding the int the chain reaches, at a byte offset (xsc_lower_block.c).
-static bool count_need(XscLower *l, const XscHardwareLoop *loop, uint32_t loop_constant)
+static bool block_count(XscLower *l, const XscHardwareLoop *loop, XsdkXscNeed *need)
 {
 	XscBlockAccess access;
 	bool found;
@@ -525,13 +528,33 @@ static bool count_need(XscLower *l, const XscHardwareLoop *loop, uint32_t loop_c
 		return xsdk_xsc_lower_refuse(l, "a loop's count other than an int a block holds at a fixed place (v1)");
 	const XscInstr *const chain = xsdk_xsc_by_result(l->m, loop->count);
 	const XscBlock *const block = &l->si->blocks[xsdk_xsc_role(l->si, xsdk_xsc_operand(chain, 0))->a];
-	const XsdkXscNeed need = { .kind = XSDK_XSC_BLOCK_LOOP,
-		.reg = loop_constant,
+	*need = (XsdkXscNeed){ .kind = XSDK_XSC_BLOCK_LOOP,
 		.regs = 1,
 		.block = block->push ? XSDK_XSC_PUSH_CONSTANTS : XSDK_XSC_UNIFORM_BUFFER,
 		.set = block->var->descriptor_set == XSC_NONE ? 0 : (uint32_t)block->var->descriptor_set,
 		.binding = block->var->binding == XSC_NONE ? 0 : (uint32_t)block->var->binding,
 		.offset_bytes = (uint32_t)((access.reg - block->reg) * REGISTER_BYTES + access.comp * MEMBER_BYTES) };
+	return true;
+}
+
+// The loop constant the loop's count sets, one per count, from the stage's first: a block's int, or the fixed passes a
+// loop whose count is data runs.
+static bool count_constant(XscLower *l, const XscHardwareLoop *loop, uint32_t *loop_constant)
+{
+	XsdkXscNeed need = { .kind = XSDK_XSC_FIXED_LOOP, .regs = FIXED_PASSES };
+	if (loop->count && !block_count(l, loop, &need))
+		return false;
+	for (size_t i = 0; i < l->loop_need_count; i++) {
+		const XsdkXscNeed *const n = &l->loop_needs[i];
+		if (n->kind == need.kind && n->block == need.block && n->set == need.set && n->binding == need.binding &&
+			n->offset_bytes == need.offset_bytes) {
+			*loop_constant = n->reg;
+			return true;
+		}
+	}
+	if (l->loop_need_count == LOOPS_A_STAGE)
+		return xsdk_xsc_lower_refuse(l, "loops of more than %d counts (v1)", LOOPS_A_STAGE);
+	need.reg = *loop_constant = (l->vertex ? VERTEX_FIRST_LOOP : PIXEL_FIRST_LOOP) + (uint32_t)l->loop_need_count;
 	if (!xsdk_xsc_room(l->x, &l->loop_needs, l->loop_need_count, &l->loop_need_capacity, sizeof *l->loop_needs))
 		return false;
 	l->loop_needs[l->loop_need_count++] = need;
@@ -552,7 +575,7 @@ static XscTypeKind carried_kind(XscLower *l, uint32_t phi)
 	const XscType *const type = xsdk_xsc_result_type(l, phi);
 	const XscTypeKind kind = type ? type->kind : XSC_TYPE_NONE;
 	if (kind != XSC_TYPE_FLOAT && kind != XSC_TYPE_VECTOR && kind != XSC_TYPE_INT && kind != XSC_TYPE_BOOL) {
-		xsdk_xsc_lower_refuse(l, "a %s a loop counted by a block carries (v1)", xsdk_xsc_type_kind_name(kind));
+		xsdk_xsc_lower_refuse(l, "a %s a hardware loop carries (v1)", xsdk_xsc_type_kind_name(kind));
 		return XSC_TYPE_NONE;
 	}
 	return kind;
@@ -583,25 +606,24 @@ static bool count_pass(XscLower *l, int64_t counter, int64_t alive)
 
 // Each carried value's register from its value on entry; LOOP_START; each pass's values worked out from the registers,
 // then put in them; the induction variable counted on; a break's setp; LOOP_END. The loop constant the block's int
-// sets runs it that many passes, aL from 0 by 1 (xenia:src/xenia/gpu/xenos.h:1086-1097). A loop a pixel leaves on data
-// sets p0 where alive is 0, and LOOP_END breaks once every pixel of the group has
-// (xenia:src/xenia/gpu/ucode.h:372-373).
+// sets runs it that many passes, or one whose count is data 255, aL from 0 by 1
+// (xenia:src/xenia/gpu/xenos.h:1086-1097). A loop a pixel leaves on data sets p0 where alive is 0, and LOOP_END breaks
+// once every pixel of the group has (xenia:src/xenia/gpu/ucode.h:372-373).
 static bool emit_loop(XscLower *l, uint32_t index)
 {
 	const XscModule *const m = l->m;
 	const XscHardwareLoop *const loop = &m->loops[index];
-	if (l->in_arm || l->in_loop || index >= LOOPS_A_STAGE)
-		return xsdk_xsc_lower_refuse(
-			l, "a loop counted by a block inside an if/else's execs, or more than %d (v1)", LOOPS_A_STAGE);
+	if (l->in_arm || l->in_loop)
+		return xsdk_xsc_lower_refuse(l, "a hardware loop inside an if/else's execs or another loop (v1)");
 	if (loop->break_condition && loop->break_condition < m->id_limit && l->varies[loop->break_condition])
 		return xsdk_xsc_lower_refuse(l,
 			"a break on data from a loop counted by a block: LOOP_END breaks when all 64 vertices or pixels agree "
 			"(xenia:src/xenia/gpu/ucode.h:372-373) (v1)");
-	const uint32_t loop_constant = (l->vertex ? VERTEX_FIRST_LOOP : PIXEL_FIRST_LOOP) + index;
+	uint32_t loop_constant = 0;
 	const size_t count = loop->carried_count;
 	int64_t *const regs = xsdk_xsc_alloc(l->x, (count + 1) * sizeof *regs);
 	XscOperand *const next = xsdk_xsc_alloc(l->x, (count + 1) * sizeof *next);
-	if (!regs || !next || !count_need(l, loop, loop_constant) || !lower_pass_inputs(l, loop))
+	if (!regs || !next || !count_constant(l, loop, &loop_constant) || !lower_pass_inputs(l, loop))
 		return false;
 	for (size_t i = 0; i < count; i++) {
 		const XscCarried *const c = &m->carried[loop->carried_first + i];

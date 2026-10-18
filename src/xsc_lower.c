@@ -1408,7 +1408,7 @@ static XscOperand operand_of(XscLower *l, uint32_t ssa, const XscInstr *ins)
 	if (op == XSC_OP_LOOP_PHI) {
 		// Within the loop's body the value is its register, cached; only a sample or a derivative, worked out before
 		// the colours, comes to it here.
-		xsdk_xsc_lower_refuse(l, "a sample or derivative reads what a loop counted by a block works out (v1)");
+		xsdk_xsc_lower_refuse(l, "a sample or derivative reads what a hardware loop works out (v1)");
 		return (XscOperand){ 0 };
 	}
 	if (op == SPV_CONSTANT_TRUE || op == SPV_CONSTANT_FALSE) {
@@ -1522,8 +1522,9 @@ static XscOrigin scalar_origin_of(XscLower *l, uint32_t ssa)
 		if (resolved || xsc_failed(l))
 			return found;
 	}
-	// An integer made a float, as float(gl_InstanceIndex) is: integers are kept in x at least, as a scalar input is.
-	if (op == SPV_CONVERT_S_TO_F)
+	// An integer made a float, as float(gl_InstanceIndex) is: integers are kept in x at least, as a scalar input is; so
+	// is a scalar a hardware loop carries, made of them.
+	if (op == SPV_CONVERT_S_TO_F || op == XSC_OP_LOOP_PHI || op == XSC_OP_LOOP_RESULT)
 		return origin(xsdk_xsc_lower_operand(l, ssa), 0);
 	const bool broadcast = op == SPV_DOT || op == SPV_CONSTANT || op == SPV_CONSTANT_TRUE || op == SPV_CONSTANT_FALSE ||
 		op == SPV_F_ADD || op == SPV_F_SUB || op == SPV_F_MUL || op == SPV_F_DIV || op == SPV_F_MOD ||

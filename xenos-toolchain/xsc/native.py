@@ -11,7 +11,7 @@ LIBRARY = Path(__file__).resolve().parents[2] / "build" / "host" / "libxsc.so"
 
 OK, REFUSED, REGISTERS, BAD_VALUE, MALFORMED, OUT_OF_MEMORY = range(6)
 STATUS_NAMES = ("ok", "refused", "registers", "bad value", "malformed", "out of memory")
-LITERAL, ARRAY, LOOP, BLOCK_LOOP, CLIP_PLANE = range(5)
+LITERAL, ARRAY, LOOP, BLOCK_LOOP, CLIP_PLANE, FIXED_LOOP = range(6)
 RESOURCE_KINDS = ("push", "uniform", "sampler", "comparison", "instance")
 MESSAGE_BYTES = 512
 # The pixel constant gl_FragCoord.xy adds to the pixel parameters, which xsdk keeps at 0.5 and 0.5 more than a tiled
@@ -188,6 +188,8 @@ def _need(n: Need):
         return "block_loop", n.reg, RESOURCE_KINDS[n.block], n.set, n.binding, n.offset_bytes
     if n.kind == CLIP_PLANE:
         return "clip", n.regs, n.reg
+    if n.kind == FIXED_LOOP:
+        return "fixed_loop", n.reg, n.regs
     return "loop", n.reg, n.name.decode()
 
 
@@ -196,9 +198,10 @@ def compile_spirv(spirv: bytes, pixel_registers: int, vertex_registers: int, opt
     """(container, manifest, resources) as lower.py's lower_ex gives the first two and build_shaders.py the last:
     the manifest [(register, (f0, f1, f2, f3))], with ("array", reg, regs, name) and ("loop", id, name) for a
     hardware loop a bare uniform counts, ("block_loop", id, kind, set, binding, offset_bytes) for one an int in a block
-    counts and ("clip", plane, register) for a user clip plane; the resources [(kind, set, binding, register,
-    registers)], blocks, samplers, comparisons, then a vertex shader's gl_InstanceIndex, the float constant the runtime
-    writes each instance's index into."""
+    counts, ("fixed_loop", id, passes) for loops whose count is data, which run passes, 255, and ("clip", plane,
+    register) for a user clip plane; the resources [(kind, set, binding, register, registers)], blocks, samplers,
+    comparisons, then a vertex shader's gl_InstanceIndex, the float constant the runtime writes each instance's index
+    into."""
     library = _load()
     words = (ctypes.c_uint32 * (len(spirv) // 4)).from_buffer_copy(spirv[:len(spirv) // 4 * 4])
     options = Options(pixel_registers, vertex_registers, optimize, group_fetches)

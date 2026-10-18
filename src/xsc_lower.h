@@ -123,7 +123,7 @@ typedef struct {
 	bool *loop_done;
 	bool in_loop;
 	XscSaved loop_saved;
-	// The loop constants the loops read, for the runtime to set from their blocks.
+	// The loop constants the loops read, one per count, for the runtime to set from their blocks or to 255.
 	XsdkXscNeed *loop_needs;
 	size_t loop_need_count;
 	size_t loop_need_capacity;
