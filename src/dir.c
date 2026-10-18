@@ -35,6 +35,9 @@ static bool query_entries(DIR *dir)
 	}
 	// The pattern is read only when a scan starts.
 	static const ANSI_STRING ALL_FILES = { .length = 1, .maximum_length = 2, .pointer = "*" };
+	// A FAT32 USB stick's driver writes neither next_entry_offset nor file_index, so what the buffer held stays
+	// (docs/HARDWARE.md, "Listing a folder on a FAT32 USB stick").
+	memset(dir->buffer, 0, sizeof(dir->buffer));
 	IO_STATUS_BLOCK io_status;
 	const NTSTATUS status = NtQueryDirectoryFile(handle, 0, NULL, NULL, &io_status,
 		(FILE_DIRECTORY_INFORMATION *)dir->buffer, sizeof(dir->buffer), dir->restart ? &ALL_FILES : NULL, dir->restart);

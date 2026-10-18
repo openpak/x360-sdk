@@ -1,0 +1,13 @@
+log: game:\probe_usb_dir_nofix.log
+log: named after \Device\Harddisk0\Partition1\xsdk\dirtest\probe_usb_dir_nofix.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+mkdir: NtCreateFile(\Device\Mass0\xsdk_dirtest) failed: 0xC0000035
+mkdir: NtCreateFile(\Device\Mass0\xsdk_dirtest\full) failed: 0xC0000035
+mkdir: NtCreateFile(\Device\Mass0\xsdk_dirtest\full\sub) failed: 0xC0000035
+mkdir: NtCreateFile(\Device\Mass0\xsdk_dirtest\empty) failed: 0xC0000035
+usb dir probe: query 0 into 20480 bytes wrote 67: 'sub'; next_entry_offset left, file_index left
+usb dir probe: query 1 into 20480 bytes wrote 69: 'a.txt'; next_entry_offset left, file_index left
+usb dir probe: the queries ended with 0x80000006
+usb dir probe: readdir of full from a dirty heap (583 of the DIR's bytes old): 1 entries, 'sub/'; FAIL
+usb dir probe: readdir of empty from a dirty heap (583 of the DIR's bytes old): 0 entries; PASS
+usb dir probe: alive 0.5 s after

@@ -3934,3 +3934,20 @@ serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
 - **XAM leaves predicated draws running.** A predicated draw before any bin packet landed (case 9), on a fresh boot and
   after a title that left both registers all ones and ended (case 10). Whether XAM's own drawing, the Guide over the
   dashboard, is right after that wasn't looked at.
+
+## Listing a folder on a FAT32 USB stick (2026-10-17)
+
+github.com/xenosworks/xsdk issue 1: on an RGH console, listing a folder that has entries on a FAT32 stick
+(`\Device\Mass0`) crashed the title about a second later; the hard drive was fine. `tests/probe_usb_dir.c` on the
+console with a FAT32 stick in, logs in `results/2026-10-17-usb-dir/`:
+- **The stick's driver leaves `next_entry_offset` and `file_index` unwritten.** Each `NtQueryDirectoryFile` into a
+  buffer of 0xA5 returned one entry, even with 20 KB of room, and left both fields 0xA5A5A5A5; it wrote the times,
+  sizes, attributes, name length and name (67 bytes for `sub`, 69 for `a.txt`), then answered 0x80000006 when no
+  more were left.
+- **`readdir` followed what the buffer held.** It took a non-zero `next_entry_offset` for another entry in the same
+  buffer, so a `DIR` from heap memory holding old bytes read far past it: from a heap whose free blocks held the
+  pattern, it listed `sub` and stopped, and the title died between 0.5 and 1 s later, as the issue says
+  (`probe_usb_dir_nofix.log`). From fresh, zeroed heap it had listed right, which is why it went unseen.
+- **xsdk now clears the buffer before each query** (src/dir.c), so a field the driver leaves reads 0, the last entry.
+  From the same dirty heap both folders listed right and the title lived on (`probe_usb_dir.log`); xsdk_test's
+  filesystem checks, on the hard drive, passed (`xsdk_test.log`).
