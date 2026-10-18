@@ -216,7 +216,8 @@ static void resolve_band(const XsdkTileResolve *resolves, uint32_t count, uint32
 static void put_band(uint32_t band)
 {
 	const uint32_t top = band * band_rows;
-	xsdk_gpu_set_band_targets(pass.width, pass.height, band_rows, placed, pass.count, depth_tile_of(band), true);
+	// The surface the band's rows tall, so in the last band a whole depth at eDRAM's top ends at its last tile.
+	xsdk_gpu_set_band_targets(pass.width, pass.height, rows_in(band), placed, pass.count, depth_tile_of(band), true);
 	const uint32_t window = ((uint32_t)-(int32_t)top & OFFSET_MASK) << Y_SHIFT;
 	const uint32_t screen[] = { 0, SCREEN_WHOLE | rows_in(band) << Y_SHIFT };
 	GpuPackets packets = gpu_reserve_packets(WINDOW_DWORDS + (narrowed ? BIN_DWORDS : 0));
