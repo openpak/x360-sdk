@@ -230,12 +230,15 @@ typedef struct {
 	XsdkColorTarget targets[XSDK_COLOR_TARGETS];
 	uint32_t count;
 	bool depth;
-	// Depth kept whole in eDRAM from tile 0, the bands moving its base, so it lasts from one pass to the next; the
-	// title clears it, as it does untiled, and the hierarchical buffer stays off. Else each band's depth is cleared
-	// with it.
+	// Depth kept whole in eDRAM from tile 0, then the colour targets, the bands moving its base, so it lasts from one
+	// pass to the next; the title clears it, as it does untiled, and the hierarchical buffer stays off. Else each
+	// band's depth is cleared with it.
 	bool depth_whole;
 	// A band's rows, a multiple of XSDK_TILE_ROWS, to force more bands; 0 for as few bands as fit.
 	uint32_t band_rows;
+	// With depth whole: the depth ends at eDRAM's last tile, the colour targets from tile 0, so a target set untiled
+	// with its colour from tile 0 and its depth at the top finds the depth before and after the pass.
+	bool depth_top;
 } XsdkTiling;
 
 // A tiled pass's resolve: colour target `target`, into a texture as xsdk_gpu_resolve_target takes it, cleared to
@@ -244,10 +247,13 @@ typedef struct {
 	uint32_t target;
 	const XsdkTexture *texture;
 	float clear_rgba[4];
+	// The recording draws the texture back over the whole target first, so band 0's clear resolves nothing into it.
+	bool drawn_back;
 } XsdkTileResolve;
 
 // The bands a pass takes, or 0 if it can't be tiled: samples other than 1, nothing drawn, a side past 8192, more than
-// XSDK_TILE_BANDS bands, a band_rows not a multiple of XSDK_TILE_ROWS, or a band past eDRAM's tiles.
+// XSDK_TILE_BANDS bands, a band_rows not a multiple of XSDK_TILE_ROWS, a band past eDRAM's tiles, or depth_top without
+// depth whole.
 uint32_t xsdk_gpu_tiling_bands(const XsdkTiling *tiling);
 // Sets the pass's targets, as xsdk_gpu_set_targets sets them over the whole target, and records what follows into
 // buffer; STATUS_NOT_IMPLEMENTED for 2 or 4 samples, STATUS_INVALID_PARAMETER for a pass that can't be tiled. Until
@@ -259,10 +265,11 @@ NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *tiling, XsdkCommandBuffer *buffe
 // again for every band.
 void xsdk_gpu_set_draw_rows(uint32_t top, uint32_t bottom);
 // Ends the recording and queues each band: its targets, the recording, then each of count resolves into the band's rows
-// of its texture, the last clearing depth for the next band. Before the first band, the resolves clear band 0, unless
-// the pass before was laid out and cleared the same and since then no target was set, resolved or run from a
-// recording. A colour target no resolve names isn't cleared between bands. Fails as xsdk_gpu_record_end does, queuing
-// nothing.
+// of its texture, the last clearing depth for the next band. Before the first band, the resolves not drawn back clear
+// band 0, the last of them depth too, unless the pass before was laid out the same, cleared each of their targets to
+// the same and its depth to the same, and since then no target was set, resolved or run from a recording; with every
+// resolve drawn back, nothing clears band 0's depth. A colour target no resolve names isn't cleared between bands.
+// Fails as xsdk_gpu_record_end does, queuing nothing.
 NTSTATUS xsdk_gpu_end_tiles(const XsdkTileResolve *resolves, uint32_t count);
 
 // Loads both shaders with IM_LOAD and sets the program registers; a resolve replaces the vertex shader.

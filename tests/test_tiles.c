@@ -22,9 +22,12 @@
 // Tiled passes at one sample (docs/scope/44-tiling-and-msaa.md, step 2). Each tiled frame is checked against the same
 // draws made untiled into a target small enough to fit, moved by the viewport so its rows line up, every pixel of every
 // target equal:
-// - 1280x720, one 8_8_8_8 target with depth, in 2 and 3 bands and with depth whole in 3: a gl_FragCoord gradient from
-//   xost compiled on the console, triangles whose shallow and steep edges cross the bands, near and far quads over a
-//   depth clear tested against the hierarchical buffer, and a triangle given band 0's rows that reaches every band;
+// - 1280x720, one 8_8_8_8 target with depth, in 2 and 3 bands and with depth whole in 3, from tile 0 and at eDRAM's
+//   top: a gl_FragCoord gradient from xost compiled on the console, triangles whose shallow and steep edges cross the
+//   bands, near and far quads over a depth clear tested against the hierarchical buffer, and a triangle given band 0's
+//   rows that reaches every band;
+// - a pass drawing its own texture back first, as vulkan4xenon loads an attachment, band 0's clear leaving it alone;
+// - two passes laid out the same back to back, clearing to different colours, the second's band 0 its own clear;
 // - four targets of four formats at 1280x720 with depth, in as many bands as they need, each read by value;
 // - 2048x2048 depth alone in bands, its depth resolved a band at a time and each texel checked, then sampled by a quad
 //   in a tiled pass of its own, each texel checked again.
@@ -63,6 +66,8 @@ enum {
 	CHANNEL_TOLERANCE = 1,
 	BIG_RECTS = 4,
 	LABEL_BYTES = 160,
+	// The square, the triangles, and quads over the 2048x2048 target, the screen from it, and a 1280x720 frame.
+	VERTEX_BUFFERS = 5,
 };
 
 // Rectangles in pixels, right and bottom exclusive, and their depth.
@@ -83,13 +88,20 @@ typedef struct {
 	uint32_t tint_argb;
 	uint32_t near_argb;
 	uint32_t far_argb;
+	bool depth_top;
 } Variant;
 
 static const Variant variants[] = {
-	{ "1280x720 in 2 bands of 384 rows", 384, false, 0xFF202040, 0xFF000060, 0xFF40E040, 0xFFE04040 },
-	{ "1280x720 in 3 bands of 256 rows", 256, false, 0xFF402020, 0xFF0000C0, 0xFF40E0E0, 0xFFE0A040 },
-	{ "1280x720 with depth whole in 3 bands of 256 rows", 256, true, 0xFF204020, 0xFF0000FF, 0xFFE040E0, 0xFF4040E0 },
+	{ "1280x720 in 2 bands of 384 rows", 384, false, 0xFF202040, 0xFF000060, 0xFF40E040, 0xFFE04040, false },
+	{ "1280x720 in 3 bands of 256 rows", 256, false, 0xFF402020, 0xFF0000C0, 0xFF40E0E0, 0xFFE0A040, false },
+	{ "1280x720 with depth whole in 3 bands of 256 rows", 256, true, 0xFF204020, 0xFF0000FF, 0xFFE040E0, 0xFF4040E0,
+		false },
+	{ "1280x720 with depth whole at eDRAM's top in 3 bands of 256 rows", 256, true, 0xFF203838, 0xFF00A0A0, 0xFFA0E040,
+		0xFFE0E0E0, true },
 };
+
+// The back-to-back passes' clears.
+static const uint32_t back_to_back_argb[2] = { 0xFF305070, 0xFF804020 };
 
 // Corners on whole pixels, x a multiple of 5 and y of 45, so each clip coordinate is exact and the viewport moved by a
 // band's top places it exactly where the window offset does.
@@ -172,6 +184,7 @@ typedef struct {
 	uint32_t triangles;
 	uint32_t big_screen;
 	uint32_t show_screen;
+	uint32_t frame_screen;
 	XsdkDepthStencilState less;
 	XsdkDepthStencilState off;
 	XsdkCommandBuffer commands;
@@ -351,7 +364,7 @@ static void show(Scene *s, const XsdkTexture *frame)
 }
 
 // The tiled frame, then the reference, one target's frame of 1280x720 whole; depth whole is the title's to clear, here
-// by a target with it at tile 0 and the colour past it.
+// by a target with it where the pass keeps it, at tile 0 with the colour past it or at the top with the colour at 0.
 static bool draw_variant(Scene *s, const Variant *v, const XsdkTexture *frame)
 {
 	const XsdkTiling tiling = { .width = WIDTH,
@@ -361,11 +374,16 @@ static bool draw_variant(Scene *s, const Variant *v, const XsdkTexture *frame)
 		.count = 1,
 		.depth = true,
 		.depth_whole = v->depth_whole,
-		.band_rows = v->band_rows };
+		.band_rows = v->band_rows,
+		.depth_top = v->depth_top };
 	XsdkTileResolve resolve = { .target = 0, .texture = frame };
 	rgba_of(v->clear_argb, resolve.clear_rgba);
+	const uint32_t depth_tiles = xsdk_gpu_target_tiles(WIDTH, HEIGHT);
 	if (v->depth_whole) {
-		xsdk_gpu_set_target_at(WIDTH, HEIGHT, xsdk_gpu_target_tiles(WIDTH, HEIGHT), 0);
+		if (v->depth_top)
+			xsdk_gpu_set_target_at(WIDTH, HEIGHT, 0, XSDK_EDRAM_TILES - depth_tiles);
+		else
+			xsdk_gpu_set_target_at(WIDTH, HEIGHT, depth_tiles, 0);
 		xsdk_gpu_resolve_texture(frame, v->clear_argb);
 	}
 	if (!NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &s->commands)))
@@ -530,8 +548,8 @@ static bool draw_big_depth(Scene *s)
 	return NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1)) && finished("2048x2048 depth");
 }
 
-// The depth texture over a target texel for texel, through the texture shaders.
-static void draw_sampling(const Scene *s, uint32_t screen)
+// A texture over a target texel for texel, through the texture shaders.
+static void draw_sampling(const Scene *s, const XsdkTexture *texture, uint32_t screen)
 {
 	const XsdkSampler point_clamped = { .mag_filter = XSDK_FILTER_POINT,
 		.min_filter = XSDK_FILTER_POINT,
@@ -542,7 +560,7 @@ static void draw_sampling(const Scene *s, uint32_t screen)
 	xsdk_texture_sampler_state(&sampler, &point_clamped);
 	xsdk_gpu_set_shaders(&s->textured_vertex, &s->textured_pixel);
 	xsdk_gpu_set_vertices(0, screen, QUAD_VERTICES * TEXTURED_FLOATS * 4);
-	xsdk_gpu_set_texture(TEXTURE_SLOT, &s->big_depth, &sampler);
+	xsdk_gpu_set_texture(TEXTURE_SLOT, texture, &sampler);
 	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, QUAD_VERTICES);
 }
 
@@ -555,7 +573,7 @@ static bool draw_big_sampled(Scene *s)
 	rgba_of(0xFF000000, resolve.clear_rgba);
 	if (!NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &s->commands)))
 		return false;
-	draw_sampling(s, s->big_screen);
+	draw_sampling(s, &s->big_depth, s->big_screen);
 	return NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1)) && finished("2048x2048 sampled");
 }
 
@@ -564,7 +582,7 @@ static void show_big(Scene *s)
 {
 	const XsdkTexture *const frame = &s->frames[s->frame++ % FRAMES];
 	xsdk_gpu_set_target(WIDTH, HEIGHT);
-	draw_sampling(s, s->show_screen);
+	draw_sampling(s, &s->big_depth, s->show_screen);
 	xsdk_gpu_resolve_texture(frame, 0xFF000000);
 	if (finished("2048x2048 shown"))
 		show(s, frame);
@@ -587,6 +605,71 @@ static void check_big(Scene *s)
 		show_big(s);
 }
 
+// The last variant's frame, as its untiled reference, drawn back and resolved into itself by a pass of the variant's
+// layout after untiled draws: band 0's clear mustn't resolve into it before band 0 draws it back.
+static void check_drawn_back(Scene *s)
+{
+	const XsdkTexture *const frame = &s->frames[(s->frame + FRAMES - 1) % FRAMES];
+	const XsdkTiling tiling = { .width = WIDTH,
+		.height = HEIGHT,
+		.samples = 1,
+		.targets = { { .format = XSDK_TARGET_8_8_8_8 } },
+		.count = 1,
+		.depth = true,
+		.band_rows = 256 };
+	const XsdkTileResolve resolve = { .target = 0, .texture = frame, .drawn_back = true };
+	bool drawn = NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &s->commands));
+	if (drawn) {
+		draw_sampling(s, frame, s->frame_screen);
+		drawn = NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1)) && finished("drawn back");
+	}
+	const uint32_t differing = drawn ? count_differing("drawn back", frame, 0, &s->reference, 0, HEIGHT, 4) : 0;
+	xsdk_log_write("tiles: drawn back: %u of %u pixels differ", (unsigned)differing, (unsigned)(WIDTH * HEIGHT));
+	check("tiles: a pass drawing its texture back first and resolving into it, every pixel as it was",
+		drawn && differing == 0);
+}
+
+// Pixels of a 1280x720 B8G8R8A8 texture other than argb; a resolve stores B, G, R, A from the top byte.
+static uint32_t count_other(const XsdkTexture *texture, uint32_t argb)
+{
+	const uint32_t want = (argb & 0xFF) << 24 | (argb >> 8 & 0xFF) << 16 | (argb >> 16 & 0xFF) << 8 | argb >> 24;
+	uint32_t other = 0;
+	for (uint32_t done = 0; done < HEIGHT; done += CHUNK_ROWS) {
+		const uint32_t count = HEIGHT - done < CHUNK_ROWS ? HEIGHT - done : CHUNK_ROWS;
+		xsdk_texture_download_rows(texture, 0, done, count, rows_a, WIDTH * 4);
+		for (uint32_t i = 0; i < count * WIDTH; i++)
+			other += first_word(&rows_a[i * 4]) != want;
+	}
+	return other;
+}
+
+// Two passes laid out the same back to back, drawing nothing: the second's band 0 holds its own clear, not the one the
+// first's last band left.
+static void check_back_to_back(Scene *s)
+{
+	const XsdkTiling tiling = { .width = WIDTH,
+		.height = HEIGHT,
+		.samples = 1,
+		.targets = { { .format = XSDK_TARGET_8_8_8_8 } },
+		.count = 1,
+		.depth = true,
+		.band_rows = 256 };
+	bool drawn = true;
+	for (uint32_t i = 0; i < 2 && drawn; i++) {
+		XsdkTileResolve resolve = { .target = 0, .texture = &s->frames[i] };
+		rgba_of(back_to_back_argb[i], resolve.clear_rgba);
+		drawn = NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &s->commands)) && NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1));
+	}
+	drawn = drawn && finished("back to back");
+	const uint32_t other = drawn ? count_other(&s->frames[1], back_to_back_argb[1]) : 0;
+	xsdk_log_write(
+		"tiles: back to back: %u of %u pixels not the second's clear", (unsigned)other, (unsigned)(WIDTH * HEIGHT));
+	check("tiles: two passes laid out the same back to back, the second's every pixel its own clear",
+		drawn && other == 0);
+	if (drawn)
+		show(s, &s->frames[1]);
+}
+
 typedef struct {
 	const char *what;
 	XsdkTiling tiling;
@@ -594,27 +677,32 @@ typedef struct {
 } BandCase;
 
 static const BandCase band_cases[] = {
-	{ "1280x720, 8_8_8_8 and depth", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0 }, 1 },
-	{ "the same in bands of 384 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 384 }, 2 },
-	{ "the same in bands of 256 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 256 }, 3 },
-	{ "the same with depth whole", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, true, 256 }, 3 },
+	{ "1280x720, 8_8_8_8 and depth", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0, false }, 1 },
+	{ "the same in bands of 384 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 384, false },
+		2 },
+	{ "the same in bands of 256 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 256, false },
+		3 },
+	{ "the same with depth whole", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, true, 256, false }, 3 },
+	{ "the same with depth whole at the top",
+		{ WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, true, 256, true }, 3 },
+	{ "depth at the top in bands", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0, true }, 0 },
 	{ "1280x720, four targets, one 64-bit, and depth",
 		{ WIDTH, HEIGHT, 1,
 			{ { .format = XSDK_TARGET_8_8_8_8 }, { .format = XSDK_TARGET_2_10_10_10 },
 				{ .format = XSDK_TARGET_16_16_16_16_FLOAT }, { .format = XSDK_TARGET_32_FLOAT } },
-			4, true, false, 0 },
+			4, true, false, 0, false },
 		3 },
-	{ "2048x2048 depth alone", { BIG, BIG, 1, { { 0 } }, 0, true, false, 0 }, 2 },
-	{ "2048x2048 8_8_8_8 alone", { BIG, BIG, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, false, false, 0 }, 2 },
-	{ "2 samples", { WIDTH, HEIGHT, 2, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0 }, 0 },
-	{ "bands of 48 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 48 }, 0 },
-	{ "8193 rows", { WIDTH, 8193, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0 }, 0 },
-	{ "nothing drawn", { WIDTH, HEIGHT, 1, { { 0 } }, 0, false, false, 0 }, 0 },
+	{ "2048x2048 depth alone", { BIG, BIG, 1, { { 0 } }, 0, true, false, 0, false }, 2 },
+	{ "2048x2048 8_8_8_8 alone", { BIG, BIG, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, false, false, 0, false }, 2 },
+	{ "2 samples", { WIDTH, HEIGHT, 2, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0, false }, 0 },
+	{ "bands of 48 rows", { WIDTH, HEIGHT, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 48, false }, 0 },
+	{ "8193 rows", { WIDTH, 8193, 1, { { XSDK_TARGET_8_8_8_8 } }, 1, true, false, 0, false }, 0 },
+	{ "nothing drawn", { WIDTH, HEIGHT, 1, { { 0 } }, 0, false, false, 0, false }, 0 },
 	{ "8192x8192, four 64-bit targets and depth, past 64 bands",
 		{ 8192, 8192, 1,
 			{ { .format = XSDK_TARGET_16_16_16_16_FLOAT }, { .format = XSDK_TARGET_16_16_16_16_FLOAT },
 				{ .format = XSDK_TARGET_16_16_16_16_FLOAT }, { .format = XSDK_TARGET_16_16_16_16_FLOAT } },
-			4, true, false, 0 },
+			4, true, false, 0, false },
 		0 },
 };
 
@@ -681,24 +769,30 @@ static void make_triangles(float out[TRIANGLES * TRIANGLE_VERTICES][COLORED_FLOA
 	}
 }
 
-static bool upload_vertices(Scene *s, volatile uint32_t *memory[4])
+static bool upload_vertices(Scene *s, volatile uint32_t *memory[VERTEX_BUFFERS])
 {
 	static float triangles[TRIANGLES * TRIANGLE_VERTICES][COLORED_FLOATS];
 	static float big_screen[QUAD_VERTICES][TEXTURED_FLOATS];
 	static float show_screen[QUAD_VERTICES][TEXTURED_FLOATS];
+	static float frame_screen[QUAD_VERTICES][TEXTURED_FLOATS];
 	make_triangles(triangles);
 	screen_quad(big_screen, BIG, BIG, 1.0f, 1.0f);
 	screen_quad(show_screen, WIDTH, HEIGHT, (float)WIDTH / BIG, (float)HEIGHT / BIG);
+	screen_quad(frame_screen, WIDTH, HEIGHT, 1.0f, 1.0f);
 	memory[0] = upload(square, sizeof square);
 	memory[1] = upload(triangles, sizeof triangles);
 	memory[2] = upload(big_screen, sizeof big_screen);
 	memory[3] = upload(show_screen, sizeof show_screen);
-	if (!memory[0] || !memory[1] || !memory[2] || !memory[3])
-		return false;
+	memory[4] = upload(frame_screen, sizeof frame_screen);
+	for (uint32_t i = 0; i < VERTEX_BUFFERS; i++) {
+		if (!memory[i])
+			return false;
+	}
 	s->square = xsdk_gpu_address(memory[0]);
 	s->triangles = xsdk_gpu_address(memory[1]);
 	s->big_screen = xsdk_gpu_address(memory[2]);
 	s->show_screen = xsdk_gpu_address(memory[3]);
+	s->frame_screen = xsdk_gpu_address(memory[4]);
 	return true;
 }
 
@@ -780,6 +874,8 @@ static void run(Scene *s)
 	check_band_counts(s);
 	for (uint32_t i = 0; i < sizeof variants / sizeof variants[0]; i++)
 		check_variant(s, &variants[i]);
+	check_drawn_back(s);
+	check_back_to_back(s);
 	check_four(s);
 	check_big(s);
 	if (s->has_display)
@@ -802,7 +898,7 @@ void test_tiles(void)
 	s->shown = true;
 	check("tiles: display open at 1280x720", s->has_display);
 	make_depth_states(s);
-	volatile uint32_t *memory[4] = { NULL };
+	volatile uint32_t *memory[VERTEX_BUFFERS] = { NULL };
 	const bool made = load_shaders(s) && upload_vertices(s, memory) && make_textures(s) &&
 		NT_SUCCESS(xsdk_gpu_command_buffer_create(&s->commands, COMMAND_DWORDS));
 	check("tiles: shaders, xost's gradient compiled, vertices, textures and the recording's buffer", made);
@@ -812,7 +908,7 @@ void test_tiles(void)
 	if (s->commands.dwords)
 		xsdk_gpu_command_buffer_free(&s->commands);
 	free_textures(s);
-	for (uint32_t i = 0; i < 4; i++)
+	for (uint32_t i = 0; i < VERTEX_BUFFERS; i++)
 		xsdk_gpu_free(memory[i]);
 	free_shaders(s);
 	check("tiles: GPU close", NT_SUCCESS(xsdk_gpu_close()));

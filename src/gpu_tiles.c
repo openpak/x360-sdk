@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "gpu_private.h"
 #include "xsdk/log.h"
@@ -25,6 +26,8 @@ enum {
 	WINDOW_DWORDS = 2 + 3,
 	// Hierarchical depth stays on for a band's depth up to the 1280x1024 milestone 30 checked, half of eDRAM.
 	HIZ_MOST_TILES = XSDK_EDRAM_TILES / 2,
+	// A pass's colour targets and its depth, each resolved once.
+	RESOLVES_KEPT = XSDK_COLOR_TARGETS + 1,
 };
 
 static const uint64_t ALL_BINS = UINT64_MAX;
@@ -36,10 +39,13 @@ static XsdkCommandBuffer *pass_buffer;
 static uint32_t band_rows;
 static XsdkColorTarget placed[XSDK_COLOR_TARGETS];
 static bool narrowed;
-// The pass whose last band's resolve left the band clear, to that depth, while nothing has changed eDRAM since.
+// The pass whose last band's resolves left the band clear, to that depth and those colours, while nothing has changed
+// eDRAM since; none kept if it had more resolves than a target each.
 static XsdkTiling cleared;
 static uint32_t cleared_rows;
 static uint32_t cleared_depth;
+static XsdkTileResolve cleared_resolves[RESOLVES_KEPT];
+static uint32_t cleared_count;
 static bool band_clear;
 
 bool xsdk_gpu_tiling(void)
@@ -78,7 +84,7 @@ uint32_t xsdk_gpu_tiling_bands(const XsdkTiling *t)
 {
 	const bool valid = t->samples == 1 && t->width && t->width <= MAX_SIDE && t->height && t->height <= MAX_SIDE &&
 		t->count <= XSDK_COLOR_TARGETS && (t->count || t->depth) && (t->depth || !t->depth_whole) &&
-		t->band_rows % XSDK_TILE_ROWS == 0;
+		(t->depth_whole || !t->depth_top) && t->band_rows % XSDK_TILE_ROWS == 0;
 	const uint32_t rows = valid ? rows_of(t) : 0;
 	const uint32_t bands = rows ? (t->height + rows - 1) / rows : 0;
 	return bands <= XSDK_TILE_BANDS && rows && band_tiles(t, rows) <= XSDK_EDRAM_TILES ? bands : 0;
@@ -95,10 +101,12 @@ static uint32_t rows_in(uint32_t band)
 	return pass.height - top < band_rows ? pass.height - top : band_rows;
 }
 
-// The depth from tile 0, the band's or the whole of it, then the colour targets one after another.
+// The depth from tile 0, the band's or the whole of it, then the colour targets one after another; or with depth_top
+// the colour targets from tile 0 and the whole depth after them, ending at eDRAM's last tile.
 static void place_targets(void)
 {
-	uint32_t tile = pass.depth ? xsdk_gpu_target_tiles(pass.width, pass.depth_whole ? pass.height : band_rows) : 0;
+	const bool first = pass.depth && !pass.depth_top;
+	uint32_t tile = first ? xsdk_gpu_target_tiles(pass.width, pass.depth_whole ? pass.height : band_rows) : 0;
 	for (uint32_t i = 0; i < pass.count; i++) {
 		placed[i] = (XsdkColorTarget){ .format = pass.targets[i].format, .tile = tile };
 		tile += xsdk_gpu_color_target_tiles(pass.width, band_rows, pass.targets[i].format);
@@ -108,7 +116,8 @@ static void place_targets(void)
 // Depth whole moves its base down by the band's rows.
 static uint32_t depth_tile_of(uint32_t band)
 {
-	return pass.depth_whole ? band * xsdk_gpu_target_tiles(pass.width, band_rows) : 0;
+	const uint32_t whole = pass.depth_top ? XSDK_EDRAM_TILES - xsdk_gpu_target_tiles(pass.width, pass.height) : 0;
+	return pass.depth_whole ? whole + band * xsdk_gpu_target_tiles(pass.width, band_rows) : 0;
 }
 
 NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *t, XsdkCommandBuffer *buffer)
@@ -125,7 +134,7 @@ NTSTATUS xsdk_gpu_begin_tiles(const XsdkTiling *t, XsdkCommandBuffer *buffer)
 	band_rows = rows_of(t);
 	narrowed = false;
 	place_targets();
-	xsdk_gpu_set_band_targets(pass.width, pass.height, band_rows, placed, pass.count, 0, false);
+	xsdk_gpu_set_band_targets(pass.width, pass.height, band_rows, placed, pass.count, depth_tile_of(0), false);
 	xsdk_gpu_record_begin(buffer);
 	pass_buffer = buffer;
 	tiling = true;
@@ -159,24 +168,45 @@ void xsdk_gpu_set_draw_rows(uint32_t top, uint32_t bottom)
 	narrowed = true;
 }
 
-static bool same_layout(void)
+// Whether the last pass's resolves cleared colour target r's to r's clear.
+static bool cleared_to(const XsdkTileResolve *r)
+{
+	for (uint32_t i = 0; i < cleared_count; i++) {
+		if (cleared_resolves[i].target == r->target)
+			return !memcmp(cleared_resolves[i].clear_rgba, r->clear_rgba, sizeof r->clear_rgba);
+	}
+	return false;
+}
+
+// Whether the last pass's last band left band 0 as these resolves would clear it.
+static bool same_layout(const XsdkTileResolve *resolves, uint32_t count)
 {
 	bool same = band_clear && cleared_rows == band_rows && cleared_depth == xsdk_gpu_depth_clear() &&
 		cleared.width == pass.width && cleared.height == pass.height && cleared.count == pass.count &&
-		cleared.depth == pass.depth && cleared.depth_whole == pass.depth_whole;
+		cleared.depth == pass.depth && cleared.depth_whole == pass.depth_whole && cleared.depth_top == pass.depth_top;
 	for (uint32_t i = 0; same && i < pass.count; i++)
 		same = cleared.targets[i].format == pass.targets[i].format;
+	for (uint32_t i = 0; same && i < count; i++)
+		same = resolves[i].drawn_back || resolves[i].target == XSDK_TILE_DEPTH || cleared_to(&resolves[i]);
 	return same;
 }
 
-// A band's resolves, each clearing its colour, the last its depth too unless it stays whole.
-static void resolve_band(const XsdkTileResolve *resolves, uint32_t count, uint32_t band)
+// A band's resolves, each clearing its colour, the last its depth too unless it stays whole; band 0's clear, before the
+// first band, leaves out those the recording draws back.
+static void resolve_band(const XsdkTileResolve *resolves, uint32_t count, uint32_t band, bool before)
 {
+	uint32_t last = count;
+	for (uint32_t i = 0; i < count; i++) {
+		if (!before || !resolves[i].drawn_back)
+			last = i;
+	}
 	for (uint32_t i = 0; i < count; i++) {
 		const XsdkTileResolve *const r = &resolves[i];
 		assert(r->target < pass.count || (r->target == XSDK_TILE_DEPTH && pass.depth));
 		assert(r->texture->width == pass.width && r->texture->height == pass.height);
-		const bool depth = pass.depth && !pass.depth_whole && i == count - 1;
+		if (before && r->drawn_back)
+			continue;
+		const bool depth = pass.depth && !pass.depth_whole && i == last;
 		xsdk_gpu_resolve_band(r->target, r->texture, r->clear_rgba, band * band_rows, rows_in(band), depth);
 	}
 }
@@ -221,17 +251,19 @@ NTSTATUS xsdk_gpu_end_tiles(const XsdkTileResolve *resolves, uint32_t count)
 	if (!NT_SUCCESS(status))
 		return status;
 	// Band 0's clear: its resolves of what eDRAM holds, which the band then draws over.
-	if (!same_layout())
-		resolve_band(resolves, count, 0);
+	if (!same_layout(resolves, count))
+		resolve_band(resolves, count, 0, true);
 	for (uint32_t band = 0; band < band_count(); band++) {
 		put_band(band);
 		xsdk_gpu_execute(pass_buffer);
-		resolve_band(resolves, count, band);
+		resolve_band(resolves, count, band, false);
 	}
 	put_whole();
 	cleared = pass;
 	cleared_rows = band_rows;
 	cleared_depth = xsdk_gpu_depth_clear();
+	cleared_count = count <= RESOLVES_KEPT ? count : 0;
+	memcpy(cleared_resolves, resolves, cleared_count * sizeof *resolves);
 	band_clear = true;
 	return STATUS_SUCCESS;
 }
