@@ -12,7 +12,9 @@ The ALU's vector and scalar ops are as Xenia's ucode.h describes them
 negation, swizzles, write masks, clamps, a0- and aL-relative constants (MOVA's maxas and maxasf), the predicate and
 kills, and the cube op as Xenia runs it; every value written is rounded to a single, as the GPU keeps it. Exports land in their export registers.
 Vertex and texture fetches come from functions the caller gives; setTexLOD and the gradients' setters keep the state
-the texture fetches after them read.
+the texture fetches after them read. A group run as quads, each four lanes a 2x2 quad, gives getGradients and a computed
+LOD the coordinates' coarse gradients over the quad, as Xenia's translator takes them
+(xenia:src/xenia/gpu/spirv_shader_translator_fetch.cc:595-634).
 """
 import math
 import struct
@@ -26,6 +28,7 @@ S = xu.AluScalarOpcode
 FLT_MAX = 3.4028234663852886e38
 SET_LOD = int(xu.FetchOpcode.kSetTextureLod)
 SET_GRADIENTS = (int(xu.FetchOpcode.kSetTextureGradientsHorz), int(xu.FetchOpcode.kSetTextureGradientsVert))
+GET_GRADIENTS = int(xu.FetchOpcode.kGetTextureGradients)
 
 
 @dataclass
@@ -214,6 +217,23 @@ def _scalar(op, s3, ps, state):
     raise NotImplementedError(f"simulate: scalar op {so.name}")
 
 
+def _coordinates(fetch, regs):
+    """The 3 coordinates a texture fetch's source swizzle picks."""
+    src = regs.get(fetch.src(), [0.0] * 4)
+    return [src[(fetch.src_swizzle() >> (2 * i)) & 3] for i in range(3)]
+
+
+def _quad_gradients(rec, lanes):
+    """Gives each lane the texture fetch's coordinates' coarse gradients over its quad, lanes 4q to 4q + 3 its top left,
+    top right, bottom left and bottom right: ddx from the top left to the top right, ddy to the bottom left."""
+    coords = [_coordinates(xu.TextureFetchInstruction(*rec.raw), regs) for regs, _, _ in lanes]
+    for q in range(0, len(lanes), 4):
+        ddx = [single(coords[q + 1][i] - coords[q][i]) for i in range(3)]
+        ddy = [single(coords[q + 2][i] - coords[q][i]) for i in range(3)]
+        for _, _, state in lanes[q:q + 4]:
+            state["quad"] = (ddx, ddy)
+
+
 def _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod):
     """One instruction of an exec that runs."""
     if rec.kind == "vfetch":
@@ -227,19 +247,24 @@ def _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, tex
         return
     if rec.kind == "tfetch":
         fetch = xu.TextureFetchInstruction(*rec.raw)
-        src = regs.get(fetch.src(), [0.0] * 4)
-        swizzle = fetch.src_swizzle()
-        coords = [src[(swizzle >> (2 * i)) & 3] for i in range(3)]
+        coords = _coordinates(fetch, regs)
         if fetch.opcode() == SET_LOD:
             state["lod"] = coords[0]
             return
         if fetch.opcode() in SET_GRADIENTS:
             state["gradients"][SET_GRADIENTS.index(fetch.opcode())] = coords
             return
+        quad = state.get("quad")
+        if fetch.opcode() == GET_GRADIENTS and quad:
+            # ddx and ddy of the first coordinate, then of the second (spirv_shader_translator_fetch.cc:621-633).
+            _write_fetch(regs, fetch.dest(), fetch.dest_swizzle(), [quad[0][0], quad[1][0], quad[0][1], quad[1][1]])
+            return
         if texture_lod is not None:
+            quad = quad if fetch.use_computed_lod() else None
+            gradients = state["gradients"] if fetch.use_register_gradients() else quad
             lod = Lod(fetch.use_computed_lod(), fetch.lod_bias(),
                       state["lod"] if fetch.use_register_lod() else None,
-                      tuple(list(g) for g in state["gradients"]) if fetch.use_register_gradients() else None)
+                      tuple(list(g) for g in gradients) if gradients else None)
             value = texture_lod(fetch.fetch_constant_index(), coords, lod)
         elif texture_fetch is not None:
             value = texture_fetch(fetch.fetch_constant_index(), coords)
@@ -325,9 +350,12 @@ def run(blob: bytes, registers: dict | None = None, constants: dict | None = Non
 
 
 def run_group(blob: bytes, registers: list, constants: dict | None = None, vertex_fetch=None, texture_fetch=None,
-              loops: dict | None = None, texture_lod=None) -> list:
+              loops: dict | None = None, texture_lod=None, quads: bool = False) -> list:
     """Runs the program for a group of vertices or pixels in lockstep, each one's registers at the start in the list
-    registers, the rest as run gives them; a Result for each, in order."""
+    registers, the rest as run gives them; a Result for each, in order. With quads, each four lanes are a 2x2 quad of
+    pixels, top left, top right, bottom left and bottom right, whose getGradients and computed LODs read each other."""
+    if quads and len(registers) % 4:
+        raise ValueError("simulate: quads of a group that isn't whole quads")
     consts = constants or {}
     lanes = [({r: [single(x) for x in v] for r, v in each.items()}, {},
               {"a0": 0, "aL": 0, "p0": False, "killed": False, "ps": 0.0, "fetches": 0, "lod": 0.0,
@@ -346,6 +374,8 @@ def run_group(blob: bytes, registers: list, constants: dict | None = None, verte
             on = [d.type == xu._ExecType.kUnconditional or d.condition == s["p0"] for _, _, s in lanes]
             runs = any(on)
             for rec in body[pc] if runs else ():
+                if quads and rec.kind == "tfetch":
+                    _quad_gradients(rec, lanes)
                 for (regs, exports, state), lane_on in zip(lanes, on):
                     if lane_on:
                         _execute(rec, regs, consts, exports, state, vertex_fetch, texture_fetch, texture_lod)

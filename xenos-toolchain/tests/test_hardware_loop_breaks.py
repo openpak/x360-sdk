@@ -167,10 +167,16 @@ def check_shape(name, want_setps, want_ends):
     print(f"  PASS {name}: nothing on the predicate, setps {want_setps}, LOOP_END breaks {want_ends}")
 
 
-def check_models(label, blob, lanes, constants, loops, wants, export=0, vertex_fetch=None):
-    """Every lane's result run alone and in one group; the group's passes."""
-    alone = [simulate.run(blob, r, constants, vertex_fetch, loops=loops) for r in lanes]
-    group = simulate.run_group(blob, lanes, constants, vertex_fetch, loops=loops)
+def check_models(label, blob, lanes, constants, loops, wants, export=0, vertex_fetch=None, texture_lod=None,
+                 quads=False):
+    """Every lane's result run alone and in one group; the group's passes. With quads, the lanes are 2x2 quads of
+    pixels whose derivatives and implicit LODs read each other, so alone is each quad alone."""
+    if quads:
+        alone = [r for q in range(0, len(lanes), 4) for r in simulate.run_group(
+            blob, lanes[q:q + 4], constants, vertex_fetch, loops=loops, texture_lod=texture_lod, quads=True)]
+    else:
+        alone = [simulate.run(blob, r, constants, vertex_fetch, loops=loops, texture_lod=texture_lod) for r in lanes]
+    group = simulate.run_group(blob, lanes, constants, vertex_fetch, loops=loops, texture_lod=texture_lod, quads=quads)
     for model, results in (("alone", alone), ("in a group", group)):
         wrong = [i for i, r in enumerate(results) if not close(r.exports[export], wants[i])]
         if wrong:
