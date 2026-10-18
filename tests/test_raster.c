@@ -27,7 +27,8 @@
 // the hardware loop timed with every pixel leaving at its first pass of 255, against a count of 1; for step 4, a grid
 // whose pixels each run loops on counts of their own, from data; for step 5, a grid whose pixels each take their own
 // passes at every level of hardware loops nested 3 deep, two of them in the arms of an if/else on data; and a grid of
-// loops from 100 and by 2 to a block's int, each the passes Shader Model 3 counts, which xsdk works out on the CPU.
+// loops from 100 and by 2 to a block's int, each the passes Shader Model 3 counts, which xsdk works out on the CPU; for
+// step 6, a grid whose pixels sample in hardware loops' passes, leaving a march at the height they sample.
 
 enum {
 	WIDTH = 1280,
@@ -156,6 +157,19 @@ enum {
 	STEPPED_WIDTH = 40,
 	STEPPED_HEIGHT = 120,
 	STEPPED_COUNT = 300,
+	// vk_loop_sample_grid.frag's grid above vk_loop_count_grid.frag's, one quad 40 by 120, every pixel checked, its
+	// loops whose counts are data sampling a height map's columns and a mip chain, and reading 8 tints at the counter.
+	SAMPLES_X = 1240,
+	SAMPLES_Y = 0,
+	SAMPLES_WIDTH = 40,
+	SAMPLES_HEIGHT = 120,
+	HEIGHT_COLUMNS = 64,
+	TINTS = 8,
+	// The mip chain as step 1's probe has it, 128 by 128 and 8 levels (docs/HARDWARE.md, "Loops on the console,
+	// milestone 46 step 1"), each level flat: the first 4, which the grid samples, grey 16 + 64n, and the rest 240.
+	LEVELS_SIDE = 128,
+	LEVELS = 8,
+	SAMPLED_LEVELS = 4,
 };
 
 // Each grid's check, which its count of wrong quads follows.
@@ -809,6 +823,18 @@ typedef struct {
 	uint32_t loop_count;
 } LoopGrid;
 
+// What vk_loop_sample_grid.frag's grid draws with besides its loop grid: its height map and mip chain, point sampled,
+// their fetch constants, and its tints.
+typedef struct {
+	LoopGrid grid;
+	XsdkTexture heights;
+	XsdkTexture levels;
+	XsdkSamplerState sampler;
+	uint32_t heights_slot;
+	uint32_t levels_slot;
+	float tints[TINTS][4];
+} Samples;
+
 // The pixel shaders' grids: triangle_vertex_shader passing each quad's indices on, both grids' quads, the texels
 // vk_dynamic_texcoord.frag samples and their fetch constant, and each grid.
 typedef struct {
@@ -825,6 +851,7 @@ typedef struct {
 	LoopGrid data;
 	LoopGrid nest;
 	LoopGrid stepped;
+	Samples samples;
 } PixelGrids;
 
 // vk_loop_count_grid.frag's place: each pixel's column and row in its cell, or every pixel leaving at the first pass.
@@ -883,9 +910,19 @@ static void draw_loop(const PixelGrids *p, const LoopGrid *l, uint32_t quad, con
 	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, QUAD_VERTICES);
 }
 
+// vk_loop_sample_grid.frag's textures and tints, the first its place, then its quad.
+static void draw_samples(const PixelGrids *p)
+{
+	const Samples *const s = &p->samples;
+	xsdk_gpu_set_texture(s->heights_slot, &s->heights, &s->sampler);
+	xsdk_gpu_set_texture(s->levels_slot, &s->levels, &s->sampler);
+	xsdk_gpu_set_pixel_constants(s->grid.block, &s->tints[0][0], TINTS);
+	draw_loop(p, &s->grid, 0, s->tints[0], s->grid.passes);
+}
+
 // vk_dynamic_texcoord.frag in one draw; vk_dynamic_if.frag in two, its arm reading at j taken in the first, over the
 // grid's top half, and not in the second; vk_slow_fetch.frag in one; vk_loop_grid.frag, vk_loop_count_grid.frag,
-// vk_loop_data_grid.frag, vk_loop_nest_grid.frag and vk_loop_step_grid.frag in one each.
+// vk_loop_data_grid.frag, vk_loop_nest_grid.frag, vk_loop_step_grid.frag and vk_loop_sample_grid.frag in one each.
 static void draw_pixel_grids(const PixelGrids *p)
 {
 	const PixelGrid *const t = &p->texcoord;
@@ -909,6 +946,7 @@ static void draw_pixel_grids(const PixelGrids *p)
 	draw_loop(p, &p->data, 0, data_grid_place, p->data.passes);
 	draw_loop(p, &p->nest, 0, nest_grid_place, 0);
 	draw_loop(p, &p->stepped, 0, stepped_grid_place, 0);
+	draw_samples(p);
 }
 
 // The pixels a grid checks a quad, its centre or all of them.
@@ -1009,6 +1047,9 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 	uint32_t stepped_checked = 0;
 	uint32_t stepped_misses = 0;
 	uint32_t stepped_logged = 0;
+	uint32_t samples_checked = 0;
+	uint32_t samples_misses = 0;
+	uint32_t samples_logged = 0;
 	States states;
 	make_states(&states);
 	// The depth bias cell needs depth cleared to 1.0, which a float rounding once turned into 0.
@@ -1082,6 +1123,8 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 				nest_checked += NEST_WIDTH * NEST_HEIGHT;
 				stepped_misses += loop_wrong(&p->stepped, buffer, frame, &stepped_logged);
 				stepped_checked += STEPPED_WIDTH * STEPPED_HEIGHT;
+				samples_misses += loop_wrong(&p->samples.grid, buffer, frame, &samples_logged);
+				samples_checked += SAMPLES_WIDTH * SAMPLES_HEIGHT;
 			}
 		}
 		if (has_display)
@@ -1142,6 +1185,12 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 		"xsdk_xsc_loop_passes works them out, and their counters after: %u of %u wrong",
 		(unsigned)stepped_misses, (unsigned)stepped_checked);
 	check(name, fences_landed && stepped_checked && stepped_misses == 0);
+	(void)snprintf(name, sizeof name,
+		"raster: one draw of xost's vk_loop_sample_grid.frag compiled on the console colours every pixel of 48 cells "
+		"of 10 by 10 by the flat levels it samples in loops' passes, one left at a height it samples, at LODs and "
+		"gradients worked out and the GPU's, a derivative and tints at the counter: %u of %u wrong",
+		(unsigned)samples_misses, (unsigned)samples_checked);
+	check(name, fences_landed && samples_checked && samples_misses == 0);
 	if (has_display) {
 		check("raster: every frame shown", shown);
 		xsdk_log_write("raster: the last frame stays on screen for %u ms for a capture", (unsigned)TEST_SHOW_MS);
@@ -1521,6 +1570,39 @@ static uint32_t stepped_argb(uint32_t column, uint32_t row)
 	return 0xFF000000 | a << 16 | b << 8 | to_byte((float)(i + j) * 0.25f / 255.0f);
 }
 
+// The height map's column's height, a level of 8, as tests/test_loop_samples.py has it.
+static uint32_t height_of(uint32_t column)
+{
+	return (column * column + column / 3) % 8 * 3 / 4;
+}
+
+// The mip chain's level's grey.
+static uint32_t level_grey(uint32_t level)
+{
+	return level < SAMPLED_LEVELS ? 16 + 64 * level : 240;
+}
+
+// vk_loop_sample_grid.frag's colour at a column and row of its cell, as tests/test_loop_samples.py works it out: the
+// march, left where the height it samples reaches the ray, adds the levels at its LOD and gradients and the tint at its
+// counter, its counter after it adds to red, and the second loop adds the computed LOD's level and the derivative.
+static uint32_t sample_argb(uint32_t column, uint32_t row)
+{
+	float sum[3] = { 0.0f, 0.0f, 0.0f };
+	const uint32_t start = column + 2 * row;
+	uint32_t i = 0;
+	for (; i < 4 + (column + row) % 5; i++) {
+		if ((float)(32 * height_of(start + i) + 16) / 255.0f >= 1.0f - (float)(i + 1) * 0.125f)
+			break;
+		sum[0] += (float)level_grey((i + column + row) % 4) / 255.0f * 0.0625f;
+		sum[1] += (float)level_grey((i + column) % 4) / 255.0f * 0.0625f + 3.0f * (float)(i + 1) / 255.0f;
+	}
+	for (uint32_t k = 0; k < row / 2 % 3 + 2; k++) {
+		const uint32_t n = (k + column / 2) % 4;
+		sum[2] += (float)level_grey(n) / 255.0f * 0.125f + (float)(1u << n) / LEVELS_SIDE * 2.0f;
+	}
+	return 0xFF000000 | to_byte(sum[0] + (float)i * 0.03125f) << 16 | to_byte(sum[1]) << 8 | to_byte(sum[2]);
+}
+
 // Each vertex of the square from x and y, width by height, into memory.
 static void write_square(volatile uint32_t *memory, uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
@@ -1643,6 +1725,67 @@ static bool make_stepped(LoopGrid *g)
 		set_loops(g, &stepped_count, 1);
 }
 
+// The fetch constant of the shader's sampler at a binding, UINT32_MAX for none.
+static uint32_t sampler_slot(const XsdkXscShader *compiled, uint32_t binding)
+{
+	for (size_t i = 0; i < compiled->resource_count; i++) {
+		const XsdkXscResource *const r = &compiled->resources[i];
+		if (r->kind == XSDK_XSC_SAMPLER && r->binding == binding)
+			return r->reg;
+	}
+	return UINT32_MAX;
+}
+
+// The height map, each row the columns' heights in red, 32h + 16, and the mip chain, each level its grey.
+static bool make_sample_textures(Samples *s)
+{
+	if (!NT_SUCCESS(xsdk_texture_create(&s->heights, XSDK_FORMAT_A8R8G8B8, HEIGHT_COLUMNS, HEIGHT_COLUMNS, 1, true)) ||
+		!NT_SUCCESS(xsdk_texture_create(&s->levels, XSDK_FORMAT_A8R8G8B8, LEVELS_SIDE, LEVELS_SIDE, LEVELS, true)))
+		return false;
+	uint32_t texels[LEVELS_SIDE];
+	for (uint32_t x = 0; x < HEIGHT_COLUMNS; x++)
+		texels[x] = 0xFF000000 | (32 * height_of(x) + 16) << 16;
+	for (uint32_t y = 0; y < HEIGHT_COLUMNS; y++)
+		xsdk_texture_upload_rows(&s->heights, 0, y, 1, texels, HEIGHT_COLUMNS * sizeof texels[0]);
+	for (uint32_t level = 0; level < LEVELS; level++) {
+		const uint32_t grey = level_grey(level);
+		const uint32_t side = LEVELS_SIDE >> level;
+		for (uint32_t x = 0; x < side; x++)
+			texels[x] = 0xFF000000 | grey << 16 | grey << 8 | grey;
+		for (uint32_t y = 0; y < side; y++)
+			xsdk_texture_upload_rows(&s->levels, level, y, 1, texels, side * sizeof texels[0]);
+	}
+	xsdk_gpu_invalidate(s->heights.address, s->heights.size_bytes);
+	xsdk_gpu_invalidate(s->levels.address, s->levels.size_bytes);
+	const XsdkSampler point_clamped = { .mag_filter = XSDK_FILTER_POINT,
+		.min_filter = XSDK_FILTER_POINT,
+		.mip_filter = XSDK_FILTER_POINT,
+		.address_u = XSDK_ADDRESS_CLAMP,
+		.address_v = XSDK_ADDRESS_CLAMP };
+	xsdk_texture_sampler_state(&s->sampler, &point_clamped);
+	return true;
+}
+
+// vk_loop_sample_grid.frag's grid, its textures, where its push block, loop constant and samplers are, its passes from
+// its fixed loop's need, and its tints, 3/255 apart; false, the grid undrawn, on a failure.
+static bool make_samples(Samples *s)
+{
+	LoopGrid *const g = &s->grid;
+	*g = (LoopGrid){ .x = SAMPLES_X, .y = SAMPLES_Y, .width = SAMPLES_WIDTH, .height = SAMPLES_HEIGHT };
+	const XsdkXscNeed *const fixed =
+		make_loop(g, "vk_loop_sample_grid.frag", 1, sample_argb) ? find_loop(g, XSDK_XSC_FIXED_LOOP) : NULL;
+	s->heights_slot = sampler_slot(&g->compiled, 0);
+	s->levels_slot = sampler_slot(&g->compiled, 1);
+	if (!fixed || s->heights_slot == UINT32_MAX || s->levels_slot == UINT32_MAX || !make_sample_textures(s))
+		return false;
+	g->passes = fixed->regs;
+	for (uint32_t i = 0; i < TINTS; i++) {
+		const float tint[4] = { 3.0f * (float)(i + 1) / 255.0f, 0.0f, 0.0f, 0.0f };
+		memcpy(s->tints[i], tint, sizeof tint);
+	}
+	return true;
+}
+
 // triangle_vertex_shader for a position and the indices, both grids' quads, and the grids; false, the grids undrawn,
 // on a failure.
 static bool make_pixel_grids(PixelGrids *p)
@@ -1670,7 +1813,7 @@ static bool make_pixel_grids(PixelGrids *p)
 		return false;
 	p->loop = (LoopGrid){ .x = LOOP_X, .y = LOOP_Y, .width = LOOP_WIDTH, .height = LOOP_HEIGHT };
 	if (!make_loop(&p->loop, "vk_loop_grid.frag", 1, loop_argb) || !make_count(&p->count) || !make_data(&p->data) ||
-		!make_nest(&p->nest) || !make_stepped(&p->stepped))
+		!make_nest(&p->nest) || !make_stepped(&p->stepped) || !make_samples(&p->samples))
 		return false;
 	make_uniform_if(&p->uniform_if);
 	return true;
@@ -1761,8 +1904,8 @@ void test_raster(void)
 	const bool grids_made = make_pixel_grids(&grids);
 	check(
 		"raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag, vk_dynamic_if.frag, vk_slow_fetch.frag, "
-		"vk_loop_grid.frag, vk_loop_count_grid.frag, vk_loop_data_grid.frag, vk_loop_nest_grid.frag and "
-		"vk_loop_step_grid.frag on the console",
+		"vk_loop_grid.frag, vk_loop_count_grid.frag, vk_loop_data_grid.frag, vk_loop_nest_grid.frag, "
+		"vk_loop_step_grid.frag and vk_loop_sample_grid.frag on the console",
 		grids_made);
 	// Without a display, as in Xenia, the frames still draw and are checked.
 	if (patched && vertices && buffers[0] && buffers[1])
@@ -1771,6 +1914,12 @@ void test_raster(void)
 	if (grids_made)
 		time_early_exit(&grids);
 	xsdk_display_close();
+	xsdk_texture_free(&grids.samples.levels);
+	xsdk_texture_free(&grids.samples.heights);
+	if (grids.samples.grid.memory)
+		xsdk_gpu_free(grids.samples.grid.memory);
+	if (grids.samples.grid.pixel.microcode)
+		xsdk_shader_free(&grids.samples.grid.pixel);
 	if (grids.stepped.memory)
 		xsdk_gpu_free(grids.stepped.memory);
 	if (grids.stepped.pixel.microcode)
@@ -1818,6 +1967,7 @@ void test_raster(void)
 	xsdk_xsc_free(&sprite_state.pixel_compiled);
 	xsdk_xsc_free(&sprite_state.vertex_compiled);
 	xsdk_xsc_free(&indexed.compiled);
+	xsdk_xsc_free(&grids.samples.grid.compiled);
 	xsdk_xsc_free(&grids.stepped.compiled);
 	xsdk_xsc_free(&grids.nest.compiled);
 	xsdk_xsc_free(&grids.data.compiled);
