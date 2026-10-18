@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Breaks and continues on data in a hardware loop a block's int counts (milestone 46 step 3, xsdk:docs/scope/46-loops.md,
-"The design"; xsdk:src/xsc_unroll.c, src/xsc_lower_flow.c).
+"""Breaks and continues on data in a hardware loop a block's int counts (milestone 46 step 3,
+xsdk:docs/scope/46-loops.md, "The design"; xsdk:src/xsc_unroll.c, src/xsc_lower_flow.c).
 
 xsc refused them: LOOP_END breaks only when all 64 vertices or pixels of a group agree (xenia:src/xenia/gpu/ucode.h:
 372-373), so a pixel that leaves while others stay runs on. They're now gated as in an unrolled loop: each value keeps
@@ -169,8 +169,8 @@ def check_shape(name, want_setps, want_ends):
 
 def check_models(label, blob, lanes, constants, loops, wants, export=0, vertex_fetch=None):
     """Every lane's result run alone and in one group; the group's passes."""
-    alone = [simulate.run(blob, registers=r, constants=constants, loops=loops, vertex_fetch=vertex_fetch) for r in lanes]
-    group = simulate.run_group(blob, lanes, constants=constants, loops=loops, vertex_fetch=vertex_fetch)
+    alone = [simulate.run(blob, r, constants, vertex_fetch, loops=loops) for r in lanes]
+    group = simulate.run_group(blob, lanes, constants, vertex_fetch, loops=loops)
     for model, results in (("alone", alone), ("in a group", group)):
         wrong = [i for i, r in enumerate(results) if not close(r.exports[export], wants[i])]
         if wrong:

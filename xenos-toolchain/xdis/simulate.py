@@ -6,7 +6,8 @@ exec that ends the program ends it only when it runs, and a hardware loop runs a
 the caller gives says, from aL 0 by 1, a predicated LOOP_END breaking when p0 is its condition; without loop
 constants each loop's body runs once. run_group runs several in lockstep, as the GPU runs a group of 64: an exec on
 the predicate runs if any of them needs it, each instruction predicated for each, and a predicated LOOP_END breaks
-only when every one agrees (xenia:src/xenia/gpu/ucode.h:114-124, 372-373); loops nest 4 deep (ucode.h:131). The ALU's vector and scalar ops are as Xenia's ucode.h describes them
+only when every one agrees (xenia:src/xenia/gpu/ucode.h:114-124, 372-373); loops nest 4 deep (ucode.h:131).
+The ALU's vector and scalar ops are as Xenia's ucode.h describes them
 (xenia:src/xenia/gpu/ucode.h, AluScalarOpcode and AluVectorOpcode), with a temp's absolute-value bit, a constant's,
 negation, swizzles, write masks, clamps, a0- and aL-relative constants (MOVA's maxas and maxasf), the predicate and
 kills, and the cube op as Xenia runs it; every value written is rounded to a single, as the GPU keeps it. Exports land in their export registers.
