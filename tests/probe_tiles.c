@@ -14,11 +14,14 @@
 #include "xsdk/kernel.h"
 #include "xsdk/log.h"
 #include "xsdk/shader.h"
+#include "xsdk/texture.h"
 
 // Milestone 44 step 1: what tiling needs of the GPU that xsdk doesn't send yet (docs/scope/44-tiling-and-msaa.md).
 // game:\tiles_case.txt holds a case's number or name: 1 offset, 2 position, 3 resolve and 4 depth run from the one
-// named to 4, all four without the file; 5 bins_high_first, 6 bins_low_first, 7 bins_one_word, 8 bins_recorded,
-// 9 bins_unset and 10 bins_exit send packets xsdk never has, so each runs alone, only when named, from a fresh boot.
+// named to 4, then 11, all five without the file; 5 bins_high_first, 6 bins_low_first, 7 bins_one_word,
+// 8 bins_recorded, 9 bins_unset and 10 bins_exit send packets xsdk never has, so each runs alone, only when named, from
+// a fresh boot. Step 2's 11 cost times xsdk's tiled passes, which send only what cases 1 to 5 proved; named, it runs
+// alone.
 #ifndef TILES_BREAK
 #define TILES_BREAK ""
 #endif
@@ -74,6 +77,7 @@ enum {
 	CELL_PIXELS = CELL_WIDTH * CELL_HEIGHT,
 	RECORD_DWORDS = 4096,
 	SAFE_CASES = 4,
+	COST_CASE = 10,
 	CASE_NAME_BYTES = 32,
 	TEXT_BYTES = 160,
 	LINE_BYTES = 512,
@@ -98,6 +102,30 @@ enum {
 	PA_SC_WINDOW_SCISSOR_BR = 0x2082,
 	RB_HIZCONTROL = 0x2203,
 };
+
+// Case 11's frames: 1280x720, one 8_8_8_8 target and depth, untiled, then in 1, 2 and 3 bands.
+enum {
+	COST_WIDTH = 1280,
+	COST_HEIGHT = 720,
+	COST_TILINGS = 4,
+	FILL_QUADS = 4,
+	VERTEX_DRAWS = 16,
+	// Whole triangles, under the draw's 16-bit count (xenia:src/xenia/gpu/registers.h:309-327).
+	VERTEX_COUNT = 65532,
+	VERTEX_BYTES = VERTEX_COUNT * STRIDE_BYTES,
+	// The second run of each frame is timed, as its pass finds band 0 cleared by the first.
+	COST_RUNS = 2,
+	// A band's fixed cost should stay under this, past the resolve's copying (docs/scope/44-tiling-and-msaa.md).
+	FIXED_COST_BAR_US = 50,
+	// A predicated draw outside its band should cost under a fifth of the same draw drawn.
+	SKIPPED_SHARE = 5,
+};
+
+typedef enum { SCENE_FILL, SCENE_VERTEX, SCENE_EMPTY } CostScene;
+
+static const char *const cost_tiling_names[COST_TILINGS] = { "untiled", "1 band", "2 bands", "3 bands" };
+// 0 untiled, else a band's rows.
+static const uint32_t cost_band_rows[COST_TILINGS] = { 0, 736, 384, 256 };
 
 // Type-3 opcodes (xenia:src/xenia/gpu/xenos.h:1601, 1618-1619, 1630-1633).
 enum {
@@ -246,6 +274,8 @@ static volatile uint32_t *image;
 static volatile uint32_t *band_images[STEPS];
 static volatile uint32_t *clock_words;
 static XsdkCommandBuffer commands;
+static XsdkTexture cost_frame;
+static uint32_t cost_vertices;
 // The target draw_quad places quads in, and the form put_bins sends.
 static uint32_t place_width;
 static uint32_t place_height;
@@ -908,6 +938,164 @@ static bool run_bins_unset(const ProbeCase *c)
 	return true;
 }
 
+// Case 11's draws, the same in a tiled pass's recording as untiled: full-screen quads through the long shader, draws
+// of degenerate triangles that run only the vertex shader, or one pixel.
+static void draw_cost_scene(CostScene scene)
+{
+	static const float zero[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	place_width = COST_WIDTH;
+	place_height = COST_HEIGHT;
+	set_shaders(scene == SCENE_FILL ? &long_shader : &flat_shader);
+	if (scene == SCENE_FILL) {
+		xsdk_gpu_set_pixel_constants(0, zero, 1);
+		for (uint32_t i = 0; i < FILL_QUADS; i++)
+			draw_quad(&(Rect){ 0, 0, COST_WIDTH, COST_HEIGHT }, 0.0f, FILL_ARGB);
+	} else if (scene == SCENE_VERTEX) {
+		place_quad(&(Rect){ 0, 0, 1, 1 }, 0.0f, FILL_ARGB);
+		xsdk_gpu_set_vertices(0, cost_vertices, VERTEX_BYTES);
+		for (uint32_t i = 0; i < VERTEX_DRAWS; i++)
+			xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, VERTEX_COUNT);
+	} else {
+		draw_quad(&(Rect){ 0, 0, 1, 1 }, 0.0f, FILL_ARGB);
+	}
+}
+
+static uint32_t clock_span_us(void)
+{
+	return clock_us(xsdk_gpu_clock_value(clock_words + XSDK_GPU_CLOCK_WORDS) - xsdk_gpu_clock_value(clock_words));
+}
+
+// A 1280x720 tiled pass of the scene, band_rows a band, with depth, resolved into cost_frame.
+static bool queue_tiled(CostScene scene, uint32_t band_rows)
+{
+	const XsdkTiling tiling = { .width = COST_WIDTH,
+		.height = COST_HEIGHT,
+		.samples = 1,
+		.targets = { { .format = XSDK_TARGET_8_8_8_8 } },
+		.count = 1,
+		.depth = true,
+		.band_rows = band_rows };
+	const XsdkTileResolve resolve = { .target = 0, .texture = &cost_frame };
+	if (!NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &commands)))
+		return false;
+	draw_cost_scene(scene);
+	return NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1));
+}
+
+// The GPU's time for a frame of the scene, untiled or tiled, from before it to its resolves' end.
+static bool time_frame(CostScene scene, uint32_t band_rows, uint32_t *us)
+{
+	for (uint32_t run = 0; run < COST_RUNS; run++) {
+		xsdk_gpu_write_clock(xsdk_gpu_address(clock_words), true);
+		if (band_rows) {
+			if (!queue_tiled(scene, band_rows))
+				return false;
+		} else {
+			xsdk_gpu_set_target(COST_WIDTH, COST_HEIGHT);
+			draw_cost_scene(scene);
+			xsdk_gpu_resolve_texture(&cost_frame, SENTINEL_ARGB);
+		}
+		xsdk_gpu_write_clock(xsdk_gpu_address(clock_words) + CLOCK_BYTES, true);
+		if (!finish("case 11 cost"))
+			return false;
+	}
+	*us = clock_span_us();
+	return true;
+}
+
+static bool log_scene(const char *what, CostScene scene, uint32_t us[COST_TILINGS])
+{
+	for (uint32_t i = 0; i < COST_TILINGS; i++) {
+		if (!time_frame(scene, cost_band_rows[i], &us[i]))
+			return false;
+	}
+	xsdk_log_write("tiles probe: case 11 cost, %s: %s %u us, %s %u us, %s %u us, %s %u us", what, cost_tiling_names[0],
+		(unsigned)us[0], cost_tiling_names[1], (unsigned)us[1], cost_tiling_names[2], (unsigned)us[2],
+		cost_tiling_names[3], (unsigned)us[3]);
+	return true;
+}
+
+// The vertex-bound draws in a pass of 2 bands, given band 0's rows or band 1's, timed in band 1, the last to run:
+// skipped there by their predicate, or drawn.
+static bool time_predicated(bool drawn, uint32_t *us)
+{
+	const XsdkTiling tiling = { .width = COST_WIDTH,
+		.height = COST_HEIGHT,
+		.samples = 1,
+		.targets = { { .format = XSDK_TARGET_8_8_8_8 } },
+		.count = 1,
+		.depth = true,
+		.band_rows = cost_band_rows[2] };
+	const XsdkTileResolve resolve = { .target = 0, .texture = &cost_frame };
+	const uint32_t band_rows = cost_band_rows[2];
+	if (!NT_SUCCESS(xsdk_gpu_begin_tiles(&tiling, &commands)))
+		return false;
+	draw_cost_scene(SCENE_EMPTY);
+	xsdk_gpu_set_vertices(0, cost_vertices, VERTEX_BYTES);
+	xsdk_gpu_write_clock(xsdk_gpu_address(clock_words), true);
+	xsdk_gpu_set_draw_rows(drawn ? band_rows : 0, drawn ? COST_HEIGHT : band_rows);
+	for (uint32_t i = 0; i < VERTEX_DRAWS; i++)
+		xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, VERTEX_COUNT);
+	xsdk_gpu_set_draw_rows(0, COST_HEIGHT);
+	xsdk_gpu_write_clock(xsdk_gpu_address(clock_words) + CLOCK_BYTES, true);
+	if (!NT_SUCCESS(xsdk_gpu_end_tiles(&resolve, 1)) || !finish("case 11 cost, predicated"))
+		return false;
+	*us = clock_span_us();
+	return true;
+}
+
+// The vertex buffer of degenerate triangles, every vertex at the origin, and the frame the passes resolve into.
+static bool make_cost_resources(void)
+{
+	if (!commands.dwords && !NT_SUCCESS(xsdk_gpu_command_buffer_create(&commands, RECORD_DWORDS)))
+		return false;
+	volatile uint32_t *const vertices = xsdk_gpu_alloc(VERTEX_BYTES);
+	if (!vertices ||
+		!NT_SUCCESS(xsdk_texture_create(&cost_frame, XSDK_FORMAT_B8G8R8A8, COST_WIDTH, COST_HEIGHT, 1, true)))
+		return false;
+	const float origin[VERTEX_FLOATS] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	uint32_t words[VERTEX_FLOATS];
+	memcpy(words, origin, sizeof words);
+	for (uint32_t i = 0; i < VERTEX_BYTES / 4; i++)
+		vertices[i] = words[i % VERTEX_FLOATS];
+	__asm__ volatile("sync" ::: "memory");
+	cost_vertices = xsdk_gpu_address(vertices);
+	xsdk_gpu_invalidate(cost_vertices, VERTEX_BYTES);
+	return true;
+}
+
+// A fill-bound and a vertex-bound 1280x720 frame untiled and in 1, 2 and 3 bands; a band's fixed cost from frames of
+// one pixel; and a predicated draw outside its band against the same draw drawn, all by the GPU's clock.
+static bool run_cost(const ProbeCase *c)
+{
+	(void)c;
+	if (!make_cost_resources()) {
+		xsdk_log_write("tiles probe: case 11 cost: FAILED, the buffers couldn't be made");
+		return false;
+	}
+	uint32_t fill[COST_TILINGS];
+	uint32_t vertex[COST_TILINGS];
+	uint32_t empty[COST_TILINGS];
+	uint32_t skipped = 0;
+	uint32_t drawn = 0;
+	if (!log_scene("fill-bound, 4 full-screen quads through the long shader", SCENE_FILL, fill) ||
+		!log_scene("vertex-bound, 16 draws of 65532 degenerate triangles' vertices", SCENE_VERTEX, vertex) ||
+		!log_scene("one pixel", SCENE_EMPTY, empty) || !time_predicated(false, &skipped) ||
+		!time_predicated(true, &drawn))
+		return false;
+	// Each pixel is copied once whatever the bands, so what a band adds past one band is its fixed cost.
+	const uint32_t fixed = empty[3] > empty[1] ? (empty[3] - empty[1]) / 2 : 0;
+	xsdk_log_write("tiles probe: case 11 cost, a band's fixed cost: (%u - %u) / 2 = %u us; under %u us: %s",
+		(unsigned)empty[3], (unsigned)empty[1], (unsigned)fixed, (unsigned)FIXED_COST_BAR_US,
+		verdict(fixed < FIXED_COST_BAR_US));
+	xsdk_log_write(
+		"tiles probe: case 11 cost, the vertex-bound draws in band 1 of 2: predicated outside it %u us, drawn %u "
+		"us; under a fifth: %s",
+		(unsigned)skipped, (unsigned)drawn, verdict(skipped * SKIPPED_SHARE < drawn));
+	xsdk_texture_free(&cost_frame);
+	return true;
+}
+
 static const ProbeCase cases[] = {
 	{ .name = "offset",
 		.what = "each row of a 256x128 target drawn under a window offset of (0,-64) and a 256x64 screen scissor",
@@ -955,6 +1143,9 @@ static const ProbeCase cases[] = {
 		.form = BINS_HIGH_FIRST,
 		.selects = &ALL_BINS,
 		.select_count = 1 },
+	{ .name = "cost",
+		.what = "xsdk's tiled passes timed by the GPU's clock at 1280x720 in 1, 2 and 3 bands",
+		.run = run_cost },
 };
 
 enum { CASE_COUNT = sizeof cases / sizeof cases[0] };
@@ -975,7 +1166,8 @@ static uint32_t start_case(void)
 		if (strcmp(name, cases[i].name) == 0 || (numbered && number == i + 1))
 			return i;
 	}
-	xsdk_log_write("tiles probe: %s doesn't name a case; running cases 1 to %u", start_path, (unsigned)SAFE_CASES);
+	xsdk_log_write("tiles probe: %s doesn't name a case; running cases 1 to %u and %u", start_path,
+		(unsigned)SAFE_CASES, (unsigned)(COST_CASE + 1));
 	return 0;
 }
 
@@ -1017,8 +1209,9 @@ int main(void)
 {
 	const uint32_t first = start_case();
 	const uint32_t last = first < SAFE_CASES ? SAFE_CASES - 1 : first;
-	xsdk_log_write("tiles probe: cases %u to %u (%s names the case to start from); break build: %s",
-		(unsigned)(first + 1), (unsigned)(last + 1), start_path, broken("") ? "none" : TILES_BREAK);
+	xsdk_log_write("tiles probe: cases %u to %u%s (%s names the case to start from); break build: %s",
+		(unsigned)(first + 1), (unsigned)(last + 1), first < SAFE_CASES ? " and 11" : "", start_path,
+		broken("") ? "none" : TILES_BREAK);
 	NTSTATUS status = xsdk_gpu_open();
 	if (!NT_SUCCESS(status)) {
 		xsdk_log_write("tiles probe: FAILED, xsdk_gpu_open returned 0x%08X", (unsigned)status);
@@ -1029,7 +1222,9 @@ int main(void)
 	xsdk_gpu_set_target(WIDTH, HEIGHT);
 	if (!resolve_into(image, HEIGHT, "the first clear"))
 		return 1;
-	for (uint32_t i = first; i <= last; i++) {
+	for (uint32_t n = first; n <= last + (first < SAFE_CASES); n++) {
+		// Past the safe cases, the sweep goes on to the cost case.
+		const uint32_t i = n > last ? COST_CASE : n;
 		const ProbeCase *const c = &cases[i];
 		xsdk_log_write("tiles probe: case %u %s: %s", (unsigned)(i + 1), c->name, c->what);
 		if (!c->run(c)) {
