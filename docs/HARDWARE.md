@@ -4112,3 +4112,23 @@ carries it as `V4X_RESOURCE_FIXED_LOOP`. Logs: `results/2026-10-18-milestone-46-
   as 0 failed the scene's four colour checks and nothing else.
 - **Nothing else moved:** of milestone 45's corpus, only step 4's new shaders compile differently; Dusklight's pack is
   the same byte for byte. vkbench passed 14 of 14, and Dusklight's title scene ran at its frame rates before.
+
+## Nested loops, milestone 46 step 5 (2026-10-18)
+
+xost nests hardware loops 4 deep, as step 1 found the console does, and keeps one inside an if/else on data or an
+unrolled loop: each level its own gating, an inner loop's `alive` starting from the pass it's in, the builder a stack
+of open loops (src/xsc_unroll.c, src/xsc_lower_flow.c, src/xsc_program.c). Logs:
+`results/2026-10-18-milestone-46-step-5/`.
+- **Every pixel took its own passes at each level.** xsdk_test's raster grid, `vk_loop_nest_grid.frag` compiled on the
+  console, one quad of 192 cells of 10 by 10 pixels: a loop a push constant counts, continued past on data, around a
+  `while` on data, left on data, holding an if/else on data, a checkerboard, with a loop the other push constant
+  counts, left on data, in one arm and a `do`/`while` on data in the other: 0 of 1,132,800 pixels wrong over 59 frames.
+  The console's compiles of it, `vk_loop_nest2.frag`, `vk_loop_nest4.frag`, `vk_loop_in_data_if.frag`,
+  `vk_loop_in_uniform_if.frag`, `vk_loop_in_unrolled.frag` and `vk_vertex_loop_nest.vert` matched the PC's.
+- **Nested loops can share a loop constant.** The grid's `while` and the `do`/`while` inside it both run from loop
+  constant 17, at 255 passes; each level kept its own count of passes.
+- **Break build:** the outer and inner loops' constants swapped got 996,864 of the 1,132,800 pixels wrong, the count
+  xost's simulator gives, and nothing else.
+- **Nothing else moved:** of milestone 45's corpus, only step 5's new shaders compile differently; Dusklight's pack is
+  the same byte for byte. vulkan4xenon_test passed 447 of 447 twice, vkbench 14 of 14, and Dusklight's title scene
+  ran at its frame rates before.
