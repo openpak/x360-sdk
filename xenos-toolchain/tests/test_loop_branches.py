@@ -8,6 +8,10 @@ sum's w on the others, gives what the GLSL says either side of each threshold. v
 body is on a push constant, so each pass's arms go in execs on the predicate; it gives what the GLSL says for both
 values, the simulator following the control flow. vk_loop_if_break.frag breaks out of an unrolled loop on data, which
 is refused: the pass after a break would run for some pixels and not others.
+
+A break or continue on a condition the unroller folds ends the pass where it stands: vk_loop_folded_break.frag stops
+after the pass that breaks, and an inner loop's break leaves the outer loop running; vk_loop_folded_continue.frag skips
+the rest of the pass that continues. The unroller once dropped the end of the arm it took and ran every pass.
 """
 import sys
 from pathlib import Path
@@ -45,6 +49,40 @@ def loop_uniform_if(uv, mode):
     return total
 
 
+def loop_folded_break(uv, step):
+    total = [uv[0], uv[1], 0.0, 0.0]
+    for i in range(4):
+        total = [t + s for t, s in zip(total, step)]
+        if i == 2:
+            break
+    for i in range(3):
+        for j in range(4):
+            if j == i:
+                break
+            total[3] += 0.0625
+    return total
+
+
+def loop_folded_continue(uv, step):
+    total = [uv[0], uv[1], 0.0, 0.0]
+    for i in range(4):
+        if i == 1:
+            continue
+        total = [t + s * (i + 1) for t, s in zip(total, step)]
+    return total
+
+
+def check_folded():
+    uv = [0.75, 0.25]
+    for name, want in (("vk_loop_folded_break.frag", loop_folded_break),
+                       ("vk_loop_folded_continue.frag", loop_folded_continue)):
+        blob, manifest = lower_ex(module(name), XSDK_REGISTERS)
+        constants = push_constants(name, [STEP])
+        constants.update({r: list(v) for r, v in manifest})
+        got = simulate.run(blob, registers={0: uv + [0.0, 0.0]}, constants=constants).exports[0]
+        check(name, got, want(uv, STEP))
+
+
 def check_uniform():
     execs, setp = predication("vk_loop_uniform_if.frag")
     conditions = [c for c, _ in execs]
@@ -62,6 +100,7 @@ def check_uniform():
 
 def main():
     check_uniform()
+    check_folded()
     blob, manifest = lower_ex(module("vk_loop_if.frag"), XSDK_REGISTERS)
     constants = push_constants("vk_loop_if.frag", [STEP])
     constants.update({r: list(v) for r, v in manifest})

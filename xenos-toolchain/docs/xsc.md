@@ -96,7 +96,7 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | `CompositeInsert` (`v[i] = x`) | copy + masked component mov |
 | uniform-array loop `for(i<n) sum += w[i]` | real loop; body `add acc, acc, c[base+aL]` (aL-relative array read) |
 | `for(i<n){ …; if(acc.c CMP k) break; }` | body `setp_*` + a predicated LOOP_END (data-dependent break) |
-| if/else in a loop body with a **constant** condition (e.g. `if(i<k)`) | unroller picks the taken arm per iteration |
+| if/else in a loop body with a **constant** condition (e.g. `if(i<k)`) | unroller picks the taken arm per iteration; a `break` or `continue` in it ends the loop or the pass there (`tests/test_loop_branches.py`) |
 | if/else **on data** in an unrolled loop's body | both arms each pass, merged by a select (`tests/test_loop_branches.py`) |
 | `transpose` (mat2/3/4) | per-row column gather (swizzled movs) |
 | `determinant` (mat2/3) | mat2 `ad−bc`; mat3 `row0·cross(row1,row2)` |

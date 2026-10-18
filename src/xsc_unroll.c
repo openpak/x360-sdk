@@ -95,6 +95,13 @@ typedef struct {
 	bool break_when;
 } Hardware;
 
+// The innermost loop a walk unrolls: its merge and continue blocks, and the one of them a pass left for, 0 for none.
+typedef struct {
+	uint32_t merge;
+	uint32_t cont;
+	uint32_t left;
+} Unrolled;
+
 // What a hardware loop carries a value of: a local, or an output's slot.
 typedef struct {
 	bool local;
@@ -147,6 +154,7 @@ typedef struct {
 	// How deep the walk is in arms of an if/else on data and in loops it unrolls, and the hardware loop it's in.
 	size_t arms;
 	size_t unrolling;
+	Unrolled *unrolled;
 	Hardware *hardware;
 	XscHardwareLoop *loops;
 	size_t loop_count;
@@ -925,8 +933,9 @@ static bool hardware_break(Unroller *u, const Block *b, LocalMap *lm, uint32_t m
 	return condition_id(u, b, lm, &hw->break_condition);
 }
 
-// A structured if/else: on a constant condition, the taken arm alone, then the merge; on data, both arms.
-static bool branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t *next)
+// A structured if/else: on a constant condition, the taken arm alone, then the merge, unless the arm ended the walk; on
+// data, both arms.
+static bool branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t *next, bool *ended)
 {
 	const XscInstr *sel = NULL;
 	if (!block_has(u, b, SPV_SELECTION_MERGE, &sel))
@@ -941,8 +950,7 @@ static bool branch(Unroller *u, const Block *b, LocalMap *lm, uint32_t *next)
 		return data_branch(u, b, lm, merge);
 	const uint32_t taken = xsdk_xsc_operand(b->term, value ? 1 : 2);
 	uint32_t exit = b->label;
-	bool ended = false;
-	if (taken != merge && !walk(u, taken, merge, true, &exit, &ended))
+	if (taken != merge && !walk(u, taken, merge, true, &exit, ended))
 		return false;
 	u->meeting = (Meeting){ .merge = merge, .exit = { exit, exit }, .known = true, .taken = value };
 	return true;
@@ -1278,7 +1286,10 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 	if (!cont)
 		return xsdk_xsc_fail(u->x, XSDK_XSC_MALFORMED, "no continue block");
 	int trips = 0;
+	Unrolled unrolled = { .merge = *merge, .cont = continue_lbl };
+	Unrolled *const outer = u->unrolled;
 	u->unrolling++;
+	u->unrolled = &unrolled;
 	while (loop_runs(u, &test)) {
 		if (++trips > MAX_TRIP)
 			return refuse(u, "loop trip count exceeds the unroll cap");
@@ -1286,16 +1297,25 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 		LocalMap lm = { 0 };
 		uint32_t exit;
 		bool ended = false;
-		if (!walk(u, body, continue_lbl, true, &exit, &ended) || !interpret(u, cont, &lm))
+		unrolled.left = 0;
+		if (!walk(u, body, continue_lbl, true, &exit, &ended))
+			return false;
+		if (ended && !unrolled.left)
+			return refuse(u, "a discard or return inside a loop (v1)");
+		if (unrolled.left == *merge)
+			break;
+		if (!interpret(u, cont, &lm))
 			return false;
 		if (env_get(u, test.iv) == before)
 			return refuse(u, "loop induction variable does not advance");
 	}
+	u->unrolled = outer;
 	u->unrolling--;
 	return true;
 }
 
-// Walks blocks from start until stop; exit takes the last block walked, and ended whether a return ended the walk.
+// Walks blocks from start until stop; exit takes the last block walked, and ended whether a return ended the walk, or
+// a break or continue out of the loop it unrolls, which that loop's left names.
 static bool walk(Unroller *u, uint32_t start, uint32_t stop, bool has_stop, uint32_t *exit, bool *ended)
 {
 	uint32_t cur = start;
@@ -1317,8 +1337,13 @@ static bool walk(Unroller *u, uint32_t start, uint32_t stop, bool has_stop, uint
 			*ended = true;
 		} else if (b->term->opcode == SPV_BRANCH) {
 			cur = xsdk_xsc_operand(b->term, 0);
-		} else if (!branch(u, b, &lm, &cur)) {
+		} else if (!branch(u, b, &lm, &cur, ended)) {
 			return false;
+		}
+		const Unrolled *const ul = u->unrolled;
+		if (!*ended && ul && (cur == ul->merge || (cur == ul->cont && cur != stop))) {
+			u->unrolled->left = cur;
+			*ended = true;
 		}
 		const bool leaves = u->hardware && (cur == u->hardware->merge || (cur == u->hardware->cont && cur != stop));
 		if (!*ended && leaves)
