@@ -140,14 +140,16 @@ def export(source, scale, bias):
     return alu(V.kMad, tri.EXPORT_COLOR_0, 0xF, temp(source), const(scale), const(bias), export=True)
 
 
-def tfetch(source, computed):
+def tfetch(source, computed, serialize=True, gradients=False):
     """A 2D sample from TEXTURE_SLOT as xost's template has it, a quarter level on so a whole LOD picks its level
-    whether the GPU rounds or floors; at the LOD setTexLOD gave, or the one the GPU works out."""
+    whether the GPU rounds or floors; at the LOD setTexLOD gave, or the one the GPU works out, from the coordinates or
+    the gradients' setters."""
     return Op(enc.build_tfetch(src=source, src_swizzle=SRC_XY, dest=TEXEL, dest_swizzle=tri.DEST_XYZW,
                                fetch_constant_index=TEXTURE_SLOT, fetch_valid_only=True, arbitrary_filter=0,
                                use_computed_lod=computed, use_register_lod=not computed,
-                               sample_location=xu.SampleLocation.kCentroid, lod_bias=0.25),
-              fetch=True, serialize=True)
+                               use_register_gradients=gradients, sample_location=xu.SampleLocation.kCentroid,
+                               lod_bias=0.25),
+              fetch=True, serialize=serialize)
 
 
 def set_lod(source, component):
@@ -302,15 +304,16 @@ def a0_shape(shape, brk):
     return [("exec", pre), ("loop", level), ("exec", one_pass), ("end", level, None)], post
 
 
-def sample(computed, digits, brk):
+def sample(computed, digits, fetch_waits, brk):
     """A sample each pass, its texel added up and the last kept: at the LOD the pass gives, its index through
     setTexLOD, or at the LOD the GPU works out from coordinates the pass scales by 2 to the index. With digits, each
-    pass's level goes into a base-4 digit instead, so the export shows which level each pass took. The fetches and
+    pass's level goes into a base-4 digit instead, so the export shows which level each pass took; the fetch after
+    setTexLOD serialized, or not, as xost leaves it. The fetches and
     the work reading them are serialized (docs/HARDWARE.md, "Slow fetches across execs")."""
     start = "uv_scale" if computed else "zero"
     pre = [alu(V.kMax, LOD, 0xF, const(start), const(start)), alu(V.kMax, SUM, 0xF, const("zero"), const("zero")),
            alu(V.kMul, COORD, 0xF, temp(INTERP), const("uv_scale"))]
-    fetches = [tfetch(COORD, True)] if computed else [set_lod(LOD, 0), tfetch(COORD, False)]
+    fetches = [tfetch(COORD, True)] if computed else [set_lod(LOD, 0), tfetch(COORD, False, fetch_waits)]
     if brk == "hoist":
         pre, fetches = pre + fetches, []
     scale = [alu(V.kMul, COORD, 0xF, temp(INTERP), temp(LOD))] if computed and brk != "hoist" else []
@@ -327,16 +330,38 @@ def sample(computed, digits, brk):
     return [("exec", pre), ("loop", level), ("exec", one_pass), ("end", level, None)], post
 
 
-def level_sample(component):
-    """One sample, no loop, at the level setTexLOD gives from the quad's base (component 2) or the pixel's column
-    (component 0), mod SET_LEVELS: the fraction of (n + 0.5) / 4, times 4, less a half, is n mod 4, the fraction never
-    near its wrap however the interpolator rounds. So the pixel groups in flight, or the pixels of one, set different
-    LODs."""
-    post = [alu(V.kMul, LOD, 0xF, temp(INTERP, splat(component)), const("quarter")),
+def set_gradient(opcode, source, serialize=True):
+    """setGradientH or setGradientV from a temp's x and y, as xost writes them (src/xsc_lower_sample.c,
+    set_gradients)."""
+    return Op(enc.build_tfetch(opcode=opcode, src=source, src_swizzle=SRC_XY, dest_swizzle=DEST_KEEP,
+                               fetch_valid_only=True, arbitrary_filter=0, sample_location=xu.SampleLocation.kCentroid),
+              fetch=True, serialize=serialize)
+
+
+def level_sample(component, shape):
+    """One sample, no loop, at the level from the quad's base (component 2) or the pixel's column (component 0), mod
+    SET_LEVELS: the fraction of (n + 0.5) / 4, times 4, less a half, is n mod 4, the fraction never near its wrap
+    however the interpolator rounds. So the pixel groups in flight, or the pixels of one, ask for different levels.
+    The shapes: setTexLOD and the fetch both serialized; the fetch not, as xost leaves it; the two alone in an exec
+    after the one working the LOD out; or the gradients' setters at 2 to the level over the texture's size, both
+    serialized or, as xost leaves them, the first alone."""
+    work = [alu(V.kMul, LOD, 0xF, temp(INTERP, splat(component)), const("quarter")),
             alu(V.kFrc, LOD, 0xF, temp(LOD)), alu(V.kMad, LOD, 0xF, temp(LOD), const("four"), const("minus_half")),
-            alu(V.kMul, COORD, 0xF, temp(INTERP), const("uv_scale")), set_lod(LOD, 0), tfetch(COORD, False),
-            alu(V.kMax, tri.EXPORT_COLOR_0, 0xF, temp(TEXEL), temp(TEXEL), export=True, serialize=True)]
-    return [], post
+            alu(V.kMul, COORD, 0xF, temp(INTERP), const("uv_scale"))]
+    export = alu(V.kMax, tri.EXPORT_COLOR_0, 0xF, temp(TEXEL), temp(TEXEL), export=True, serialize=True)
+    if shape.startswith("gradients"):
+        exp = Op(enc.build_alu(scalar_opcode=S.kExp, scalar_dest=DIGIT, scalar_write_mask=0xF, src3_reg=LOD,
+                               src3_swizzle=splat(0)))
+        work += [exp, alu(V.kMul, DIGIT, 0xF, temp(DIGIT), const("uv_scale")),
+                 alu(V.kMul, SUM, 0xF, temp(DIGIT), const("x")), alu(V.kMul, DIGIT, 0xF, temp(DIGIT), const("y"))]
+        fetches = [set_gradient(xu.FetchOpcode.kSetTextureGradientsHorz, SUM),
+                   set_gradient(xu.FetchOpcode.kSetTextureGradientsVert, DIGIT, shape == "gradients"),
+                   tfetch(COORD, True, False, True)]
+    else:
+        fetches = [set_lod(LOD, 0), tfetch(COORD, False, shape == "both")]
+    if shape == "alone":
+        return [("exec", work)], fetches + [export]
+    return [], work + fetches + [export]
 
 
 def shader(key, brk):
@@ -413,15 +438,25 @@ DRAWS = [
     Draw("5d", "a0 loaded in the pass and read after LOOP_END, a count of 3", ("a0", False, "after"), "GRID_PIXELS",
          "CHECK_ROW", counts=(3,)),
     Draw("7a", "a sample in each of 4 passes at the LOD the pass gives through setTexLOD",
-         ("sample", False, False, False), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+         ("sample", False, False, False, True), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
     Draw("7b", "a sample in each of 4 passes at the computed LOD, the coordinates scaled by 2 each pass",
-         ("sample", False, True, False), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
-    Draw("7c", "no loop, one sample at the level setTexLOD gives from the quad's base, mod 4", ("level", False, 2),
-         "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
-    Draw("7d", "no loop, one sample at the level setTexLOD gives from the pixel's column, mod 4", ("level", False, 0),
-         "GRID_PIXELS", "CHECK_LEVEL_PIXEL", texture=True),
-    Draw("7e", "as 7a, each pass's level kept as a base-4 digit, 0123 wanted", ("sample", False, False, True),
+         ("sample", False, True, False, True), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+    Draw("7c", "no loop, one sample at the level setTexLOD gives from the quad's base, mod 4",
+         ("level", False, 2, "both"), "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7d", "no loop, one sample at the level setTexLOD gives from the pixel's column, mod 4",
+         ("level", False, 0, "both"), "GRID_PIXELS", "CHECK_LEVEL_PIXEL", texture=True),
+    Draw("7e", "as 7a, each pass's level kept as a base-4 digit, 0123 wanted", ("sample", False, False, True, True),
          "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
+    Draw("7f", "as 7c, the fetch after setTexLOD not serialized, as xost leaves it", ("level", False, 2, "free"),
+         "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7g", "as 7f, setTexLOD and the fetch alone in an exec after the one working the LOD out",
+         ("level", False, 2, "alone"), "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7h", "as 7c, the level from setGradientH and setGradientV, both serialized",
+         ("level", False, 2, "gradients"), "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7i", "as 7h, setGradientV and the fetch not serialized, as xost leaves textureGrad",
+         ("level", False, 2, "gradients_first"), "GRID_PIXELS", "CHECK_LEVEL_CELL", texture=True),
+    Draw("7j", "as 7e, the fetch after setTexLOD not serialized, as xost leaves it",
+         ("sample", False, False, True, False), "GRID_PIXELS", "CHECK_FIXED", counts=(4,), texture=True),
     Draw("6a", "vertex shader, today's uniform break: every vertex leaving at pass 7", ("counter", True),
          "GRID_VERTICES", "CHECK_COUNTER", (0.0, 0.0, 0.0, 7.0)),
     Draw("6b", "vertex shader, the gated values and a divergent break: each quad leaving at its own pass",
@@ -487,7 +522,10 @@ def run(draw, words, sample_point):
         def texture_lod(slot, coordinates, lod):
             assert slot == TEXTURE_SLOT
             level = (lod.register or 0.0) + lod.bias
-            level += math.log2(coordinates[0] / u * TEXTURE_SIZE) if lod.computed else 0.0
+            if lod.gradients:
+                level += math.log2(max(math.hypot(*g[:2]) for g in lod.gradients) * TEXTURE_SIZE)  # 2D: x and y
+            elif lod.computed:
+                level += math.log2(coordinates[0] / u * TEXTURE_SIZE)
             level = min(max(math.floor(level + 0.5), 0), TEXTURE_LEVELS - 1)
             return [simulate.single(c / 255) for c in texel(level)]
 

@@ -3460,7 +3460,8 @@ vulkan4xenon:results/2026-10-16-milestone-22/), each drawn over an image whose l
   `setTexLOD` with the fetch's computed LOD off for `textureLod`, `setGradientH` and `setGradientV` with
   UseRegisterGradients for `textureGrad`, and `setTexLOD` added to the computed LOD for `texture()`'s bias; a constant
   LOD of 1.25 and 6.25 in the fetch's LOD bias field took levels 1 and 6. Each band was one LOD, so the pixel groups in
-  flight agreed; where they don't, `setTexLOD` doesn't hold ("Loops on the console, milestone 46 step 1").
+  flight agreed; where they don't, nothing may wait between a setter and its fetch ("Loops on the console, milestone
+  46 step 1").
 - **`setTexLOD`'s value held across execs:** a vertex shader whose setter and fetch sit in different execs sampled the
   level it set.
 - **`gl_FrontFacing`,** the sign of the pixel parameters' x, held on the face the pipeline's front face makes front,
@@ -4017,7 +4018,7 @@ B = px + 10 py + base, its place in its quad and the quad's own base, 1 to 200, 
   break on no pixel alive, left i at B and w at B + 49 in every pixel, with the groups held back as in case 1 (case
   2a), and with every pass of 255 run (case 2b).
 - **Leaving early costs nothing past the passes run.** A full-screen loop of count 255 that every pixel left at pass 1
-  took 593.3 us, the same as a loop of count 1 at 593.5 us (cases 3a and 3b). 128 passes took 20.7 ms and 255 took
+  took 593.2 us, the same as a loop of count 1 at 592.9 us (cases 3a and 3b). 128 passes took 20.7 ms and 255 took
   40.8 ms, 158 us a pass (3c, 3d). With half the pixels of every quad leaving at pass 1 and the rest never, it took
   40.8 ms, as if none left (3e). Thin triangles of about 8 pixels, 74,000 pixels in all, took 85 us leaving at pass 1
   and 4.1 ms running all 255 (3f, 3g), against 3.2 ms for as many pixels in full groups at 3d's rate.
@@ -4029,17 +4030,25 @@ B = px + 10 py + base, its place in its quad and the quad's own base, 1 to 200, 
   design with a break each quad's vertices took at their own pass (6b), most of them run past it as pixels are, and
   loops nested 2 and 4 deep (6c, 6d).
 - **A sample at the computed LOD in each of 4 passes took each pass's level** (case 7b).
-- **`setTexLOD` doesn't hold when the pixel groups in flight set different LODs.** Its value isn't kept per group:
-  - In a loop of 4 passes, each setting its own index and sampling, 4% of pixels took levels 0 to 3. The rest took 1,
-    2, 3 and 3, each pass the level of the pass after it, on a base-4 count of the levels taken (7e, 7a).
-  - With no loop, a level per quad, its base mod 4, took the right level in 21% of pixels, about chance among 4
-    (7c).
-  - A level per pixel, its column mod 4, took the right level in 60%. Each of the 4 wrong pixels logged held the level
-    of a pixel in the same place in another quad, 0 for 2, 1 for 3 and 2 for 0, not of a neighbour in its own quad
-    (7d). So the value is kept per lane, and another group's setter can land between a group's setter and its fetch.
-  - xost emits `setTexLOD` for `textureLod` at a LOD that isn't a constant and for `texture()`'s bias
-    (src/xsc_lower_sample.c, `set_lod`), and the gradients' setters for `textureGrad` the same way, which the probe
-    didn't try. Milestone 22's bands couldn't show it.
+- **A wait between a setter and its fetch lets another pixel group's state in.** The LOD `setTexLOD` sets and the
+  gradients' setters' are kept per lane and shared between the pixel groups in flight. Each case sets a level that
+  differs between groups, a quad's base mod 4 or a pass's index:
+  - With the setter serialized and the fetch after it not, as xost emits them, every pixel took its level: one sample
+    (7f), the two alone in an exec after the one working the LOD out (7g), `setGradientH` serialized and
+    `setGradientV` and the fetch not (7i), and a sample in each of a loop's 4 passes (7j).
+  - With the fetch serialized as well, a level per quad was right in 21% of pixels, about chance among 4 (7c). A level
+    per pixel, its column mod 4, was right in 59%, and each of the 4 wrong pixels logged held the level of a pixel in
+    the same place in another quad, 2 for 0, 3 for 1, 0 for 2 and 1 for 3, never a neighbour's in its own (7d). In a
+    loop, 4% took levels 0 to 3 and the rest 1, 2, 3 and 3, each pass the level of the pass after it, on a base-4
+    count of the levels taken (7e, 7a). `setGradientV` serialized after `setGradientH` was right in 50% (7h).
+  - xost emitted the sequence that holds only as its inputs happened to fall: a setter whose input was written before
+    the last wait went out unserialized ahead of a fetch that waited, and fetch grouping could take a setter a round
+    ahead of the work its fetch read, as `xenos-toolchain/xsc/testdata/vk_lod_dependent.frag` showed. A run of setters
+    now goes only with its fetch, once all of it is ready, and waits at its first setter if any of it would
+    (src/xsc_program.c, `run_end` and `run_waits`); `xenos-toolchain/tests/test_dependent_fetch.py` checks every
+    run in the testdata, and fails with the library before. None of the 792 programs of milestone 45's corpus
+    compiles differently, and xsdk_test passed 409 of 411 with it, the two controller checks failing with no pad in.
+    Milestone 22's bands, each one LOD, couldn't show any of it.
 - **Break builds.** Gating removed failed 2a and 2b; the break's condition inverted failed case 1 and 2a; the nested
-  loops' constants swapped failed 4a to 4d; the sample taken once before the loop failed 7b; a0 never loaded failed
-  5a.
+  loops' constants swapped failed 4a to 4d; the sample taken once before the loop failed 7b and 7j; a0 never loaded
+  failed 5a.

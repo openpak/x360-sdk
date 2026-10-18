@@ -2,7 +2,7 @@ log: game:\probe_loop_break_noa0.log
 log: named after \Device\Harddisk0\Partition1\xsdk\m46\probe_loop_break_noa0.xex
 sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
 open: NtCreateFile(game:\loopbrk_start.txt) failed: 0xC0000034
-loop break probe: 27 draws; starting at case 1, then the pixel cases after it; each over 128 by 72 quads of 10 pixels
+loop break probe: 32 draws; starting at case 1, then the pixel cases after it; each over 128 by 72 quads of 10 pixels
 loop break probe: a pixel leaves at pass B = k . (px, py, base, 1), plus j where px + py is odd, its place px, py in its quad and base 1 + (7 column + 13 row) mod 101; a vertex quad's B is 1 + 37 cell mod 200
 loop break probe: the colours' alloc comes first in every pixel shader, so no alloc lies between an a0 load and its read; a vertex shader's allocs all come after its loop
 loop break probe: BREAK BUILD: a0 never loaded in 5a's pass; on the simulator it fails 5a
@@ -39,25 +39,25 @@ loop break probe: about to draw case 2b: the same gated values, no break: every 
 loop break probe: case 2b: 921600 points; 921600 as Xenia's model; PASS
 loop break probe: case 2b: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 921600 at 0; 0 at 1..9; 0 at 10..49; 0 at >= 50;
 loop break probe: about to draw case 3a: timed, a count of 1, every pixel leaving at pass 1
-loop break probe: case 3a: 593.0 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
+loop break probe: case 3a: 592.8 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
 loop break probe: case 3a: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 921600 at 0; 0 at 1..9; 0 at 10..49; 0 at >= 50;
 loop break probe: about to draw case 3b: timed, a count of 255, every pixel leaving at pass 1
-loop break probe: case 3b: 593.3 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
+loop break probe: case 3b: 593.0 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
 loop break probe: case 3b: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 921600 at 0; 0 at 1..9; 0 at 10..49; 0 at >= 50;
 loop break probe: about to draw case 3c: timed, every pixel leaving at pass 128
-loop break probe: case 3c: 20686.6 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
+loop break probe: case 3c: 20686.4 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
 loop break probe: case 3c: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 921600 at 0; 0 at 1..9; 0 at 10..49; 0 at >= 50;
 loop break probe: about to draw case 3d: timed, no pixel leaving: 255 passes
-loop break probe: case 3d: 40799.7 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
+loop break probe: case 3d: 40795.6 us, 921600 points; 921600 as Xenia's model; each pixel its own pass, as Xenia breaks each one (xenia:src/xenia/gpu/spirv_shader_translator.cc:986)
 loop break probe: case 3d: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 921600 at 0; 0 at 1..9; 0 at 10..49; 0 at >= 50;
 loop break probe: about to draw case 3e: timed, half and half in every 2x2 pixel quad: pass 1 where px + py is even, never where odd
-loop break probe: case 3e: 40804.0 us, 921600 points; 460800 as Xenia's model; 460800 more passes than its own; held back, never early: a vector runs till its last pixel leaves (xenia:src/xenia/gpu/ucode.h:372)
+loop break probe: case 3e: 40799.4 us, 921600 points; 460800 as Xenia's model; 460800 more passes than its own; held back, never early: a vector runs till its last pixel leaves (xenia:src/xenia/gpu/ucode.h:372)
 loop break probe: case 3e: ungated passes less its own pass: 0 at < -9; 0 at -9..-1; 460800 at 0; 0 at 1..9; 0 at 10..49; 460800 at >= 50;
 loop break probe: case 3e: first points not as the model: (0,0) B 1 held 5A01FFFF; (2,0) B 1 held 5A01FFFF; (4,0) B 1 held 5A01FFFF; (6,0) B 1 held 5A01FFFF;
 loop break probe: about to draw case 3f: timed, thin triangles filling vectors in part, every pixel leaving at pass 1
-loop break probe: case 3f: 85.0 us, 0 points; timed only
+loop break probe: case 3f: 85.2 us, 0 points; timed only
 loop break probe: about to draw case 3g: timed, the thin triangles, no pixel leaving
-loop break probe: case 3g: 4099.9 us, 0 points; timed only
+loop break probe: case 3g: 4098.9 us, 0 points; timed only
 loop break probe: about to draw case 4a: nested 2 deep, counts 3 and 5, a counter at each level
 loop break probe: case 4a: 921600 points; 921600 as Xenia's model; PASS
 loop break probe: about to draw case 4b: nested 3 deep, counts 3, 4 and 5
@@ -76,18 +76,29 @@ loop break probe: case 5c: 921600 points; 921600 as Xenia's model; PASS
 loop break probe: about to draw case 5d: a0 loaded in the pass and read after LOOP_END, a count of 3
 loop break probe: case 5d: 921600 points; 921600 as Xenia's model; PASS
 loop break probe: about to draw case 7a: a sample in each of 4 passes at the LOD the pass gives through setTexLOD
-loop break probe: case 7a: 921600 points; 71971 as Xenia's model; 849629 something else; DIFFERS
-loop break probe: case 7a: first points not as the model: (89,0) B 0 held 591370FF; (90,0) B 0 held 591670FF; (91,0) B 0 held 591670FF; (92,0) B 0 held 591670FF;
+loop break probe: case 7a: 921600 points; 38300 as Xenia's model; 883300 something else; DIFFERS
+loop break probe: case 7a: first points not as the model: (69,0) B 0 held 591370FF; (70,0) B 0 held 591370FF; (72,0) B 0 held 591370FF; (74,0) B 0 held 591370FF;
 loop break probe: about to draw case 7b: a sample in each of 4 passes at the computed LOD, the coordinates scaled by 2 each pass
 loop break probe: case 7b: 921600 points; 921600 as Xenia's model; PASS
 loop break probe: about to draw case 7c: no loop, one sample at the level setTexLOD gives from the quad's base, mod 4
-loop break probe: case 7c: 921600 points; 213574 as Xenia's model; 708026 something else; DIFFERS
-loop break probe: case 7c: first points not as the model: (9,0) B 0 held 590870FF; (11,0) B 0 held 590870FF; (12,0) B 0 held 590870FF; (14,0) B 0 held 590870FF;
+loop break probe: case 7c: 921600 points; 215619 as Xenia's model; 705981 something else; DIFFERS
+loop break probe: case 7c: first points not as the model: (0,0) B 0 held 5A0110FF; (2,0) B 0 held 5A0110FF; (3,0) B 0 held 5A0110FF; (4,0) B 0 held 5A0110FF;
 loop break probe: about to draw case 7d: no loop, one sample at the level setTexLOD gives from the pixel's column, mod 4
-loop break probe: case 7d: 921600 points; 549238 as Xenia's model; 372362 something else; DIFFERS
+loop break probe: case 7d: 921600 points; 550985 as Xenia's model; 370615 something else; DIFFERS
 loop break probe: case 7d: first points not as the model: (0,0) B 0 held 580450FF; (1,0) B 0 held 590870FF; (2,0) B 0 held 5A0110FF; (3,0) B 0 held 5B0230FF;
 loop break probe: about to draw case 7e: as 7a, each pass's level kept as a base-4 digit, 0123 wanted
-loop break probe: case 7e: 921600 points; 38437 as Xenia's model; 883163 something else; DIFFERS
-loop break probe: case 7e: first points not as the model: (189,0) B 0 held 596F70FF; (192,0) B 0 held 596F70FF; (193,0) B 0 held 596F70FF; (194,0) B 0 held 596F70FF;
-loop break probe: done, 23 draws: 18 PASS, 5 DIFFERS or FAILED; xsdk_gpu_close 0x00000000
+loop break probe: case 7e: 921600 points; 123255 as Xenia's model; 798345 something else; DIFFERS
+loop break probe: case 7e: first points not as the model: (179,0) B 0 held 596F70FF; (180,0) B 0 held 596F70FF; (181,0) B 0 held 596F70FF; (182,0) B 0 held 596F70FF;
+loop break probe: about to draw case 7f: as 7c, the fetch after setTexLOD not serialized, as xost leaves it
+loop break probe: case 7f: 921600 points; 921600 as Xenia's model; PASS
+loop break probe: about to draw case 7g: as 7f, setTexLOD and the fetch alone in an exec after the one working the LOD out
+loop break probe: case 7g: 921600 points; 921600 as Xenia's model; PASS
+loop break probe: about to draw case 7h: as 7c, the level from setGradientH and setGradientV, both serialized
+loop break probe: case 7h: 921600 points; 450624 as Xenia's model; 470976 something else; DIFFERS
+loop break probe: case 7h: first points not as the model: (0,0) B 0 held 580450FF; (1,0) B 0 held 580450FF; (2,0) B 0 held 580450FF; (3,0) B 0 held 580450FF;
+loop break probe: about to draw case 7i: as 7h, setGradientV and the fetch not serialized, as xost leaves textureGrad
+loop break probe: case 7i: 921600 points; 921600 as Xenia's model; PASS
+loop break probe: about to draw case 7j: as 7e, the fetch after setTexLOD not serialized, as xost leaves it
+loop break probe: case 7j: 921600 points; 921600 as Xenia's model; PASS
+loop break probe: done, 28 draws: 22 PASS, 6 DIFFERS or FAILED; xsdk_gpu_close 0x00000000
 exit: status 0
