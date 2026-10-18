@@ -274,11 +274,12 @@ bool xsdk_xsc_program_pixel_parameters(Xsc *x, XscProgram *p, int64_t r)
 
 bool xsdk_xsc_program_begin_loop(Xsc *x, XscProgram *p, uint32_t loop_id)
 {
+	if (p->open_count == XSC_LOOP_DEPTH)
+		return xsdk_xsc_fail(x, XSDK_XSC_MALFORMED, "a fifth nested loop");
 	if (p->stages[p->stage_count - 1].count && !add_stage(x, p))
 		return false;
-	p->loop_open = true;
-	p->loop_open_stage = p->stage_count - 1;
-	p->loop_open_id = loop_id;
+	p->open_stage[p->open_count] = p->stage_count - 1;
+	p->open_id[p->open_count++] = loop_id;
 	return true;
 }
 
@@ -293,11 +294,13 @@ bool xsdk_xsc_program_predicate(Xsc *x, XscProgram *p, uint8_t predicate)
 
 bool xsdk_xsc_program_end_loop(Xsc *x, XscProgram *p, bool predicated_break, bool break_condition)
 {
+	if (!p->open_count)
+		return xsdk_xsc_fail(x, XSDK_XSC_MALFORMED, "a loop's end with none open");
 	if (!xsdk_xsc_room(x, &p->loops, p->loop_count, &p->loop_capacity, sizeof *p->loops))
 		return false;
-	p->loops[p->loop_count++] =
-		(XscLoop){ p->loop_open_stage, p->stage_count, p->loop_open_id, predicated_break, break_condition };
-	p->loop_open = false;
+	p->open_count--;
+	p->loops[p->loop_count++] = (XscLoop){ p->open_stage[p->open_count], p->stage_count, p->open_id[p->open_count],
+		predicated_break, break_condition };
 	return add_stage(x, p);
 }
 
@@ -514,7 +517,8 @@ static bool control_flow(Xsc *x, const XscProgram *p, CfEntry **cf, size_t *cf_c
 		return false;
 	uint8_t written[XSC_TEMPS] = { 0 };
 	for (size_t si = 0; si < p->stage_count; si++) {
-		for (size_t l = 0; l < p->loop_count; l++) {
+		// Loops are listed as they close, inner first, so where two open at one stage the outer starts first.
+		for (size_t l = p->loop_count; l-- > 0;) {
 			if (p->loops[l].start == si) {
 				memcpy(before[l], written, XSC_TEMPS);
 				loop_writes(p, &p->loops[l], written);

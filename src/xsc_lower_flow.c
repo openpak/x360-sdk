@@ -248,11 +248,15 @@ static bool emit_cnd(XscLower *l, const XscInstr *ins, XscTypeKind kind, int64_t
 // runs only where one of 64 needs it (xenia:src/xenia/gpu/ucode.h:114-124); on data both arms run where they're
 // split, as selects run them, so selects stay. An arm inside one of these stays selects, as there's one predicate.
 // Pixel shaders alone: a vertex shader's arms in execs on the predicate hung the GPU on the console
-// (docs/HARDWARE.md, "Branches, vulkan4xenon milestone 21").
+// (docs/HARDWARE.md, "Branches, vulkan4xenon milestone 21"). An arm holding a hardware loop stays selects, as a loop
+// isn't an exec.
 static bool predicated(const XscLower *l, uint32_t branch)
 {
 	const XscBranch *const b = &l->m->branches[branch];
-	return l->si->pixel && b->work && !l->in_arm && l->varies && b->condition < l->m->id_limit &&
+	bool loop = false;
+	for (size_t i = 0; i < l->m->loop_count; i++)
+		loop = loop || (l->m->loops[i].first >= b->first && l->m->loops[i].first < b->end);
+	return l->si->pixel && b->work && !l->in_arm && !loop && l->varies && b->condition < l->m->id_limit &&
 		!l->varies[b->condition];
 }
 
@@ -581,14 +585,21 @@ static XscTypeKind carried_kind(XscLower *l, uint32_t phi)
 	return kind;
 }
 
-// What a pass reads that was made before the loop, lowered once before it.
+// What a pass reads that was made before the loop, lowered once before it; the loops nested in it too, what they carry
+// on entry among it.
 static bool lower_pass_inputs(XscLower *l, const XscHardwareLoop *loop)
 {
 	const XscModule *const m = l->m;
-	bool ok =
-		begin_walk(l) && (!loop->break_condition || lower_before(l, loop->first, loop->end, loop->break_condition));
-	for (size_t c = loop->carried_first; ok && c < loop->carried_first + loop->carried_count; c++)
-		ok = lower_before(l, loop->first, loop->end, m->carried[c].next);
+	bool ok = begin_walk(l);
+	for (size_t i = 0; ok && i < m->loop_count; i++) {
+		const XscHardwareLoop *const in = &m->loops[i];
+		if (in->first < loop->first || in->first >= loop->end)
+			continue;
+		ok = !in->break_condition || lower_before(l, loop->first, loop->end, in->break_condition);
+		for (size_t c = in->carried_first; ok && c < in->carried_first + in->carried_count; c++)
+			ok = (in == loop || lower_before(l, loop->first, loop->end, m->carried[c].init)) &&
+				lower_before(l, loop->first, loop->end, m->carried[c].next);
+	}
 	return end_walk(l, ok);
 }
 
@@ -613,8 +624,10 @@ static bool emit_loop(XscLower *l, uint32_t index)
 {
 	const XscModule *const m = l->m;
 	const XscHardwareLoop *const loop = &m->loops[index];
-	if (l->in_arm || l->in_loop)
-		return xsdk_xsc_lower_refuse(l, "a hardware loop inside an if/else's execs or another loop (v1)");
+	if (l->in_arm)
+		return xsdk_xsc_lower_refuse(l, "a hardware loop inside an if/else's execs (v1)");
+	if (l->loop_depth == XSC_LOOP_DEPTH)
+		return xsdk_xsc_lower_refuse(l, "hardware loops nested more than %d deep", XSC_LOOP_DEPTH);
 	if (loop->break_condition && loop->break_condition < m->id_limit && l->varies[loop->break_condition])
 		return xsdk_xsc_lower_refuse(l,
 			"a break on data from a loop counted by a block: LOOP_END breaks when all 64 vertices or pixels agree "
@@ -637,9 +650,9 @@ static bool emit_loop(XscLower *l, uint32_t index)
 	const int64_t zero = counts ? xsdk_xsc_literal_splat(l, 0.0) : 0;
 	if (zero == XSC_NONE ||
 		(counts && xsdk_xsc_emit_copy(l, xsc_const(zero), counter, false, false, 0, 0xF, false) == XSC_NONE) ||
-		!save_caches(l, &l->loop_saved) || !xsdk_xsc_program_begin_loop(l->x, l->p, loop_constant))
+		!save_caches(l, &l->loop_saved[l->loop_depth]) || !xsdk_xsc_program_begin_loop(l->x, l->p, loop_constant))
 		return false;
-	l->in_loop = true;
+	l->loop_depth++;
 	l->a0_set = false;
 	for (size_t i = 0; i < count; i++)
 		l->op_cache[m->carried[loop->carried_first + i].phi] = xsc_reg(regs[i]);
@@ -673,8 +686,7 @@ static bool emit_loop(XscLower *l, uint32_t index)
 		(alive != XSC_NONE && !setp_on(l, XSC_SCALAR_SETP_EQ, xsc_reg(alive))) ||
 		!xsdk_xsc_program_end_loop(l->x, l->p, breaks, alive != XSC_NONE || loop->break_when))
 		return false;
-	l->in_loop = false;
-	restore_caches(l, &l->loop_saved);
+	restore_caches(l, &l->loop_saved[--l->loop_depth]);
 	l->a0_set = false;
 	for (size_t i = 0; i < count; i++)
 		l->op_cache[m->carried[loop->carried_first + i].result] = xsc_reg(regs[i]);

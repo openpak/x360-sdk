@@ -197,6 +197,9 @@ enum {
 	// after the loop. Each has a result type and id alone.
 	XSC_OP_LOOP_PHI = 0x10000,
 	XSC_OP_LOOP_RESULT = 0x10001,
+	// LOOP_START nests 4 deep (xenia:src/xenia/gpu/ucode.h:131; docs/HARDWARE.md, "Loops on the console, milestone 46
+	// step 1").
+	XSC_LOOP_DEPTH = 4,
 };
 
 typedef struct {
@@ -736,9 +739,10 @@ typedef struct {
 	XscLoop *loops;
 	size_t loop_count;
 	size_t loop_capacity;
-	bool loop_open;
-	size_t loop_open_stage;
-	uint32_t loop_open_id;
+	// The loops open now, outermost first: each one's first stage and loop constant.
+	size_t open_count;
+	size_t open_stage[XSC_LOOP_DEPTH];
+	uint32_t open_id[XSC_LOOP_DEPTH];
 	int64_t param_gen;
 	bool exports_depth;
 	// The colours a pixel shader exports, bit n for oCn.

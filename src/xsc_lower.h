@@ -119,10 +119,10 @@ typedef struct {
 	// for the induction variable; -1 for any other id.
 	int32_t *loop_of;
 	int32_t *carried_of;
-	// By loop, whether it's laid out; whether the lowering is in a loop's body now, and the caches before it.
+	// By loop, whether it's laid out; how many loops' bodies the lowering is in now, and the caches before each.
 	bool *loop_done;
-	bool in_loop;
-	XscSaved loop_saved;
+	size_t loop_depth;
+	XscSaved loop_saved[XSC_LOOP_DEPTH];
 	// The loop constants the loops read, one per count, for the runtime to set from their blocks or to 255.
 	XsdkXscNeed *loop_needs;
 	size_t loop_need_count;

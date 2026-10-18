@@ -95,7 +95,8 @@ typedef struct {
 // pass left for, 0 for none. A break or continue on data gates it: running, 1.0 while the pixel or vertex runs the
 // pass, and alive, while it's in the loop, each 0 while every one is; what each local and output held where its pixel
 // stopped in the pass; the counter where it broke, and where a continue on data left the pass. arms says how deep in
-// arms its passes start. A hardware loop carries alive from 1 once a break on data clears it, and keeps the pass's top.
+// arms its passes start. A hardware loop carries alive from 1 once a break on data clears it, or from entered, the
+// running of the pass it's in, and keeps the pass's top.
 typedef struct {
 	uint32_t merge;
 	uint32_t cont;
@@ -109,6 +110,7 @@ typedef struct {
 	uint32_t continued_at;
 	bool hardware;
 	uint32_t alive_phi;
+	uint32_t entered;
 	State top;
 } Unrolled;
 
@@ -125,8 +127,10 @@ typedef struct {
 } Carry;
 
 // The hardware loop a walk is in: its merge and continue blocks, how deep in arms it is, its break ending a pass on a
-// value every vertex or pixel shares, its gating, and what it carries, from its first in the module's list.
-typedef struct {
+// value every vertex or pixel shares, its gating, what it carries, from its first in the module's list, its counter,
+// and the hardware loop it's in.
+typedef struct Hardware Hardware;
+struct Hardware {
 	uint32_t merge;
 	uint32_t cont;
 	size_t arms;
@@ -137,7 +141,9 @@ typedef struct {
 	const Carry *carries;
 	size_t carry_count;
 	size_t carried_first;
-} Hardware;
+	uint32_t counter;
+	const Hardware *outer;
+};
 
 typedef struct {
 	Xsc *x;
@@ -183,14 +189,13 @@ typedef struct {
 	XscMerge *merges;
 	size_t merge_count;
 	size_t merge_capacity;
-	// How deep the walk is in arms of an if/else on data and in loops it unrolls, and the hardware loop it's in.
+	// How deep the walk is in arms of an if/else on data, and the innermost loop and hardware loop it's in.
 	size_t arms;
 	Arm *path;
 	size_t path_capacity;
 	// The flag the last gating select is on, and the branch of its own it has.
 	uint32_t gate_flag;
 	uint32_t gate_branch;
-	size_t unrolling;
 	Unrolled *unrolled;
 	Hardware *hardware;
 	XscHardwareLoop *loops;
@@ -989,12 +994,13 @@ static bool add_carried(Unroller *u, uint32_t type, uint32_t init, uint32_t *phi
 	return true;
 }
 
-// A hardware loop's alive, carried from 1, made at its first break on data, running starting from it. A continue before
-// that stopped values while running held 1, so a pixel that left gets the pass's top as its stopped copies.
+// A hardware loop's alive, carried from 1, or from the running of the pass it's in, made at its first break on data,
+// running starting from it. A continue before that stopped values while running held 1, so a pixel that left gets the
+// pass's top as its stopped copies.
 static bool carry_alive(Unroller *u, Unrolled *ul)
 {
-	uint32_t yes;
-	if (!true_id(u, &yes) || !add_carried(u, u->bool_tid, yes, &ul->alive_phi))
+	uint32_t from = ul->entered;
+	if ((!from && !true_id(u, &from)) || !add_carried(u, u->bool_tid, from, &ul->alive_phi))
 		return false;
 	if (!ul->running) {
 		ul->running = ul->alive = ul->alive_phi;
@@ -1179,7 +1185,8 @@ static bool reads_varying(const Unroller *u, const bool *marked, const XscInstr 
 }
 
 // Whether c differs between vertices or pixels, as the lowering marks values (xsdk_xsc_find_varying), the loop's
-// values at the pass's end as the walk holds them: from an input or a local, or a gated loop's counter.
+// values at the pass's end as the walk holds them: from an input or a local, or a gated loop's counter. What the loops
+// it's in carry, and their counters, may yet vary by their passes' ends, so they're taken to.
 static bool varies(Unroller *u, const Hardware *hw, uint32_t c, bool *data)
 {
 	for (size_t i = 0; i < hw->carry_count; i++) {
@@ -1195,6 +1202,11 @@ static bool varies(Unroller *u, const Hardware *hw, uint32_t c, bool *data)
 	}
 	for (size_t i = 0; i < u->loop_count; i++)
 		marked[u->loops[i].counter] = marked[u->loops[i].counter_result] = u->loops[i].alive != 0;
+	for (const Hardware *h = hw->outer; h; h = h->outer) {
+		marked[h->counter] = true;
+		for (size_t i = 0; i < h->carry_count; i++)
+			marked[u->carried[h->carried_first + i].phi] = true;
+	}
 	for (bool changed = true; changed;) {
 		changed = false;
 		for (size_t i = 0; i < u->emitted_count; i++) {
@@ -1569,7 +1581,7 @@ static bool top_of_pass(
 		*took = ul->running;
 		return true;
 	}
-	if (!carry_alive(u, ul))
+	if (!ul->alive_phi && !carry_alive(u, ul))
 		return false;
 	if (tests_at_end(block_of(u, ul->cont)))
 		return true;
@@ -1597,14 +1609,31 @@ static bool end_of_pass(Unroller *u, Unrolled *ul, const Block *cont, uint32_t t
 	return condition_id(u, cont, &lm, &c) && gated_leave(u, ul, c, xsdk_xsc_operand(cont->term, 1) == ul->merge, true);
 }
 
+// A loop's alive, made in its pass after the loops nested in it carried theirs, moved to at, just past what the loop
+// carries, so each loop's carried values run on from its first; theirs move on one.
+static void place_alive(Unroller *u, size_t at, uint32_t phi)
+{
+	size_t from = at;
+	while (u->carried[from].phi != phi)
+		from++;
+	const XscCarried alive = u->carried[from];
+	memmove(&u->carried[at + 1], &u->carried[at], (from - at) * sizeof *u->carried);
+	u->carried[at] = alive;
+	for (size_t i = 0; i < u->loop_count; i++)
+		u->loops[i].carried_first += u->loops[i].carried_first >= at && u->loops[i].carried_first <= from;
+}
+
 // The loop's pass walked once from the values at its top; then what it carries holds the loop's results. A block's int
 // counts it, through chain, its passes skipped where i, iv, starts past 0 or steps past 1; or its count is data, chain
 // NULL and iv 0.
 static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merge, uint32_t cont, uint32_t first,
 	uint32_t iv, const XscInstr *chain, bool skip)
 {
-	if (u->hardware || u->arms || u->unrolling)
-		return refuse(u, "a hardware loop inside an if/else on data or another loop (v1)");
+	size_t depth = 1;
+	for (const Hardware *h = u->hardware; h; h = h->outer)
+		depth++;
+	if (depth > XSC_LOOP_DEPTH)
+		return refuse(u, "hardware loops nested more than 4 deep (xenia:src/xenia/gpu/ucode.h:131)");
 	bool *const stored = xsdk_xsc_alloc(u->x, u->env_limit);
 	bool *const own = xsdk_xsc_alloc(u->x, u->env_limit);
 	Carry *const carries = xsdk_xsc_alloc(u->x, (u->local_count + MAX_SLOTS + 1) * sizeof *carries);
@@ -1625,25 +1654,35 @@ static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merg
 	loop.count = chain ? local_or_self(&lm, chain->result_id) : 0;
 	if (counted)
 		u->env[iv] = loop.counter;
-	Unrolled gated = { .merge = merge, .cont = cont, .arms = u->arms, .iv = counted, .hardware = true };
+	// A pixel or vertex that doesn't run the pass the loop is in starts it out of the loop.
+	Unrolled *const outer = u->unrolled;
+	Hardware *const enclosing = u->hardware;
+	Unrolled gated = { .merge = merge,
+		.cont = cont,
+		.arms = u->arms,
+		.iv = counted,
+		.hardware = true,
+		.entered = outer ? outer->running : 0 };
 	Hardware hw = { .merge = merge,
 		.cont = cont,
 		.arms = u->arms,
 		.gated = &gated,
 		.carries = carries,
 		.carry_count = carry_count,
-		.carried_first = loop.carried_first };
+		.carried_first = loop.carried_first,
+		.counter = loop.counter,
+		.outer = enclosing };
 	uint32_t exit;
 	uint32_t took = 0;
 	bool ended = false;
-	if (!save(u, &gated.top) || !save(u, &gated.stopped))
+	if (!save(u, &gated.top) || !save(u, &gated.stopped) || (gated.entered && !carry_alive(u, &gated)))
 		return false;
 	u->hardware = &hw;
 	u->unrolled = &gated;
 	const bool walked =
 		(counted || top_of_pass(u, &gated, &loop, iv, &first, &took)) && walk(u, first, cont, true, &exit, &ended);
-	u->hardware = NULL;
-	u->unrolled = NULL;
+	u->hardware = enclosing;
+	u->unrolled = outer;
 	if (!walked)
 		return false;
 	if (ended && !gated.left)
@@ -1661,6 +1700,7 @@ static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merg
 		*value = c->result;
 	}
 	if (gated.alive_phi) {
+		place_alive(u, loop.carried_first + carry_count, gated.alive_phi);
 		XscCarried *const alive = &u->carried[loop.carried_first + carry_count++];
 		alive->next = gated.alive;
 		loop.alive = gated.alive_phi;
@@ -1745,7 +1785,6 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 	int trips = 0;
 	Unrolled unrolled = { .merge = *merge, .cont = continue_lbl, .arms = u->arms, .iv = test.iv };
 	Unrolled *const outer = u->unrolled;
-	u->unrolling++;
 	u->unrolled = &unrolled;
 	while (loop_runs(u, &test)) {
 		if (++trips > MAX_TRIP)
@@ -1772,7 +1811,6 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 			return refuse(u, "loop induction variable does not advance");
 	}
 	u->unrolled = outer;
-	u->unrolling--;
 	// After the loop, the counter of a pixel that broke is where it broke.
 	return !unrolled.alive ||
 		gate(u, unrolled.alive, pointee(u, test.iv), u->env[test.iv], unrolled.broke_at, &u->env[test.iv]);
