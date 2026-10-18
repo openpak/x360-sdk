@@ -14,6 +14,9 @@ STATUS_NAMES = ("ok", "refused", "registers", "bad value", "malformed", "out of 
 LITERAL, ARRAY, LOOP, BLOCK_LOOP, CLIP_PLANE = range(5)
 RESOURCE_KINDS = ("push", "uniform", "sampler", "comparison", "instance")
 MESSAGE_BYTES = 512
+# The pixel constant gl_FragCoord.xy adds to the pixel parameters, which xsdk keeps at 0.5 and 0.5 more than a tiled
+# pass's band's top row (xsdk:include/xsdk/xsc.h, XSDK_XSC_FRAG_COORD_CONSTANT).
+FRAG_COORD_CONSTANT = 255
 
 
 class Options(ctypes.Structure):

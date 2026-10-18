@@ -73,7 +73,7 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | Vulkan uniform / push constant block members at any std140 offset | the member's register, swizzled from its first component |
 | block matrix (column-major, std140) `M * v` / `v * M` / `A * B` | `mul`+`mad` over columns / 4x `dp4` with columns / columns of A times each column of B |
 | block array at a run-time index, `rows[int(f) + k]`, `m[i]` | `movasf` (`int(f)`) or `movas` sets a0, then `c[a0 + base + k]` is copied into a temp; reads at one index share the `movas` (`tests/test_dynamic_index.py`) |
-| fragment `gl_FragCoord.xy`, `gl_FrontFacing` | the pixel parameters in the register past the interpolators, `\|r.xy\| + 0.5`, `.zw` refused; facing from x's sign (see Facing) |
+| fragment `gl_FragCoord.xy`, `gl_FrontFacing` | the pixel parameters in the register past the interpolators, `\|r.xy\| + c255`, the constant xsdk keeps at 0.5 and a tiled pass's band's top row plus 0.5 (see Interface conventions), `.zw` refused; facing from x's sign (see Facing) |
 | fragment `gl_PointCoord` | the same parameters' `\|r.zw\|`, a point sprite's coordinates (`tests/test_point_sprite.py`) |
 | vertex `gl_PointSize` | `oPts.x___`, the point's width in pixels, and the record's vs_export_mode 2 (`tests/test_point_sprite.py`) |
 | fragment `gl_FragDepth`, stored once outside any `if/else` | `oDepth.x___` after the colour, the record's ps_export_mode 3 (`tests/test_frag_depth.py`) |
@@ -168,7 +168,17 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   pixel's column and row (xenia:src/xenia/gpu/registers.h:140, 158-234), and
   SC_OUTPUT_SCREEN_XY, without which x read 0 on the console
   (vulkan4xenon:results/2026-10-12-milestone-11-step-3/). xsdk takes both
-  registers from the record as they are.
+  registers from the record as they are. gl_FragCoord.xy is the parameters'
+  |xy| plus pixel constant c255, `XSDK_XSC_FRAG_COORD_CONSTANT`
+  (`include/xsdk/xsc.h`), FRAG_COORD_CONSTANT in `xsc/native.py`, not a pooled
+  0.5: in a tiled pass the parameters give the row within the band
+  (xsdk:docs/HARDWARE.md, "Tiling's registers and packets, milestone 44 step
+  1"), and xsdk writes c255 before each band runs the pass's recording, as 0.5
+  and 0.5 more than the band's top row, and keeps it at 0.5 and 0.5 otherwise
+  (xsdk:include/xsdk/gpu.h, tiled passes). It isn't a need or a resource:
+  every shader shares the register. xsdk writes c252 to c255 as a whole group
+  of 4, so a shader reading gl_FragCoord whose constants reach c252 is refused
+  (`tests/test_frag_coord_band.py`).
 - gl_PointSize → oPts (export 63)'s x, the point's full width in pixels, its
   y and z, the edge and kill flags, unwritten
   (xenia:src/xenia/gpu/ucode.h:1813-1834), with SQ_PROGRAM_CNTL's

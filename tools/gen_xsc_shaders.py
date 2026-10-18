@@ -11,8 +11,8 @@ raster test draws with too, as it does vk_dynamic_interpolator.vert, which reads
 alloc, a0 loaded again before it, vk_dynamic_texcoord.frag, which samples at a coordinate read at a0 that fetch
 grouping keeps past its load, and vk_dynamic_if.frag, which reads at a0 in and past predicated if/else arms, in plain
 execs as they use a0, one of which loads a0 at another index, and vk_slow_fetch.frag, whose fetches far across a large
-texture are read in a later exec. Prints a C header. Runs in WSL, where make builds the
-compiler for the PC.
+texture are read in a later exec; and milestone 44's vk_frag_coord_rows.frag, the pixel's place as its colour, which
+the tiles test draws across bands. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
 """
 
 import struct
@@ -27,7 +27,8 @@ import xsc.native as native  # noqa: E402
 TESTDATA = ROOT / "xenos-toolchain" / "xsc" / "testdata"
 SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert", "vk_vertex_uniform_if.vert",
            "vk_loop_count_if.frag", "vk_clip_distance.vert", "vk_point_sprite.vert", "vk_point_coord.frag",
-           "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag", "vk_dynamic_if.frag", "vk_slow_fetch.frag")
+           "vk_dynamic_interpolator.vert", "vk_dynamic_texcoord.frag", "vk_dynamic_if.frag", "vk_slow_fetch.frag",
+           "vk_frag_coord_rows.frag")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",

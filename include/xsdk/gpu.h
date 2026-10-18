@@ -415,7 +415,8 @@ enum {
 
 // Sets the vertex shader's float constants first to first + count - 1 from count * 4 floats, rewriting each 16 touched.
 void xsdk_gpu_set_vertex_constants(uint32_t first, const float *values, uint32_t count);
-// The same for the pixel shader's float constants.
+// The same for the pixel shader's float constants. xsdk keeps XSDK_XSC_FRAG_COORD_CONSTANT (include/xsdk/xsc.h), which
+// xost's gl_FragCoord reads, at 0.5 and 0.5: setting it moves gl_FragCoord.
 void xsdk_gpu_set_pixel_constants(uint32_t first, const float *values, uint32_t count);
 // Has the GPU load count float constants from first straight from memory at address, as the console takes them:
 // whole groups of 4 from a multiple of 4, from 64-byte aligned memory (docs/HARDWARE.md). The setters' copy doesn't

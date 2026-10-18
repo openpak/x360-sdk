@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 import xdis.container as container  # noqa: E402
 import xdis.simulate as simulate  # noqa: E402
+import xsc.native as native  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
 from xsc.lower import lower_ex  # noqa: E402
 from test_local_stores import check, module  # noqa: E402
@@ -42,6 +43,8 @@ def fail(message):
 def run(name, x):
     blob, manifest = lower_ex(module(name), XSDK_REGISTERS)
     constants = {r: list(v) for r, v in manifest}
+    # What xsdk keeps there outside a tiled pass.
+    constants[native.FRAG_COORD_CONSTANT] = [0.5, 0.5, 0.0, 0.0]
     return simulate.run(blob, registers={0: COLOR, 1: [x, ROW, 0.0, 0.0]}, constants=constants)
 
 

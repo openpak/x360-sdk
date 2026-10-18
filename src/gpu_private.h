@@ -260,6 +260,8 @@ bool xsdk_gpu_recording(void);
 void xsdk_gpu_hiz_cleared(uint32_t width, uint32_t height, uint32_t depth_clear);
 // Leaves the hierarchical buffer off until depth is next cleared.
 void xsdk_gpu_hiz_drop(void);
+// Writes gl_FragCoord's constant for a band from row top, 0 outside tiled passes (include/xsdk/xsc.h).
+void xsdk_gpu_put_frag_coord_top(uint32_t top);
 // Points the shown surface at another buffer of its size; for the vblank callback, so it never sleeps.
 void xsdk_display_flip(uint32_t address);
 

@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "gpu_private.h"
+#include "xsdk/xsc.h"
 
 // Constants in aligned whole groups, as the console takes them: a lone float constant hung the GPU (docs/HARDWARE.md).
 enum {
@@ -104,6 +105,14 @@ static void set_floats(uint32_t stage, uint32_t first_register, uint32_t first, 
 void xsdk_gpu_set_vertex_constants(uint32_t first, const float *values, uint32_t count)
 {
 	set_floats(0, SHADER_CONSTANT_000_X, first, values, count);
+}
+
+// xost's gl_FragCoord adds this to the pixel parameters, which give the row within a tiled pass's band
+// (docs/HARDWARE.md, "Tiling's registers and packets, milestone 44 step 1").
+void xsdk_gpu_put_frag_coord_top(uint32_t top)
+{
+	const float offset[4] = { 0.5f, 0.5f + (float)top, 0.0f, 0.0f };
+	set_floats(1, SHADER_CONSTANT_256_X, XSDK_XSC_FRAG_COORD_CONSTANT, offset, 1);
 }
 
 // The pixel shader's constant 0 is the 256th; xsdk_gpu_open sets the split (src/gpu_setup.c).

@@ -109,15 +109,14 @@ static bool reads_depth(Xsc *x, const XscModule *m, const XscType *types, uint32
 	return true;
 }
 
-// Vulkan's gl_FragCoord is the pixel's centre: the column and row, |xy| as the sign bits are flags, plus 0.5.
+// Vulkan's gl_FragCoord is the pixel's centre: the column and row, |xy| as the sign bits are flags, plus the constant
+// xsdk keeps at 0.5 and 0.5 more than the band's top row, as under a tiled pass's window offset the row is the band's
+// (xsdk:docs/HARDWARE.md, "Tiling's registers and packets, milestone 44 step 1").
 static bool frag_coord_register(XscLower *l, const XscInterface *si, int64_t param_reg)
 {
 	const int64_t coord = xsdk_xsc_fresh(l);
-	const int64_t half = xsdk_xsc_literal_splat(l, 0.5);
-	if (half == XSC_NONE)
-		return false;
 	const XscSrc params = xsc_temp(param_reg | XSC_ABS_SOURCE);
-	if (!xsc_emit2(l, XSC_VECTOR_ADD, params, xsc_plain(xsc_const(half)), coord, false, 0x3))
+	if (!xsc_emit2(l, XSC_VECTOR_ADD, params, xsc_plain(xsc_const(XSDK_XSC_FRAG_COORD_CONSTANT)), coord, false, 0x3))
 		return false;
 	l->inputs[si->frag_coord->vid] = coord;
 	return true;
@@ -665,6 +664,15 @@ static bool emit_depth(Fragment *f)
 	return xsdk_xsc_emit_copy(l, depth.o, EXPORT_DEPTH, true, false, origin_swizzle(depth), WRITE_X, false) != XSC_NONE;
 }
 
+// xsdk writes gl_FragCoord's constant with its whole group of 4, so a shader reading it keeps its own below the group.
+static bool below_frag_coord_group(XscLower *l)
+{
+	const int64_t group = XSDK_XSC_FRAG_COORD_CONSTANT & ~3;
+	if (!l->si->frag_coord || l->lit_base <= group)
+		return true;
+	return xsdk_xsc_lower_refuse(l, "gl_FragCoord with constants from c%lld on, which xsdk keeps", (long long)group);
+}
+
 static bool add_constants(Fragment *f, XscConstants *constants)
 {
 	XscLower *const l = &f->l;
@@ -764,7 +772,7 @@ static bool lower_body(Fragment *f, int64_t param_reg, XscConstants *constants, 
 		!xsdk_xsc_check_local_stores(l->x, l->m, f->locals, f->merged_local, merge_label(l->m, top)))
 		return false;
 	return xsdk_xsc_program_alloc(l->x, l->p, XSC_ALLOC_COLORS) && emit_output(f) && emit_depth(f) &&
-		add_constants(f, constants) &&
+		below_frag_coord_group(l) && add_constants(f, constants) &&
 		xsdk_xsc_program_finish(
 			l->x, l->p, constants->items, constants->count, &out->container, &out->container_bytes) &&
 		xsdk_xsc_literal_needs(l, out) && xsdk_xsc_loop_needs(l, out);

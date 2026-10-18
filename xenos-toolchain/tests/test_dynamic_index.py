@@ -38,6 +38,7 @@ import xsc.spirv as spirv  # noqa: E402
 import xdis.container as container  # noqa: E402
 import xdis.simulate as simulate  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
+import xsc.native as native  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
 from xsc.lower import LowerError, lower_ex  # noqa: E402
 import test_optimize as hand  # noqa: E402
@@ -213,6 +214,7 @@ def check_frag_coord():
     colors = [[0.05 * k, 1.0 - 0.05 * k, 0.5, 1.0] for k in range(10)]
     consts = registers([x for color in colors for x in color], 0)
     consts.update({reg: list(values) for reg, values in manifest})
+    consts[native.FRAG_COORD_CONSTANT] = [0.5, 0.5, 0.0, 0.0]
     tint = [1.0, 0.5, 2.0, 1.0]
     for column in (0, 127, 128, 640, 1279):
         for back_facing in (False, True):
