@@ -15,11 +15,8 @@ I64, BOOL, DOUBLE = ctypes.c_int64, ctypes.c_bool, ctypes.c_double
 # A whole temp source's absolute value, past its register (xsc_private.h XSC_ABS_SOURCE).
 ABS_SOURCE = 1 << 16
 ALLOC_COLORS = 2
-
-
-class Xsc(ctypes.Structure):
-    _fields_ = [("chunks", ctypes.c_void_p), ("status", ctypes.c_int),
-                ("message", ctypes.c_char * native.MESSAGE_BYTES)]
+# native's own, as both name it in the one library's signatures.
+Xsc = native._Xsc
 
 
 class Alu(ctypes.Structure):
@@ -74,6 +71,8 @@ def library():
         "xsdk_xsc_program_tfetch": ([x, p, ctypes.POINTER(Fetch)], ctypes.c_void_p),
         "xsdk_xsc_program_alloc": ([x, p, I64], BOOL),
         "xsdk_xsc_program_predicate": ([x, p, ctypes.c_uint8], BOOL),
+        "xsdk_xsc_program_begin_loop": ([x, p, ctypes.c_uint32], BOOL),
+        "xsdk_xsc_program_end_loop": ([x, p, BOOL, BOOL], BOOL),
         "xsdk_xsc_program_finish": ([x, p, ctypes.c_void_p, ctypes.c_size_t,
                                      ctypes.POINTER(ctypes.POINTER(ctypes.c_uint8)), ctypes.POINTER(ctypes.c_size_t)],
                                     BOOL),
@@ -116,7 +115,8 @@ def pixel_program(inputs: int, usage: int, body, exports, registers: int, optimi
     """A pixel shader the C builds from ALU fields, or a texture fetch's (those with a dimension), as the compiler
     would, temps whole till it packs them: inputs interpolators, the body, the colors' alloc, the exports. A body entry
     {"predicate": n} has what follows run where the predicate is true (1) or false (2), or everywhere (0), as an
-    if/else's arms do. Raises CompileError where it refuses."""
+    if/else's arms do, and {"loop": n} and {"end_loop": True} put what's between them in hardware loop n's body.
+    Raises CompileError where it refuses."""
     x, p = Xsc(), Program()
     container = ctypes.POINTER(ctypes.c_uint8)()
     size = ctypes.c_size_t()
@@ -129,6 +129,12 @@ def pixel_program(inputs: int, usage: int, body, exports, registers: int, optimi
         for f in body:
             if "predicate" in f:
                 ok = ok and LIB.xsdk_xsc_program_predicate(ctypes.byref(x), ctypes.byref(p), f["predicate"])
+                continue
+            if "loop" in f:
+                ok = ok and LIB.xsdk_xsc_program_begin_loop(ctypes.byref(x), ctypes.byref(p), f["loop"])
+                continue
+            if "end_loop" in f:
+                ok = ok and LIB.xsdk_xsc_program_end_loop(ctypes.byref(x), ctypes.byref(p), False, False)
                 continue
             if "dimension" in f:
                 ok = ok and bool(LIB.xsdk_xsc_program_tfetch(ctypes.byref(x), ctypes.byref(p),

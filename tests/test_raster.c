@@ -19,9 +19,10 @@
 // One cell per piece of raster and blend state, each checked by pixel against what the CPU works out; then, for
 // vulkan4xenon milestone 26, a row of quads drawn as their edges and their corners, a row of cells clipped by planes,
 // and point sprites from xost's shaders compiled on the console; and a grid of quads coloured from a block at their
-// vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), and two
+// vertices' index, read at a0 past the interpolators' alloc (docs/HARDWARE.md, "a0 doesn't survive an alloc"), two
 // coloured by pixel shaders reading at a0 past fetch grouping and in and past if/else arms (docs/HARDWARE.md, "a0
-// through fetch grouping" and "a0 and the predicate's execs").
+// through fetch grouping" and "a0 and the predicate's execs"), and one by fetches far across a large texture, read in
+// a later exec (docs/HARDWARE.md, "Slow fetches across execs").
 
 enum {
 	WIDTH = 1280,
@@ -89,8 +90,22 @@ enum {
 	UNIFORM_IF_ROWS = 2 * INDEXED_INDICES + 1,
 	MODE_ROW = 2 * INDEXED_INDICES,
 	ARM_TAKEN_QUADS = PIXEL_GRID_QUADS / 2,
+	// vk_slow_fetch.frag's grid right of the point sprites, 16 by 8 quads, every pixel checked. Its texture's rows each
+	// hold their class's colour, row mod 16; a quad's class is its index, and its pixels sample 37 columns and 3 steps
+	// of 16 rows apart, each in its own tile, and quads 331 columns and 7 steps apart.
+	SLOW_X = 1060,
+	SLOW_Y = 320,
+	SLOW_COLUMNS = 16,
+	SLOW_ROWS = 8,
+	SLOW_QUADS = SLOW_COLUMNS * SLOW_ROWS,
+	SLOW_VERTICES = SLOW_QUADS * QUAD_VERTICES,
+	SLOW_SIDE = 1024,
+	SLOW_PIXEL_COLUMNS = 37,
+	SLOW_PIXEL_STEPS = 3,
+	SLOW_QUAD_COLUMNS = 331,
+	SLOW_QUAD_STEPS = 7,
 	// The indexed grid, then the pixel shaders'.
-	GRIDS = 3,
+	GRIDS = 4,
 };
 
 // Each grid's check, which its count of wrong quads follows.
@@ -101,6 +116,8 @@ static const char *const grid_checks[GRIDS] = {
 	"coords[i], i 0 to 15, read at a0 past j's load",
 	"raster: two draws of xost's vk_dynamic_if.frag compiled on the console colour each of 280 quads from rows at i "
 	"read before and past an if/else on a uniform whose arm reads at j, the arm taken in the first",
+	"raster: one draw of xost's vk_slow_fetch.frag compiled on the console colours every pixel of 128 quads from two "
+	"fetches far across a 1024 by 1024 texture, read in the next exec, and a third at the row they give, pixels",
 };
 
 // Point sprites, each centred on a pixel's corner, as wide as its size, from vk_point_sprite.vert.
@@ -665,7 +682,8 @@ static void draw_sprites(const Sprites *s)
 	}
 }
 
-// A grid of quads INDEXED_SIZE pixels square, columns wide from x and y, and the colour each one's centre should hold.
+// A grid of quads INDEXED_SIZE pixels square, columns wide from x and y, and the colour each one's centre should hold,
+// or each of its pixels if whole.
 typedef struct {
 	const char *what;
 	uint32_t x;
@@ -673,6 +691,7 @@ typedef struct {
 	uint32_t columns;
 	uint32_t quads;
 	const uint32_t *argb;
+	bool whole;
 } Grid;
 
 // What the indexed grid draws with: vk_dynamic_interpolator.vert, its block's register and rows, and the quads.
@@ -702,6 +721,21 @@ typedef struct {
 	Grid grid;
 } PixelGrid;
 
+// What vk_slow_fetch.frag's grid draws with: the shader, its texture and fetch constant, its quads and the grid.
+typedef struct {
+	XsdkShader pixel;
+	XsdkXscShader compiled;
+	const XsdkXscNeed *needs;
+	size_t need_count;
+	XsdkTexture texture;
+	XsdkSamplerState sampler;
+	uint32_t slot;
+	volatile uint32_t *memory;
+	uint32_t vertices;
+	uint32_t argb[SLOW_QUADS];
+	Grid grid;
+} Slow;
+
 // The pixel shaders' grids: triangle_vertex_shader passing each quad's indices on, both grids' quads, the texels
 // vk_dynamic_texcoord.frag samples and their fetch constant, and each grid.
 typedef struct {
@@ -712,6 +746,7 @@ typedef struct {
 	uint32_t slot;
 	PixelGrid texcoord;
 	PixelGrid uniform_if;
+	Slow slow;
 } PixelGrids;
 
 // Index i's colour: red 16i + 8, green its complement and blue it xor 0x5A, so a pixel names the row read.
@@ -741,11 +776,12 @@ static void draw_quads(const PixelGrids *p, const PixelGrid *g, uint32_t first, 
 }
 
 // vk_dynamic_texcoord.frag in one draw; vk_dynamic_if.frag in two, its arm reading at j taken in the first, over the
-// grid's top half, and not in the second.
+// grid's top half, and not in the second; vk_slow_fetch.frag in one.
 static void draw_pixel_grids(const PixelGrids *p)
 {
 	const PixelGrid *const t = &p->texcoord;
 	const PixelGrid *const u = &p->uniform_if;
+	const Slow *const s = &p->slow;
 	const float not_taken[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
 	xsdk_gpu_set_texture(p->slot, &p->texture, &p->sampler);
 	xsdk_gpu_set_pixel_constants(t->block, &t->rows[0][0], TEXCOORD_ROWS);
@@ -754,24 +790,39 @@ static void draw_pixel_grids(const PixelGrids *p)
 	draw_quads(p, u, 0, ARM_TAKEN_QUADS);
 	xsdk_gpu_set_pixel_constants(u->block + MODE_ROW, not_taken, 1);
 	draw_quads(p, u, ARM_TAKEN_QUADS, PIXEL_GRID_QUADS - ARM_TAKEN_QUADS);
+	xsdk_gpu_set_texture(s->slot, &s->texture, &s->sampler);
+	xsdk_gpu_set_shaders(&p->vertex, &s->pixel);
+	xsdk_gpu_set_vertices(0, s->vertices, SLOW_VERTICES * PIXEL_STRIDE_BYTES);
+	set_literals(s->needs, s->need_count, false);
+	xsdk_gpu_draw(XSDK_PRIMITIVE_TRIANGLE_LIST, SLOW_VERTICES);
 }
 
-// The grid's quads whose centre doesn't hold their colour, the first few logged.
+// The pixels a grid checks a quad, its centre or all of them.
+static uint32_t grid_side(const Grid *g)
+{
+	return g->whole ? INDEXED_SIZE : 1;
+}
+
+// The grid's quads whose centre, or pixels whose colour, isn't their quad's, the first few logged.
 static uint32_t grid_wrong(const Grid *g, volatile const uint32_t *pixels, uint32_t frame, uint32_t *logged)
 {
+	const uint32_t side = grid_side(g);
+	const uint32_t first = g->whole ? 0 : INDEXED_SIZE / 2;
 	uint32_t wrong = 0;
-	for (uint32_t quad = 0; quad < g->quads; quad++) {
+	for (uint32_t i = 0; i < g->quads * side * side; i++) {
+		const uint32_t quad = i / (side * side);
 		const uint32_t column = quad % g->columns;
 		const uint32_t row = quad / g->columns;
-		const uint32_t x = g->x + column * INDEXED_SIZE + INDEXED_SIZE / 2;
-		const uint32_t y = g->y + row * INDEXED_SIZE + INDEXED_SIZE / 2;
+		const uint32_t x = g->x + column * INDEXED_SIZE + first + i % side;
+		const uint32_t y = g->y + row * INDEXED_SIZE + first + i / side % side;
 		const uint32_t stored = pixels[tiled_index(x, y, WIDTH)];
 		if (colour_near(stored, g->argb[quad]))
 			continue;
 		if (*logged < MAX_INDEXED_LOGGED) {
-			xsdk_log_write("raster: frame %u: the %s quad at column %u, row %u, index %u, held %08X, not %08X",
+			xsdk_log_write(
+				"raster: frame %u: the %s quad at column %u, row %u, index %u, held %08X at (%u, %u), not %08X",
 				(unsigned)frame, g->what, (unsigned)column, (unsigned)row, (unsigned)(quad % INDEXED_INDICES),
-				(unsigned)stored, (unsigned)__builtin_bswap32(g->argb[quad]));
+				(unsigned)stored, (unsigned)x, (unsigned)y, (unsigned)__builtin_bswap32(g->argb[quad]));
 			(*logged)++;
 		}
 		wrong++;
@@ -801,7 +852,7 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 	volatile uint32_t *const *buffers, bool has_display, const Sprites *s, const Indexed *r, const PixelGrids *p)
 {
 	const Grid *const grids[GRIDS] = { r ? &r->grid : NULL, p ? &p->texcoord.grid : NULL,
-		p ? &p->uniform_if.grid : NULL };
+		p ? &p->uniform_if.grid : NULL, p ? &p->slow.grid : NULL };
 	uint32_t quads_checked[GRIDS] = { 0 };
 	uint32_t quads_wrong[GRIDS] = { 0 };
 	uint32_t quads_logged[GRIDS] = { 0 };
@@ -865,7 +916,7 @@ static void draw_frames(const XsdkShader *vertex, const XsdkShader *pixel, uint3
 				if (!grids[g])
 					continue;
 				quads_wrong[g] += grid_wrong(grids[g], buffer, frame, &quads_logged[g]);
-				quads_checked[g] += grids[g]->quads;
+				quads_checked[g] += grids[g]->quads * grid_side(grids[g]) * grid_side(grids[g]);
 			}
 		}
 		if (has_display)
@@ -986,7 +1037,7 @@ static bool make_indexed(Indexed *r)
 	xsdk_gpu_invalidate(r->vertices, INDEXED_VERTICES * STRIDE_BYTES);
 	for (uint32_t quad = 0; quad < INDEXED_QUADS; quad++)
 		r->argb[quad] = indexed_argb(quad % INDEXED_INDICES);
-	r->grid = (Grid){ "indexed", INDEXED_X, INDEXED_Y, INDEXED_COLUMNS, INDEXED_QUADS, r->argb };
+	r->grid = (Grid){ "indexed", INDEXED_X, INDEXED_Y, INDEXED_COLUMNS, INDEXED_QUADS, r->argb, false };
 	return true;
 }
 
@@ -1027,7 +1078,7 @@ static bool make_pixel_grid(PixelGrid *g, const char *name, const char *what, ui
 		return false;
 	g->block = g->compiled.resources[0].reg;
 	g->vertices = vertices;
-	g->grid = (Grid){ what, x, PIXEL_GRID_Y, PIXEL_GRID_COLUMNS, PIXEL_GRID_QUADS, g->argb };
+	g->grid = (Grid){ what, x, PIXEL_GRID_Y, PIXEL_GRID_COLUMNS, PIXEL_GRID_QUADS, g->argb, false };
 	return true;
 }
 
@@ -1098,6 +1149,61 @@ static void make_uniform_if(PixelGrid *g)
 	}
 }
 
+// vk_slow_fetch.frag's quads: each one's class, its index and a half, then how far across the texture, and how many
+// steps of 16 rows down, its corners sample; its colour, its class's.
+static void write_slow_quads(Slow *s)
+{
+	for (uint32_t v = 0; v < SLOW_VERTICES; v++) {
+		const uint32_t quad = v / QUAD_VERTICES;
+		const float *const corner = square[v % QUAD_VERTICES];
+		const uint32_t x = SLOW_X + quad % SLOW_COLUMNS * INDEXED_SIZE + (corner[0] ? INDEXED_SIZE : 0);
+		const uint32_t y = SLOW_Y + quad / SLOW_COLUMNS * INDEXED_SIZE + (corner[1] ? INDEXED_SIZE : 0);
+		const uint32_t across = quad * SLOW_QUAD_COLUMNS + (corner[0] ? INDEXED_SIZE * SLOW_PIXEL_COLUMNS : 0);
+		const uint32_t down = quad * SLOW_QUAD_STEPS + (corner[1] ? INDEXED_SIZE * SLOW_PIXEL_STEPS : 0);
+		const float vertex[PIXEL_VERTEX_FLOATS] = { clip_x(x), clip_y(y), 0.0f, 1.0f, (float)index_i(quad) + 0.5f,
+			(float)across, (float)down, 0.0f };
+		uint32_t words[PIXEL_VERTEX_FLOATS];
+		memcpy(words, vertex, sizeof words);
+		for (uint32_t i = 0; i < PIXEL_VERTEX_FLOATS; i++)
+			s->memory[v * PIXEL_VERTEX_FLOATS + i] = words[i];
+	}
+	for (uint32_t quad = 0; quad < SLOW_QUADS; quad++)
+		s->argb[quad] = indexed_argb(index_i(quad));
+}
+
+// vk_slow_fetch.frag, its texture, each row its class's colour, row mod 16, wrapped, and its quads; false, the grid
+// undrawn, on a failure.
+static bool make_slow(Slow *s)
+{
+	if (!compile_shader("vk_slow_fetch.frag", &s->pixel, &s->compiled, &s->needs, &s->need_count) ||
+		s->compiled.resource_count != 1 || s->compiled.resources[0].kind != XSDK_XSC_SAMPLER ||
+		!NT_SUCCESS(xsdk_texture_create(&s->texture, XSDK_FORMAT_A8R8G8B8, SLOW_SIDE, SLOW_SIDE, 1, true)))
+		return false;
+	uint32_t texels[SLOW_SIDE];
+	for (uint32_t y = 0; y < SLOW_SIDE; y++) {
+		for (uint32_t x = 0; x < SLOW_SIDE; x++)
+			texels[x] = indexed_argb(y % INDEXED_INDICES);
+		xsdk_texture_upload_rows(&s->texture, 0, y, 1, texels, sizeof texels);
+	}
+	xsdk_gpu_invalidate(s->texture.address, s->texture.size_bytes);
+	const XsdkSampler point_wrapped = { .mag_filter = XSDK_FILTER_POINT,
+		.min_filter = XSDK_FILTER_POINT,
+		.mip_filter = XSDK_FILTER_POINT,
+		.address_u = XSDK_ADDRESS_WRAP,
+		.address_v = XSDK_ADDRESS_WRAP };
+	xsdk_texture_sampler_state(&s->sampler, &point_wrapped);
+	s->slot = s->compiled.resources[0].reg;
+	s->memory = xsdk_gpu_alloc(SLOW_VERTICES * PIXEL_STRIDE_BYTES);
+	if (!s->memory)
+		return false;
+	write_slow_quads(s);
+	__asm__ volatile("sync" ::: "memory");
+	s->vertices = xsdk_gpu_address(s->memory);
+	xsdk_gpu_invalidate(s->vertices, SLOW_VERTICES * PIXEL_STRIDE_BYTES);
+	s->grid = (Grid){ "slow fetch", SLOW_X, SLOW_Y, SLOW_COLUMNS, SLOW_QUADS, s->argb, true };
+	return true;
+}
+
 // triangle_vertex_shader for a position and the indices, both grids' quads, and the grids; false, the grids undrawn,
 // on a failure.
 static bool make_pixel_grids(PixelGrids *p)
@@ -1121,7 +1227,7 @@ static bool make_pixel_grids(PixelGrids *p)
 	xsdk_gpu_invalidate(address, 2 * grid_bytes);
 	if (!make_pixel_grid(&p->texcoord, "vk_dynamic_texcoord.frag", "texcoord", TEXCOORD_X, address) ||
 		!make_pixel_grid(&p->uniform_if, "vk_dynamic_if.frag", "uniform if", UNIFORM_IF_X, address + grid_bytes) ||
-		!make_texcoord(p))
+		!make_texcoord(p) || !make_slow(&p->slow))
 		return false;
 	make_uniform_if(&p->uniform_if);
 	return true;
@@ -1173,13 +1279,20 @@ void test_raster(void)
 	check("raster: xost compiles and xsdk loads vk_dynamic_interpolator.vert on the console", indexed_made);
 	PixelGrids grids = { .vertex = { .microcode = NULL } };
 	const bool grids_made = make_pixel_grids(&grids);
-	check("raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag and vk_dynamic_if.frag on the console",
+	check(
+		"raster: xost compiles and xsdk loads vk_dynamic_texcoord.frag, vk_dynamic_if.frag and vk_slow_fetch.frag on "
+		"the console",
 		grids_made);
 	// Without a display, as in Xenia, the frames still draw and are checked.
 	if (patched && vertices && buffers[0] && buffers[1])
 		draw_frames(&vertex, &pixel, xsdk_gpu_address(vertices), buffers, has_display,
 			sprites_made ? &sprite_state : NULL, indexed_made ? &indexed : NULL, grids_made ? &grids : NULL);
 	xsdk_display_close();
+	xsdk_texture_free(&grids.slow.texture);
+	if (grids.slow.memory)
+		xsdk_gpu_free(grids.slow.memory);
+	if (grids.slow.pixel.microcode)
+		xsdk_shader_free(&grids.slow.pixel);
 	xsdk_texture_free(&grids.texture);
 	xsdk_gpu_free(grids.memory);
 	if (grids.uniform_if.pixel.microcode)
@@ -1202,6 +1315,7 @@ void test_raster(void)
 	xsdk_xsc_free(&sprite_state.pixel_compiled);
 	xsdk_xsc_free(&sprite_state.vertex_compiled);
 	xsdk_xsc_free(&indexed.compiled);
+	xsdk_xsc_free(&grids.slow.compiled);
 	xsdk_xsc_free(&grids.uniform_if.compiled);
 	xsdk_xsc_free(&grids.texcoord.compiled);
 	for (uint32_t i = 0; i < BUFFERS; i++)

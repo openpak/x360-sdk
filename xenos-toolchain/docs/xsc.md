@@ -304,13 +304,18 @@ after every `a0` load before it, and a load after every read and load before
 it (xsdk:docs/HARDWARE.md, "a0 through fetch grouping";
 `tests/test_dynamic_index.py`).
 
-Within an exec the ALU and the fetches run apart on the console, so the
-builder sets an instruction's serialize bit where it reads across them: an
-ALU instruction reading or writing a temp a fetch in its exec wrote since the
-exec's last serialized instruction, and a fetch reading one any instruction
-wrote there (`xsdk:src/xsc_program.c`, exec_entry; xsdk:docs/HARDWARE.md,
-"Serialized fetches"; a fetch after a fetch, see Vertex textures). Unserialized,
-the ALU read a fetched index too soon. `tests/test_dependent_fetch.py` checks it.
+The ALU and the fetches run apart on the console, and an exec boundary
+doesn't make one wait for the other, so the builder sets an instruction's
+serialize bit where it reads across them: an ALU instruction reading or
+writing a temp a fetch wrote since the last serialized instruction, in any
+exec, and a fetch reading one any instruction wrote (`xsdk:src/xsc_program.c`,
+exec_entry and control_flow; xsdk:docs/HARDWARE.md, "Serialized fetches" and
+"Slow fetches across execs"; a fetch after a fetch, see Vertex textures). A
+loop's body starts with what any instruction in it writes marked, what was
+marked before a loop stays marked past it, and code on the predicate may not
+run, so what was marked before it stays marked after it. Unserialized, the
+ALU read a fetched index too soon in the fetch's exec, and a slow fetch's
+result in a later one. `tests/test_dependent_fetch.py` checks it.
 
 ## Loops (unrolling + mem2reg)
 
@@ -523,9 +528,9 @@ pixel shader's does.
 - Samplers take fetch constants from 0 in each stage, so a host using both moves one stage's: xsdk's
   `xsdk_shader_move_textures` adds a base to each texture fetch's constant.
 - Two precautions, neither checked on the console: an exec's vertex cache mask ("A fifth vertex fetch") covers its
-  vertex fetches, which lead it, and none of its texture fetches; and a fetch reading a temp another fetch wrote in its
-  exec is serialized, as a texture fetch at an attribute's coordinate is. No shader in Dusklight's pack, xsc's testdata
-  or vulkan4xenon's bundles lowers differently for either.
+  vertex fetches, which lead it, and none of its texture fetches; and a fetch reading a temp another fetch wrote, in its
+  exec or an earlier one, is serialized, as a texture fetch at an attribute's coordinate is. No shader in Dusklight's
+  pack, xsc's testdata or vulkan4xenon's bundles lowers differently for either.
 
 `tests/test_vertex_textures.py` checks the fields, the mask and the serialize bit, and the simulator's height and
 colour.

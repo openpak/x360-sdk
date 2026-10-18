@@ -5,7 +5,9 @@ Compiles the two canonical test shaders from SPIR-V through xsc.lower and
 checks them against the hardware-proven hand-built equivalents:
   - modulate.frag must be BYTE-IDENTICAL to the modulate combiner
     (the demo bank's first mode, tests/test_xcomb_parity.py) — already
-    photographed on console.
+    photographed on console — but for the serialize bit on its read of the
+    texel, in the exec after the fetch, which xost sets and xasm's builder
+    doesn't (xsdk:docs/HARDWARE.md, "Slow fetches across execs").
   - spincube.vert must be oracle-equivalent to xost_vs2, the hand-built
     shader in xost's archived examples (XenosRecomp accepts it and emits the
     mvp dp4 transform + passthrough interpolators).
@@ -26,10 +28,21 @@ import xdis.container as container  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
 
 TD = ROOT / "xsc" / "testdata"
+# The second of each instruction's two bits in an exec's sequence, serialize (xenia:src/xenia/gpu/ucode.h:231).
+SERIALIZE_BITS = 0xAAA << 16
 RECOMP = (ROOT / "reference" / "XenosRecomp" / "build" / "XenosRecomp" /
           "XenosRecomp.exe")
 SHADER_COMMON = (ROOT / "reference" / "XenosRecomp" / "XenosRecomp" /
                  "shader_common.h")
+
+
+def but_serialize(blob):
+    """The container outside its microcode, and each instruction's words, an exec's without its serialize bits."""
+    c = container.Container(blob)
+    start = c.offset + c.sh_off
+    words = [(r.raw[0] & ~SERIALIZE_BITS,) + tuple(r.raw[1:]) if isinstance(r.detail, xu.ParsedExecInstruction)
+             else tuple(r.raw) for r in xu._decode_program(c.ucode_dwords, c.shader_type)[0]]
+    return blob[:start] + blob[start + c.sh_size:], words
 
 
 def found(needle, text):
@@ -176,8 +189,8 @@ def main():
     frag = compile_glsl("modulate.frag")
     gold = Generator(alu_template=templates.mov(), tfetch_template=templates.texture_fetch()).generate(
         CombinerCycle(Src.TEXEL0, Src.ZERO, Src.SHADE, Src.ZERO))
-    if frag == gold:
-        print(f"  PASS modulate.frag byte-identical to combiner ({len(frag)} B)")
+    if but_serialize(frag) == but_serialize(gold):
+        print(f"  PASS modulate.frag byte-identical to combiner but for the serialize bits ({len(frag)} B)")
     else:
         ok = False
         print(f"  FAIL modulate.frag: {len(frag)} B vs combiner {len(gold)} B")

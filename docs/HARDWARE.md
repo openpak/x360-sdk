@@ -2913,12 +2913,15 @@ the variants in `variants.txt`, each the conversion's target dumped from memory.
   `variants_b_fetches_serialized.png`): no change. The fragment's push constants read right (set b's V0, grey), and so
   did a fetch at coordinates the ALU worked out from them (V2); the conversion with its scale as literals didn't (V1).
 - **So the ALU read the index too soon.** In each program that drew right, an ALU instruction read a fetch's result in
-  a later exec, as the grey variant's does and as a vertex shader reads its vertex fetches.
-- **xost now** (src/xsc_program.c, exec_entry) serializes an ALU instruction that reads or writes a temp a fetch in its
-  exec wrote since the exec's last serialized instruction, and a fetch that reads a temp the ALU wrote there
-  (`palette_serialized.txt`). All four of set b drew right (`variants_b_serialized.png`), the conversion among them, and
-  Ordon's minimap draws as on the PC (vulkan4xenon's `results/2026-10-15-milestone-14/`). The fetch's half is a
-  precaution, not tried without: V2's fetch was serialized and drew right.
+  a later exec, as the grey variant's does and as a vertex shader reads its vertex fetches. That the exec boundary was
+  the wait was wrong: a slow fetch's result read in the next exec came too soon as well ("Slow fetches across execs",
+  2026-10-17).
+- **xost then** (src/xsc_program.c, exec_entry) serialized an ALU instruction that read or wrote a temp a fetch in its
+  exec wrote since the exec's last serialized instruction, and a fetch that read a temp the ALU wrote there
+  (`palette_serialized.txt`); it now does so across execs ("Slow fetches across execs"). All four of set b drew right
+  (`variants_b_serialized.png`), the conversion among them, and Ordon's minimap draws as on the PC (vulkan4xenon's
+  `results/2026-10-15-milestone-14/`). The fetch's half is a precaution, not tried without: V2's fetch was serialized
+  and drew right.
 - **What it changes:** 2 of the 145 programs in Dusklight's pack (`820f98f280587ea8.frag`, `ca44599827bbdb23.frag`),
   besides the conversion's two. The logo shot took 17.6 ms of GPU time a frame as before, its end frame the same byte
   for byte (`dusklight_logo.log`). xsdk_test passed 300 of 300, vulkan4xenon_test 100 of 100 and vkbench 14 of 14, its
@@ -3788,7 +3791,8 @@ What it leaves out:
 - **3 pictures that never repeat.** `1510c05add37f2b3.frag`, `29fab4bb2516d607.frag` and `2eefbbd89e53921c.frag` hash
   differently in every run, the baseline's two as well, so each step's pictures are compared on the other 100. All
   three sample at coordinates offset by another texture's texel times 255, GX's indirect texturing, so the coordinates
-  run into the thousands. Two other shaders that do the same repeat; why these three don't isn't known.
+  run into the thousands. Two other shaders that do the same repeat; why these three don't was found after the
+  milestone ("Slow fetches across execs", below).
 - **Interpolators a pixel shader doesn't read.** Each pixel shader is drawn with one past its highest input Location.
   The probe's first run drew all 16 for every shader, and every pixel shader up to 45 ALU instructions then took about
   1,852 us, a pixel a clock: interpolating 64 components a pixel set the pace, and hid what their code cost.
@@ -3835,3 +3839,51 @@ Each shader's time summed, against the baseline as each shader's better time in 
 
 The milestone also found that a0 doesn't survive an alloc ("a0 doesn't survive an alloc", above), which had lit
 Dusklight's skinned models from the wrong rows before it and at its step 4.
+
+## Slow fetches across execs (2026-10-17)
+
+"Serialized fetches" (2026-10-15) took an exec boundary for a wait, as every program that drew right read a fetch's
+result in a later exec. It isn't one: a slow fetch's result read in the next exec came too soon, and only the
+serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
+- **What showed it.** `1510c05add37f2b3.frag`, `29fab4bb2516d607.frag` and `2eefbbd89e53921c.frag`, the three of
+  Dusklight's pixel shaders that drew a different picture in every run of `tests/probe_shader_cost.c` (milestone 45,
+  "3 pictures that never repeat"). Each does GX's indirect texturing, a texel times 255 offsetting another fetch's
+  coordinates into the thousands, and each reads its first fetch's result in the exec after it, unserialized. The two
+  indirect-texturing shaders that repeated, `820f98f280587ea8.frag` and `ca44599827bbdb23.frag`, read it in the fetch's
+  own exec, which the 2026-10-15 rule serialized.
+- **The experiment.** xost with what fetches wrote tracked for the whole program, not reset at each exec, and cleared
+  only by a serialized instruction. 140 of the pack's 150 programs changed, each only in its serialize bits. In two
+  runs of `probe_shader_cost` (`probe_shader_cost_1.log`, `probe_shader_cost_2.log`) the three drew the same picture
+  both times, `BE5FB0A3`, `5FB6B0A3` and `891EC12B`, and the other 100 drew the pictures milestone 45 ended with
+  (`results/2026-10-17-milestone-45/probe_together.log`).
+- **What it costs.** A draw of each pixel shader took 65,487 and 65,498 us against milestone 45's 62,913, 4.1% more;
+  each vertex shader 13,355 and 13,386 us against 13,349, within the 0.46% a shader moves between runs. 19 pixel
+  shaders take more than 5 us longer, most of all `b4a8c01218dcffe9.frag` (+38%), `b40238367bc2ae70.frag` (+35%) and
+  `6dd3a70373df59bf.frag` (+31%): in each the fog table's fetch, at coordinates the ALU works out in the exec before,
+  is serialized after three fetches that need nothing, so it waits for them too.
+- **xost now** (`exec_entry` and `control_flow`, `src/xsc_program.c`) serializes an ALU instruction that reads or
+  writes a temp a fetch wrote since the last serialized instruction, in any exec, and a fetch that reads a temp any
+  instruction wrote. A loop's body starts with what any instruction in it writes marked, as a pass reads what the pass
+  before wrote, and what was marked before a loop stays marked past it, as a loop may run no times. Code on the
+  predicate, an exec on it or one whose instructions are, may not run, so what was marked before it stays marked after
+  it. Dusklight's pack compiles byte for byte as in the experiment: 93 of its pixel shaders and all 47 vertex shaders
+  change, serialized ALU instructions 4 to 100 and 0 to 47, serialized fetches 5 to 36 and 0 to 0.
+- **Vertex shaders keep the rule.** Every one so far drew right with its vertex fetches read unserialized in a later
+  exec, but a vertex fetch reads memory as a texture fetch does and can miss a cache too, and the first instruction
+  reading one waiting cost nothing measurable. The vertex cache mask ("A fifth vertex fetch") depends only on how many
+  vertex fetches an exec holds, which this doesn't change.
+- **Checks.** `tests/test_dependent_fetch.py` runs the rule over each program's control flow, loops and code on the
+  predicate as paths, and wants no instruction it needs left unserialized, over xost's testdata and hand-built
+  programs: a fetch's result read in a later exec, a serialized instruction in between, a loop, arms on the predicate.
+  With what fetches wrote reset at each exec, with a loop's writes left unmarked, with what was marked before a loop
+  dropped past it, or with an arm's serialized instruction taken as a wait for the other arm, it fails. xsdk_test's
+  raster test compiles xost's `vk_slow_fetch.frag` on the console and draws it over 128 quads 10 pixels square, every
+  pixel of every frame checked: two fetches far across a 1024 by 1024 texture, each pixel's 37 columns and 48 rows
+  from its neighbours', so in a tile of its own, read in the next exec by the work that picks the row a third fetch
+  reads. Each of the texture's rows holds row mod 16's colour, so a pixel's colour is its quad's whatever column it
+  samples.
+- **Not known.** In milestone 45's binaries of the pack, the three were the only programs with an ALU instruction
+  reading a fetch's result, unserialized, with no alloc between: every such read in the other 137 programs came past
+  one, and xost's allocs have Xenia's `is_unserialized` clear (xenia:src/xenia/gpu/ucode.h:488). Whether a serialized
+  alloc waits for the fetches before it wasn't tried. Nor was whether a fetch must wait for the ALU's results from an
+  earlier exec: 28 pixel shaders read them unserialized, and 25 of those drew the same pictures every run.

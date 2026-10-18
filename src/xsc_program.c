@@ -397,15 +397,14 @@ static bool any_written(const uint8_t written[XSC_TEMPS], const int64_t *temps, 
 	return false;
 }
 
-// Within an exec the ALU and the fetches run apart, and an instruction waits for the other's results only when
-// serialized: an ALU instruction that reads, or writes, a temp a fetch in the exec wrote since its last serialized
-// instruction, and a fetch that reads one the ALU wrote. Unserialized, the console's ALU read a fetched index before
-// the fetch had written it; the next exec found it written (docs/HARDWARE.md, "Serialized fetches"). A fetch reading
-// what another fetch wrote, as a vertex shader's texture fetch may, is serialized too, unchecked. A serialized
-// instruction waits for everything before it, so it clears what's tracked.
-static CfEntry exec_entry(const XscProgram *p, const XscStage *stage, const Chunk *chunk, bool last)
+// The ALU and the fetches run apart, and an instruction waits for the other's results only when serialized, for
+// everything before it; an exec boundary is no wait (docs/HARDWARE.md, "Slow fetches across execs"). So an ALU
+// instruction that reads or writes a temp a fetch wrote since the last serialized instruction, in any exec, is
+// serialized, and so is a fetch that reads one anything wrote, a fetch's unchecked; and a serialized one clears
+// written.
+static CfEntry exec_entry(
+	const XscProgram *p, const XscStage *stage, const Chunk *chunk, bool last, uint8_t written[XSC_TEMPS])
 {
-	uint8_t written[XSC_TEMPS] = { 0 };
 	int64_t seq = 0;
 	int vertex_fetches = 0;
 	bool pred_clean = true;
@@ -450,6 +449,29 @@ static CfEntry exec_entry(const XscProgram *p, const XscStage *stage, const Chun
 		.pred_clean = pred_clean };
 }
 
+// Marks what any op of a loop writes, as a pass may read what the pass before wrote after its last serialized op.
+static void loop_writes(const XscProgram *p, const XscLoop *loop, uint8_t written[XSC_TEMPS])
+{
+	for (size_t si = loop->start; si < loop->end; si++) {
+		for (size_t i = 0; i < p->stages[si].count; i++) {
+			const XscOp *const op = p->stages[si].ops[i];
+			int64_t defs[MAX_DEFS], uses[MAX_USES];
+			size_t def_count, use_count;
+			defs_uses(p, op, defs, &def_count, uses, &use_count);
+			for (size_t d = 0; d < def_count; d++) {
+				if (defs[d] >= 0 && defs[d] < XSC_TEMPS)
+					written[defs[d]] |= op->is_fetch ? XSC_WRITTEN_FETCH : XSC_WRITTEN_ALU;
+			}
+		}
+	}
+}
+
+static void merge_written(uint8_t written[XSC_TEMPS], const uint8_t other[XSC_TEMPS])
+{
+	for (size_t t = 0; t < XSC_TEMPS; t++)
+		written[t] |= other[t];
+}
+
 // The control flow entries, loop addresses patched once their indices are known.
 static bool control_flow(Xsc *x, const XscProgram *p, CfEntry **cf, size_t *cf_count)
 {
@@ -466,11 +488,16 @@ static bool control_flow(Xsc *x, const XscProgram *p, CfEntry **cf, size_t *cf_c
 	if (last_stage != SIZE_MAX && p->stages[last_stage].predicate != XSC_PREDICATE_NONE)
 		return xsdk_xsc_fail(x, XSDK_XSC_MALFORMED, "a program ending in a predicated exec");
 	int64_t *const open = xsdk_xsc_alloc(x, (p->loop_count + 1) * sizeof *open);
-	if (!open)
+	// What was written before each loop, which a loop run no times leaves as it was.
+	uint8_t (*const before)[XSC_TEMPS] = xsdk_xsc_alloc(x, (p->loop_count + 1) * sizeof *before);
+	if (!open || !before)
 		return false;
+	uint8_t written[XSC_TEMPS] = { 0 };
 	for (size_t si = 0; si < p->stage_count; si++) {
 		for (size_t l = 0; l < p->loop_count; l++) {
 			if (p->loops[l].start == si) {
+				memcpy(before[l], written, XSC_TEMPS);
+				loop_writes(p, &p->loops[l], written);
 				open[l] = (int64_t)*cf_count;
 				if (!add_cf(x, cf, cf_count, &capacity,
 						(CfEntry){ .type = CF_LOOP_START, .loop_id = p->loops[l].loop_id, .skip = XSC_NONE }))
@@ -483,9 +510,14 @@ static bool control_flow(Xsc *x, const XscProgram *p, CfEntry **cf, size_t *cf_c
 			return false;
 		const size_t n = exec_chunks(p, stage, chunks);
 		for (size_t ci = 0; ci < n; ci++) {
+			// Code on the predicate may not run, so what it serializes may not wait.
+			uint8_t skipped[XSC_TEMPS];
+			memcpy(skipped, written, XSC_TEMPS);
 			if (!add_cf(x, cf, cf_count, &capacity,
-					exec_entry(p, stage, &chunks[ci], si == last_stage && ci == last_chunk)))
+					exec_entry(p, stage, &chunks[ci], si == last_stage && ci == last_chunk, written)))
 				return false;
+			if (stage->predicate != XSC_PREDICATE_NONE)
+				merge_written(written, skipped);
 		}
 		if (stage->alloc_after != XSC_NONE &&
 			!add_cf(x, cf, cf_count, &capacity, (CfEntry){ .type = CF_ALLOC, .alloc_type = stage->alloc_after }))
@@ -502,6 +534,7 @@ static bool control_flow(Xsc *x, const XscProgram *p, CfEntry **cf, size_t *cf_c
 						.cond = p->loops[l].break_condition }))
 				return false;
 			(*cf)[open[l]].skip = le + 1;
+			merge_written(written, before[l]);
 		}
 	}
 	return true;
