@@ -33,6 +33,10 @@ layer that drives Xenos directly. Scope, sources and milestones are in SCOPE.md.
   (xenia:src/xenia/gpu/graphics_system.cc:181-205), so the performance counter that times fence waits never counts,
   and the check that a wait returns soon after its fence fails there, as do the checks that the GPU's clock counts and that leaving a hardware loop early costs nothing. Its `NetDll_XNetDnsLookup` is a stub
   (xenia:src/xenia/kernel/xam/xam_net.cc:542-560), so the check that `getaddrinfo` looks a name up fails there too.
+  Its shaders run their control flow as one loop on the address (xenia:src/xenia/gpu/spirv_shader_translator.cc:567-614)
+  and leave a hardware loop pixel by pixel (spirv_shader_translator.cc:986-1002), so a quad's pixels that leave a loop
+  at different passes run what follows apart, and the raster check of samples in loops' passes, whose second loop takes
+  a derivative and the GPU's LOD, fails there in blue.
 - Xenia skips instructions it doesn't implement, silently (xenia:src/xenia/cpu/ppc/ppc_emit_*.cc,
   `XEINSTRNOTIMPLEMENTED`). GCC emits some of them: `mcrf`, rare now that the toolchain reserves CR2-CR7, and `rldic`
   under `-mpowerpc64`. Each link runs `tools/xenia_scan.py`, which lists such instructions by function; treat any Xenia

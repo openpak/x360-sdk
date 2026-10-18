@@ -4150,3 +4150,40 @@ replaces step 4's skipped passes, which ran n passes and stopped at 255 of n rat
   scene's four colour checks and nothing else.
 - **Nothing else moved:** every loop from 0 by 1 compiles as before, and Dusklight's pack is the same but for the two
   fields each resource gained. vkbench passed 14 of 14, and Dusklight's title scene ran at its frame rates before.
+
+## Samples in a loop's pass, milestone 46 step 6 (2026-10-18)
+
+xost lowers a sample or derivative of what a hardware loop's pass works out inside the pass, after its inputs, its
+fetches serialized and grouped there as elsewhere, a setter run whole (src/xsc_lower.c, `mark_pass_work`). Logs:
+`results/2026-10-18-milestone-46-step-6/`.
+- **A LOD from register gradients is one per 2x2 quad.** A fetch at the gradients `setGradientH` and `setGradientV` set
+  takes its LOD from its quad's first pixel inside the triangle drawn, top left, top right, bottom left then bottom
+  right, not each pixel's own; a LOD `setTexLOD` sets is each pixel's own. The first grid,
+  `vk_loop_sample_grid_first.frag`, sampled at gradients that differed within a quad, and got 148,680 of 283,200
+  pixels wrong, the same in every frame of two runs. Its model with this rule and the next, `first_grid_model.py`, gives
+  every pixel of a frame as the console drew it, 0 of 4,800 unlike; without either, 1,200 or 1,888. In a gated loop a
+  pixel that left holds its counter, so gradients worked out from it go on steering its quad's LOD.
+  - xost keeps the hardware's rule. Gradients the same across a quad take the same LOD either way, as derivatives of
+    a value linear across the quad are, parallax occlusion's among them; a LOD per pixel would mean working it out in
+    the ALU from the texture's size through `setTexLOD`, losing anisotropic filtering. Whether the console's
+    derivatives are a quad's or a row's is still unknown: the grid's are of linear values, alike either way.
+- **rcp lands a hair under a third and a fifth.** `mod(x, 3.0)` at x = 3 and `mod(x, 5.0)` at 5, 10 and 15, which xost
+  works out as x - y * floor(x * rcp(y)), gave y, not 0. GLSL's precision for a division allows it; xost keeps it, and
+  the tests take such a mod of a value half past a whole.
+- **Every pixel took its samples in its passes.** xsdk_test's raster grid, `vk_loop_sample_grid.frag` compiled on the
+  console, 48 cells of 10 by 10 pixels: a march along a height map left at the pass the height it samples reaches its
+  ray, so a group's pixels leave apart, sampling a mip chain of flat levels at a LOD each pixel and pass gives and at
+  gradients the same across a quad, and reading a tint at the counter through a0; then a loop whose passes are the
+  same across a quad, sampling at gradients each pass works out, at the GPU's LOD, and taking a derivative: 0 of
+  283,200 pixels wrong over 59 frames. The console's compiles of it, `vk_loop_sample_lod.frag`,
+  `vk_loop_sample_grad.frag`, `vk_loop_sample_computed.frag`, `vk_loop_derivative.frag`, `vk_loop_parallax.frag` and
+  `vk_vertex_loop_sample.vert` matched the PC's.
+- **A scalar input is spread over its register before it's read.** Its interpolant or attribute fills x alone, and
+  xost had read the whole register, so a loop counted by `int(v_count)` gated each component on its own lane; the
+  console's compiles of `vk_scalar_input_loop.frag`, `vk_scalar_input.frag` and `vk_vertex_scalar_input.vert` matched
+  the PC's.
+- **Break build:** samples in a pass gathered before the loop got all 283,200 pixels wrong, and the seven shaders
+  sampling in a pass compiled unlike the PC's.
+- **Nothing else moved:** of milestone 45's corpus, only step 6's new shaders and three vertex shaders reading `int()`
+  of a float attribute, one copy longer each, compile differently; Dusklight's pack is the same. vulkan4xenon_test
+  passed 455 of 455 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.

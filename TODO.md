@@ -54,11 +54,10 @@ work begins.
 
 ## Toolchain
 
-- **xost's hardware loops, past vulkan4xenon milestone 21** (xenos-toolchain/docs/xsc.md, "Loops a block counts"). A
-  break on data needs each vertex or pixel that broke to stop changing what the loop carries, as LOOP_END breaks only
-  when all 64 agree (xenia:src/xenia/gpu/ucode.h:372-373): a flag each pass's values are selected by would do. Also
-  unbuilt: `continue`, a loop a block counts inside another loop or an if/else on data, and a sample at coordinates
-  a pass works out.
+- **A bare scalar uniform on xost's OpenGL path is read as its whole register,** as scalar inputs were until milestone
+  46 step 6 (docs/HARDWARE.md, "Samples in a loop's pass, milestone 46 step 6"). It's right where the runtime fills
+  the register's four components alike; whether every runtime does, and so whether any program reads one wrongly,
+  isn't checked.
 - **Vulkan command recording 10-12% slower since the calling-convention switch** (milestone 22, docs/HARDWARE.md,
   "The switch to the console's calling convention"). vkbench on the console (vulkan4xenon
   results/2026-10-12-mcall-xsdk/, against 2026-10-11-milestone-8-reverted, scaled for the clock fix): the layer's
@@ -203,3 +202,11 @@ it removes.
 - **Texture fetches in vertex shaders** (vulkan4xenon milestone 22's step 3): whether an exec's vertex cache bits
   should mark them, as xost gives them none, and whether a fetch reading what another fetch wrote in its exec needs
   its serialize bit, which xost now sets (xenos-toolchain/docs/xsc.md, "Vertex textures").
+- **A pixel shader's fetches skip the pixels that only fill out a quad.** xost sets every pixel shader texture fetch's
+  FetchValidOnly bit (src/xsc_lower_sample.c, `fetch_valid_only`), so a pixel outside the triangle in a quad along its
+  edge doesn't fetch. A sample at coordinates another sample gives, at the GPU's LOD, may then take its gradients from
+  such a pixel's stale register and the wrong level along triangle edges. What the bit does to them on the console,
+  and what clearing it costs, a probe would show.
+- **Whether a derivative is a quad's or a row's.** `getGradients` and the GPU's LOD may difference a 2x2 quad's top
+  row and left column or each pixel's own row and column; milestone 46 step 6's grid takes derivatives of values
+  linear across a quad, alike either way (docs/HARDWARE.md, "Samples in a loop's pass, milestone 46 step 6").
