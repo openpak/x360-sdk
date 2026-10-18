@@ -373,12 +373,14 @@ on data runs both arms each pass and merges them (Control flow).
 ### Loops a block counts
 
 A Vulkan shader has no bare uniforms, so the shape above never comes from one;
-its loops count to an int in a push constant or uniform block. The unroller
-(`xsdk:src/xsc_unroll.c`) keeps such a loop, `for (int i = 0; i < b.n; i++)`
-(or `b.n > i`), stepping `i++` in its continue block, for a hardware loop: it
-walks the pass once, each local and whole output the loop stores and held a
-value of before it carried as a value at the top of the pass, and a value after
-the loop. The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
+its loops count to an int in a push constant or uniform block, or to data. The
+unroller (`xsdk:src/xsc_unroll.c`) keeps such a loop,
+`for (int i = 0; i < b.n; i++)` (or `b.n > i`), stepping `i++` in its continue
+block, for a hardware loop: it walks the pass once, each local and whole output
+the loop stores and held a value of before it carried as a value at the top of
+the pass, and a value after the loop. A loop whose count is data, or one `b.n`
+counts from past 0 or by past 1, is kept too (xsdk:docs/scope/46-loops.md,
+step 4). The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
 
 - each carried value's register from its value on entry, then LOOP_START;
 - the pass worked out from the registers, what it reads from before the loop
@@ -411,9 +413,9 @@ to that many passes, from aL 0 by 1, none for 0 or less; the constant counts to
 `loop i0` ran 0, 1 and 3 passes as loop constant 0 said (xsdk:docs/HARDWARE.md,
 "Shader constants: partial writes hang the GPU, libxenon's whole blocks
 don't"). A vertex shader's loops take loop constants from 0 and a pixel
-shader's from 16, 16 each: both stages read all 32 (ucode.h:352), and libxenon
-gives each stage half of the boolean constants the same way
-(libxenon:drivers/xenos/xe.c:2038-2064). The optimiser leaves a
+shader's from 16, 16 each, one for each count: both stages read all 32
+(ucode.h:352), and libxenon gives each stage half of the boolean constants the
+same way (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser leaves a
 program with a loop alone, as before. Refused: a loop counted by a block inside
 another loop or an if/else on data, a `discard` or `return` in it, a store into
 part of an output in the loop, and a sample or derivative at coordinates a pass
