@@ -1583,21 +1583,25 @@ static uint32_t level_grey(uint32_t level)
 }
 
 // vk_loop_sample_grid.frag's colour at a column and row of its cell, as tests/test_loop_samples.py works it out: the
-// march, left where the height it samples reaches the ray, adds the levels at its LOD and gradients and the tint at its
-// counter, its counter after it adds to red, and the second loop adds the computed LOD's level and the derivative.
+// march, left where the height it samples reaches the ray, adds the levels at the pixel's LOD and its quad's gradients
+// and the tint at its counter, its counter after it adds to red, and the second loop adds the levels at the pass's
+// gradients and computed LOD, and the derivative.
 static uint32_t sample_argb(uint32_t column, uint32_t row)
 {
 	float sum[3] = { 0.0f, 0.0f, 0.0f };
+	const uint32_t quad_x = column / 2;
+	const uint32_t quad_y = row / 2;
 	const uint32_t start = column + 2 * row;
 	uint32_t i = 0;
 	for (; i < 4 + (column + row) % 5; i++) {
 		if ((float)(32 * height_of(start + i) + 16) / 255.0f >= 1.0f - (float)(i + 1) * 0.125f)
 			break;
 		sum[0] += (float)level_grey((i + column + row) % 4) / 255.0f * 0.0625f;
-		sum[1] += (float)level_grey((i + column) % 4) / 255.0f * 0.0625f + 3.0f * (float)(i + 1) / 255.0f;
+		sum[1] += (float)level_grey((quad_x + quad_y) % 4) / 255.0f * 0.0625f + 3.0f * (float)(i + 1) / 255.0f;
 	}
-	for (uint32_t k = 0; k < row / 2 % 3 + 2; k++) {
-		const uint32_t n = (k + column / 2) % 4;
+	for (uint32_t k = 0; k < quad_y % 3 + 2; k++) {
+		sum[0] += (float)level_grey((k + quad_y) % 4) / 255.0f * 0.0625f;
+		const uint32_t n = (k + quad_x) % 4;
 		sum[2] += (float)level_grey(n) / 255.0f * 0.125f + (float)(1u << n) / LEVELS_SIDE * 2.0f;
 	}
 	return 0xFF000000 | to_byte(sum[0] + (float)i * 0.03125f) << 16 | to_byte(sum[1]) << 8 | to_byte(sum[2]);

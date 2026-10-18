@@ -24,8 +24,9 @@ pixels take the same passes, as GLSL leaves an implicit LOD and a derivative und
 - vk_vertex_loop_sample.vert: a vertex shader's textureLod at coordinates and a LOD the pass works out, left on what it
   samples.
 - vk_loop_sample_grid.frag: xsdk_test's raster grid, every place in a 10-pixel cell: a march along a height map read
-  at a LOD of 0, left at each pixel's own pass, textureLod and textureGrad in it and a tint read at the loop's counter
-  through a0; then a loop whose count is the same across a quad, with texture() at the computed LOD and a dFdx. The
+  at a LOD of 0, left at each pixel's own pass, textureLod at a LOD of the pixel's and the pass's, textureGrad at
+  gradients the same across a quad, and a tint read at the loop's counter through a0; then a loop whose count is the
+  same across a quad, with textureGrad at gradients the pass works out, texture() at the computed LOD and a dFdx. The
   mip chain's levels are flat, so a LOD shows as a colour.
 """
 import math
@@ -264,15 +265,17 @@ def level_value(n):
 def grid(column, row):
     """vk_loop_sample_grid.frag's colour at a place in its cell."""
     red = green = blue = 0.0
+    qx, qy = column // 2, row // 2
     start, i = column + 2 * row, 0
     while i < 4 + (column + row) % 5:
-        if (32 * HEIGHTS[min(start + i, 63)] + 16) / 255.0 >= 1.0 - (i + 1) * 0.125:
+        if (32 * HEIGHTS[start + i] + 16) / 255.0 >= 1.0 - (i + 1) * 0.125:
             break
         red += level_value((i + column + row) % 4) * 0.0625
-        green += level_value((i + column) % 4) * 0.0625 + TINTS[i]
+        green += level_value((qx + qy) % 4) * 0.0625 + TINTS[i]
         i += 1
-    for k in range(row // 2 % 3 + 2):
-        n = (k + column // 2) % 4
+    for k in range(qy % 3 + 2):
+        red += level_value((k + qy) % 4) * 0.0625
+        n = (k + qx) % 4
         blue += level_value(n) * 0.125 + 2.0 ** n / LEVELS_SIDE * 2.0
     return [red + i * 0.03125, green, blue, 1.0]
 
@@ -290,7 +293,7 @@ def check_grid(optimize, tag):
 
     def sample(slot, coordinates, lod):
         if slot == heights:
-            return [(32 * HEIGHTS[min(int(coordinates[0] * 64.0), 63)] + 16) / 255.0, 0.0, 0.0, 1.0]
+            return [(32 * HEIGHTS[int(coordinates[0] * 64.0)] + 16) / 255.0, 0.0, 0.0, 1.0]
         return [level_value(min(max(level(lod, LEVELS_SIDE), 0), 7))] * 3 + [1.0]
 
     check_models(f"{name}, every place in a cell, {tag}", blob, lanes, constants, {PIXEL_LOOP: MAX_PASSES},
@@ -304,7 +307,7 @@ def main():
     check_shape("vk_loop_derivative.frag", (2, 0))
     check_shape("vk_loop_parallax.frag", (3, 2))
     check_shape("vk_vertex_loop_sample.vert", (2, 0))
-    check_shape("vk_loop_sample_grid.frag", (8, 0))
+    check_shape("vk_loop_sample_grid.frag", (11, 0))
     for optimize in (False, True):
         tag = f"optimiser {'on' if optimize else 'off'}"
         check_lod(optimize, tag)
