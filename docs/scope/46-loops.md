@@ -111,7 +111,10 @@ per pixel. LOOP_END's predicated break is used only to leave early, once no pixe
   - **A new need,** `XSDK_XSC_FIXED_LOOP` (the loop constant in `reg`, the count in `regs`). A runtime writes it with
     `xsdk_gpu_loop_constant(255, 0, 1)`. vulkan4xenon's bundle carries it as a resource beside its two block-loop
     kinds, and the layer writes it with the others.
-  - **Block-counted loops** that start past 0 or step other than `i++` take this path too.
+  - **Block-counted loops** that start past 0 or step other than `i++` were to take this path too. As built in step
+    4, they stay counted by the block's int, as a shader can't read an int from a block to test `i < b.n` itself
+    (`int_operand_of`, `src/xsc_lower.c`): `i` is carried from its start by its step, and a pass whose counter isn't
+    at `i` is skipped, a gated continue. Values are exact, at the cost of n passes rather than (n - start) / step.
   - **Loop constants** go one per distinct count rather than one per loop, from the stage's 16
     (`src/xsc_lower_flow.c:9-16`).
 - **Nested loops:**

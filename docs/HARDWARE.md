@@ -4091,3 +4091,24 @@ p0, so a group leaves once none of its pixels is left (src/xsc_unroll.c, `carry_
 - **Nothing else moved:** of milestone 45's corpus, only `vk_loop_break_data.frag`, refused before, and step 3's new
   testdata compile differently; Dusklight's pack is the same byte for byte. vulkan4xenon_test passed 439 of 439 twice,
   vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.
+
+## Loops whose count is data, milestone 46 step 4 (2026-10-18)
+
+xost runs a loop whose count is data as a hardware loop of 255 passes, the most a loop constant counts
+(xenia:src/xenia/gpu/xenos.h:1086-1097), its condition a gated break at the top of the pass, or at the end for a
+`do`/`while`, so a group leaves once every pixel's condition has (src/xsc_unroll.c, `expand_data_loop`,
+`top_of_pass`, `end_of_pass`). The runtime sets that loop constant from the new `XSDK_XSC_FIXED_LOOP` need; the layer
+carries it as `V4X_RESOURCE_FIXED_LOOP`. Logs: `results/2026-10-18-milestone-46-step-4/`.
+- **Every pixel ran its own counts.** xsdk_test's raster grid, `vk_loop_data_grid.frag` compiled on the console, one
+  quad of 128 cells of 10 by 10 pixels, each pixel's place giving its counts, 0 to 321, to a `for` loop on a float, a
+  `while` left on data too and a `do`/`while` continued past on data, each loop's counter after it a colour: 0 of
+  755,200 pixels wrong over 59 frames, the counts past 255 stopping at 255. The console's compiles of it,
+  `vk_loop_float_count.frag`, `vk_loop_data_count.frag`, `vk_loop_while.frag`, `vk_loop_count_skip.frag` and
+  `vk_vertex_loop_data.vert` matched the PC's.
+- **The layer:** vulkan4xenon_test's new scene, `loop_data.frag` from the bundle and compiled on the console, each
+  eighth of a strip its own count from `gl_FragCoord`, 15 to 295: every frame and the image on screen right, 255 and
+  295 both run as 255. vulkan4xenon_test passed 447 of 447 twice.
+- **Break builds:** xsdk_test writing the fixed loop constant as 0 got all 755,200 pixels wrong; the layer writing it
+  as 0 failed the scene's four colour checks and nothing else.
+- **Nothing else moved:** of milestone 45's corpus, only step 4's new shaders compile differently; Dusklight's pack is
+  the same byte for byte. vkbench passed 14 of 14, and Dusklight's title scene ran at its frame rates before.
