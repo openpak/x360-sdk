@@ -425,9 +425,14 @@ starting from the `running` of the pass it's in; the outer LOOP_START comes
 first and the inner LOOP_END first. One inside an if/else on data runs for every
 pixel, as both arms do, merged by selects; one inside an unrolled loop is copied
 once a pass, the copies sharing a loop constant (`tests/test_nested_loops.py`).
-Refused: a fifth nested hardware loop, a `discard` or `return` in a loop, a store
-into part of an output in the loop, and a sample or derivative at coordinates a
-pass works out.
+A sample or derivative of what a pass works out is lowered in the pass, after
+what it reads, its fetches serialized and laid out within the pass as elsewhere
+(Fetch layout); one of what the pass doesn't work out goes before the loop. An
+implicit LOD or a derivative there reads the quad's pixels in the same pass,
+which GLSL leaves undefined where they leave at different passes
+(`tests/test_loop_samples.py`). Refused: a fifth nested hardware loop, a
+`discard` or `return` in a loop, and a store into part of an output in the
+loop.
 
 `tests/test_hardware_loop_breaks.py` runs each loop with a break or continue on
 data on `xdis/simulate.py` both ways: each pixel alone, its own LOOP_END
@@ -468,7 +473,8 @@ lowering (`xsdk:src/xsc_lower_flow.c`) then picks, for each if/else:
   A vertex shader keeps selects: its arms in execs on the predicate hung the GPU
   on the console (xsdk:docs/HARDWARE.md, "Branches, vulkan4xenon milestone
   21"). So does an if/else whose arm holds a hardware loop, as a loop isn't an
-  exec.
+  exec, or a sample or derivative lowered in a pass, as no fetch goes on the
+  predicate.
 - **Selects** otherwise: each a `cnd*` on the comparison branched on, `a - b`
   worked out once a branch, as a pixel shader's if/else has lowered since v1; a
   condition that isn't a float comparison is its 0.0 or 1.0, which `cndgt`
@@ -571,7 +577,8 @@ host's front face, set from PA_SU_SC_MODE_CNTL's face as culling is
 A vertex shader samples as a pixel shader does, at the LOD it gives. glslang gives `texture()` there an explicit LOD
 of 0, and a sample without a LOD or gradients is refused, as a vertex shader has no quad to work one out over
 (xenia:src/xenia/gpu/spirv_shader_translator_fetch.cc:639-641). Its samples go after the vertex fetches and before the
-position's alloc, as a pixel shader's go before its colours'. Each fetches for every vertex, FetchValidOnly off, as
+position's alloc, as a pixel shader's go before its colours', but for one of what a hardware loop's pass works out, which
+goes in the pass (Loops a block counts). Each fetches for every vertex, FetchValidOnly off, as
 that bit is about a quad's pixels (xenia:src/xenia/gpu/ucode.h:558-561), and the container declares the samplers as a
 pixel shader's does.
 - Samplers take fetch constants from 0 in each stage, so a host using both moves one stage's: xsdk's
