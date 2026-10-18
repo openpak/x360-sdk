@@ -397,11 +397,10 @@ static bool any_written(const uint8_t written[XSC_TEMPS], const int64_t *temps, 
 	return false;
 }
 
-// The ALU and the fetches run apart, and an instruction waits for the other's results only when serialized, for
-// everything before it; an exec boundary is no wait (docs/HARDWARE.md, "Slow fetches across execs"). So an ALU
-// instruction that reads or writes a temp a fetch wrote since the last serialized instruction, in any exec, is
-// serialized, and so is a fetch that reads one anything wrote, a fetch's unchecked; and a serialized one clears
-// written.
+// The ALU and the fetches run apart, and an instruction waits for everything before it only when serialized: an exec
+// boundary is no wait (docs/HARDWARE.md, "Slow fetches across execs"). So an ALU instruction that reads or writes a
+// temp a fetch wrote since the last serialized instruction, in any exec, is serialized, and so is a fetch that reads a
+// temp anything wrote, a fetch reading a fetch's unchecked. A serialized instruction clears written.
 static CfEntry exec_entry(
 	const XscProgram *p, const XscStage *stage, const Chunk *chunk, bool last, uint8_t written[XSC_TEMPS])
 {

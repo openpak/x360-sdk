@@ -3861,6 +3861,12 @@ serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
   shaders take more than 5 us longer, most of all `b4a8c01218dcffe9.frag` (+38%), `b40238367bc2ae70.frag` (+35%) and
   `6dd3a70373df59bf.frag` (+31%): in each the fog table's fetch, at coordinates the ALU works out in the exec before,
   is serialized after three fetches that need nothing, so it waits for them too.
+- **Won back by putting such a fetch first.** Fetch grouping now puts a fetch that needs the ALU's work ahead of
+  those that don't in its run (`take_ready_round`, `src/xsc_program.c`), so it waits for the work alone. 21 of the
+  pack's pixel shaders change, only in their fetches' order and serialize bits. In two runs of `probe_shader_cost`
+  (`probe_shader_cost_ordered_1.log`, `_2.log`) a draw of each pixel shader took 62,917 and 63,045 us against
+  milestone 45's 62,913, within run to run; each vertex shader 13,361 and 13,348. All 103 pictures were the
+  experiment's.
 - **xost now** (`exec_entry` and `control_flow`, `src/xsc_program.c`) serializes an ALU instruction that reads or
   writes a temp a fetch wrote since the last serialized instruction, in any exec, and a fetch that reads a temp any
   instruction wrote. A loop's body starts with what any instruction in it writes marked, as a pass reads what the pass
@@ -3881,7 +3887,9 @@ serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
   pixel of every frame checked: two fetches far across a 1024 by 1024 texture, each pixel's 37 columns and 48 rows
   from its neighbours', so in a tile of its own, read in the next exec by the work that picks the row a third fetch
   reads. Each of the texture's rows holds row mod 16's colour, so a pixel's colour is its quad's whatever column it
-  samples.
+  samples. On the console (`xsdk_test.log`) it had 0 of 755,200 pixels wrong; built with what fetches wrote reset at
+  each exec (`xsdk_test_nofix.log`), 710,754 wrong. vulkan4xenon_test passed 426 of 426 twice and vkbench 14 of 14,
+  their shaders built with `--optimize`, and Dusklight's title scene ran as at milestone 45's end, 30 fps.
 - **Not known.** In milestone 45's binaries of the pack, the three were the only programs with an ALU instruction
   reading a fetch's result, unserialized, with no alloc between: every such read in the other 137 programs came past
   one, and xost's allocs have Xenia's `is_unserialized` clear (xenia:src/xenia/gpu/ucode.h:488). Whether a serialized

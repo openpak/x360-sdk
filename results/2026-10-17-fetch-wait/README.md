@@ -38,3 +38,20 @@ program changes but in its exec sequences' serialize bits: its instructions, reg
 among it, run as milestone 45's README says with `--baseline ../results/2026-10-17-milestone-45/baseline.json`: 389
 shaders, 0 differ. The simulator runs one
 instruction at a time, so serializing changes nothing it computes.
+
+## The branch as merged
+
+On the console on 2026-10-17, built clean from the branch rebased on xsdk `012a002` (`local/fetchwait/final_build.sh`,
+`v4x_build.sh` and `dusk_build.sh`, not in the repository):
+
+- **`probe_shader_cost_ordered_1.log`, `_2.log`:** with fetch grouping putting a fetch that waits for the ALU's work
+  first in its run. 62,917.31 and 63,045 us for a draw of each pixel shader, against milestone 45's 62,913; 13,360.70
+  and 13,348 us for each vertex shader. All 103 pictures as `probe_shader_cost_1.log` and `_2.log`.
+- **`xsdk_test.log`:** 390 passed, 2 failed, the controller checks with no pad connected. `vk_slow_fetch.frag`'s grid
+  had 0 of 755,200 pixels wrong.
+- **`xsdk_test_nofix.log`:** the same title with what fetches wrote reset at each exec, as `d75322c` did, its shader
+  headers regenerated: 389 passed, 3 failed, the third the grid, 710,754 of 755,200 pixels wrong.
+- **`vulkan4xenon_test_1.log`, `_2.log`, `vkbench.log`:** vulkan4xenon `6efda94` against the branch, its three
+  generated shader sources compiled with `--optimize`: 426 of 426 twice, 14 of 14.
+- **`dusklight.log`:** Dusklight with its pack rebuilt by the branch's xost, its title scene's 600th frame captured, at
+  the frame rates milestone 45's end ran at.
