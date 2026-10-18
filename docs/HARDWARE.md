@@ -3459,7 +3459,8 @@ vulkan4xenon:results/2026-10-16-milestone-22/), each drawn over an image whose l
 - **A LOD, gradients or a bias the shader works out** took the level Xenia's model says, in eight bands each:
   `setTexLOD` with the fetch's computed LOD off for `textureLod`, `setGradientH` and `setGradientV` with
   UseRegisterGradients for `textureGrad`, and `setTexLOD` added to the computed LOD for `texture()`'s bias; a constant
-  LOD of 1.25 and 6.25 in the fetch's LOD bias field took levels 1 and 6.
+  LOD of 1.25 and 6.25 in the fetch's LOD bias field took levels 1 and 6. Each band was one LOD, so the pixel groups in
+  flight agreed; where they don't, `setTexLOD` doesn't hold ("Loops on the console, milestone 46 step 1").
 - **`setTexLOD`'s value held across execs:** a vertex shader whose setter and fetch sit in different execs sampled the
   level it set.
 - **`gl_FrontFacing`,** the sign of the pixel parameters' x, held on the face the pipeline's front face makes front,
@@ -3998,3 +3999,47 @@ Logs: vulkan4xenon:results/2026-10-18-milestone-17-part-1/.
   map stored a band at a time, loaded back and sampled, every texel checked, and the refusals. Each of five break sets
   failed the checks it names. xsdk_test, vkbench, probe_tiles, probe_shader_cost, probe_a0_predicated and Dusklight
   ran as before.
+
+## Loops on the console, milestone 46 step 1 (2026-10-18)
+
+`tests/probe_loop_break.c` on the console, its pixel cases in order and each vertex case alone from a fresh boot
+(docs/scope/46-loops.md, step 1). Logs: `results/2026-10-18-milestone-46-step-1/`. Every shader ran a hardware loop
+whose LOOP_END broke on the predicate; no exec ran on it. Over 128 by 72 quads of 10 pixels, each pixel left at pass
+B = px + 10 py + base, its place in its quad and the quad's own base, 1 to 200, so the pixels of a group disagreed.
+- **A group of pixels loops until every pixel in it has left.** An ungated pass counter held each pixel's own B in
+  14,864 of 921,600 pixels and more in the rest, never fewer (case 1), as Xenia's comment on the break has it, "if the
+  predicate in all 64 invocations matches" (xenia:src/xenia/gpu/ucode.h:372-373), though its translator breaks each
+  pixel alone (xenia:src/xenia/gpu/spirv_shader_translator.cc:986-990).
+- **A group holds the 2x2 pixel quads of about one triangle,** not a tile of the screen: the first quad's top-left
+  triangle all held 92, the largest B among the pixel quads it touches, and its other triangle 100 (the counts over
+  pixels 0 to 39 in `probe_loop_break.log`). 86% of aligned 2x2 tiles held one count, 25% of 4x4 and no 8x8.
+- **Gating holds each pixel's own values.** The scope's design, i and w kept by `cndgt` on 1.0 or 0.0 flags and the
+  break on no pixel alive, left i at B and w at B + 49 in every pixel, with the groups held back as in case 1 (case
+  2a), and with every pass of 255 run (case 2b).
+- **Leaving early costs nothing past the passes run.** A full-screen loop of count 255 that every pixel left at pass 1
+  took 593.3 us, the same as a loop of count 1 at 593.5 us (cases 3a and 3b). 128 passes took 20.7 ms and 255 took
+  40.8 ms, 158 us a pass (3c, 3d). With half the pixels of every quad leaving at pass 1 and the rest never, it took
+  40.8 ms, as if none left (3e). Thin triangles of about 8 pixels, 74,000 pixels in all, took 85 us leaving at pass 1
+  and 4.1 ms running all 255 (3f, 3g), against 3.2 ms for as many pixels in full groups at 3d's rate.
+- **Loops nest 4 deep,** each level's count from its own loop constant, and a break in the inner of two loops left only
+  the inner (cases 4a to 4d).
+- **a0 survives LOOP_START and LOOP_END:** loaded before the loop and read in each pass, loaded in the pass and read
+  after it, and both in the pass, every pixel read the row it loaded (cases 5a to 5d). Nothing allocated between.
+- **Vertex shaders' loops ran and didn't hang,** each from a fresh boot: a break all vertices agree on (6a), the gated
+  design with a break each quad's vertices took at their own pass (6b), most of them run past it as pixels are, and
+  loops nested 2 and 4 deep (6c, 6d).
+- **A sample at the computed LOD in each of 4 passes took each pass's level** (case 7b).
+- **`setTexLOD` doesn't hold when the pixel groups in flight set different LODs.** Its value isn't kept per group:
+  - In a loop of 4 passes, each setting its own index and sampling, 4% of pixels took levels 0 to 3. The rest took 1,
+    2, 3 and 3, each pass the level of the pass after it, on a base-4 count of the levels taken (7e, 7a).
+  - With no loop, a level per quad, its base mod 4, took the right level in 21% of pixels, about chance among 4
+    (7c).
+  - A level per pixel, its column mod 4, took the right level in 60%. Each of the 4 wrong pixels logged held the level
+    of a pixel in the same place in another quad, 0 for 2, 1 for 3 and 2 for 0, not of a neighbour in its own quad
+    (7d). So the value is kept per lane, and another group's setter can land between a group's setter and its fetch.
+  - xost emits `setTexLOD` for `textureLod` at a LOD that isn't a constant and for `texture()`'s bias
+    (src/xsc_lower_sample.c, `set_lod`), and the gradients' setters for `textureGrad` the same way, which the probe
+    didn't try. Milestone 22's bands couldn't show it.
+- **Break builds.** Gating removed failed 2a and 2b; the break's condition inverted failed case 1 and 2a; the nested
+  loops' constants swapped failed 4a to 4d; the sample taken once before the loop failed 7b; a0 never loaded failed
+  5a.

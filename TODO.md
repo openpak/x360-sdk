@@ -106,6 +106,11 @@ work begins.
 
 ## GPU gaps the milestones left
 
+- **`setTexLOD` when the pixel groups in flight set different LODs.** Milestone 46's probe found its value kept per
+  lane and shared between groups, so a group can sample at another's LOD (docs/HARDWARE.md, "Loops on the console,
+  milestone 46 step 1"). xost emits it for `textureLod` at a LOD that isn't a constant and for `texture()`'s bias, and
+  the gradients' setters for `textureGrad` likely share it. A probe of other sequences (no serialize on the fetch, the
+  setter and fetch in one exec alone) would find one that holds, if any; else such samples need another path.
 - **Destination alpha,** vulkan4xenon milestone 18's step 4, put off (vulkan4xenon:docs/ROADMAP.md). Aurora's backend
   refuses a pipeline with `GXSetDstAlpha` on and skips its draws, logging `vulkan4xenon can't draw destination alpha`
   (aurora-melee:lib/vulkan4xenon/pipeline.cpp, `unsupported`). Dawn's backend writes the constant as alpha through a

@@ -1,0 +1,10 @@
+log: game:\probe_loop_break.log
+log: named after \Device\Harddisk0\Partition1\xsdk\m46\probe_loop_break.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+loop break probe: 27 draws; running only case 6d, a vertex case; each over 128 by 72 quads of 10 pixels
+loop break probe: a pixel leaves at pass B = k . (px, py, base, 1), plus j where px + py is odd, its place px, py in its quad and base 1 + (7 column + 13 row) mod 101; a vertex quad's B is 1 + 37 cell mod 200
+loop break probe: the colours' alloc comes first in every pixel shader, so no alloc lies between an a0 load and its read; a vertex shader's allocs all come after its loop
+loop break probe: about to draw case 6d: vertex shader, nested 4 deep, counts 2, 3, 4 and 5
+loop break probe: case 6d: 9216 points; 9216 as Xenia's model; PASS
+loop break probe: done, 1 draws: 1 PASS, 0 DIFFERS or FAILED; xsdk_gpu_close 0x00000000
+exit: status 0
