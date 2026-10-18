@@ -75,7 +75,7 @@ PROBE_FAULT_OBJECTS := $(BUILD)/tests/probe_fault.o $(BUILD)/tests/probe_fault_s
 UNROLL_O2_FLAGS := -munroll-only-small-loops -fno-rename-registers
 UNROLL_LOOPS_OBJECTS := $(BUILD)/tests/unroll_loops_o2.o $(BUILD)/tests/unroll_loops_unrolled.o
 
-.PHONY: all clean cmake_check occlusion_tries tiles_probe
+.PHONY: all clean cmake_check occlusion_tries tiles_probe loop_break_probes
 # Keep the ELFs and objects that pattern rules build on the way to a .xex.
 .SECONDARY:
 all: $(BUILD)/xsdk_test.xex $(BUILD)/host/libxsc.so $(BUILD)/audio_check.xex $(BUILD)/pacing_test.xex \
@@ -203,6 +203,22 @@ $(BUILD)/probe/probe_a0_predicated_cases.h: tools/gen_a0_predicated_probe.py too
 
 $(BUILD)/tests/probe_a0_predicated.o: CFLAGS += -I$(BUILD)/probe
 $(BUILD)/tests/probe_a0_predicated.o: $(BUILD)/probe/probe_a0_predicated_cases.h
+
+# Milestone 46 step 1's probe of hardware loops, and its break builds, a probe_loop_break_<break>.xex each; outside all.
+LOOP_BREAKS := nogate invert swap hoist noa0
+
+$(BUILD)/probe/probe_loop_break_cases.h: tools/gen_loop_break_probe.py tools/gen_xsc_probe.py \
+	tools/gen_triangle_shaders.py $(BUILD)/host/libxsc.so
+	$(PYTHON) tools/gen_loop_break_probe.py $@
+
+$(BUILD)/tests/probe_loop_break.o: CFLAGS += -I$(BUILD)/probe
+$(BUILD)/tests/probe_loop_break.o: $(BUILD)/probe/probe_loop_break_cases.h
+
+$(BUILD)/tests/probe_loop_break_%.o: tests/probe_loop_break.c $(BUILD)/probe/probe_loop_break_cases.h
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(BUILD)/probe -DLOOP_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
+
+loop_break_probes: $(BUILD)/probe_loop_break.xex $(LOOP_BREAKS:%=$(BUILD)/probe_loop_break_%.xex)
 
 $(BUILD)/host/libxsc.so: $(XSC_SOURCES:src/%.c=$(BUILD)/host/%.o)
 	$(HOST_CC) -shared -o $@ $^
