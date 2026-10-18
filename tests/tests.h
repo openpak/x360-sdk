@@ -142,6 +142,9 @@ void test_multisample(void);
 // Render target formats (vulkan4xenon milestone 25).
 void test_targets(void);
 
+// Tiled passes at one sample (milestone 44).
+void test_tiles(void);
+
 // Vertex input (milestone 17).
 void test_vertex(void);
 

@@ -74,6 +74,7 @@ int main(int argc, char **argv)
 	test_formats();
 	test_multisample();
 	test_targets();
+	test_tiles();
 	test_vertex();
 	test_replay();
 	test_microcode();

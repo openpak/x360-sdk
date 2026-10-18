@@ -49,7 +49,7 @@ TEST_SOURCES := tests/main.c tests/test_image.c tests/test_memory.c tests/test_t
 	tests/test_formats.c tests/test_vertex.c tests/test_replay.c tests/test_registers.c tests/test_copy.c \
 	tests/test_microcode.c tests/test_multisample.c tests/test_hiz.c tests/test_net.c tests/test_interrupts.c \
 	tests/test_xsc.c tests/test_cube_volume.c tests/test_targets.c tests/test_resolve_rect.c \
-	tests/test_visibility.c
+	tests/test_visibility.c tests/test_tiles.c
 TEST_OBJECTS := $(patsubst tests/%,$(BUILD)/tests/%.o,$(basename $(TEST_SOURCES)))
 # A title for listening to the audio frame layout on the console.
 AUDIO_CHECK_SOURCES := tests/audio_check.c tests/audio_frame.c
@@ -75,7 +75,7 @@ PROBE_FAULT_OBJECTS := $(BUILD)/tests/probe_fault.o $(BUILD)/tests/probe_fault_s
 UNROLL_O2_FLAGS := -munroll-only-small-loops -fno-rename-registers
 UNROLL_LOOPS_OBJECTS := $(BUILD)/tests/unroll_loops_o2.o $(BUILD)/tests/unroll_loops_unrolled.o
 
-.PHONY: all clean cmake_check occlusion_tries tiles_probe
+.PHONY: all clean cmake_check occlusion_tries tiles_probe tiles_breaks
 # Keep the ELFs and objects that pattern rules build on the way to a .xex.
 .SECONDARY:
 all: $(BUILD)/xsdk_test.xex $(BUILD)/host/libxsc.so $(BUILD)/audio_check.xex $(BUILD)/pacing_test.xex \
@@ -136,6 +136,26 @@ tiles_probe: $(BUILD)/probe_tiles.xex $(TILES_BREAKS:%=$(BUILD)/probe_tiles_%.xe
 $(TILES_BREAKS:%=$(BUILD)/tests/probe_tiles_%.o): $(BUILD)/tests/probe_tiles_%.o: tests/probe_tiles.c
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -DTILES_BREAK='"$*"' -c $< -o $@
+
+# Milestone 44 step 2's break builds of xsdk_test, an xsdk_tiles_<break>.xex each, its src/gpu_tiles.c and
+# src/gpu_resolve.c built with XSDK_TILES_BREAK_<BREAK>, each to fail the tiles checks tests/test_tiles.c aims it at;
+# outside all.
+TILES_TEST_BREAKS := nooffset nomove noclear noselect nohiz nofragcoord
+
+tiles_breaks: $(TILES_TEST_BREAKS:%=$(BUILD)/xsdk_tiles_%.xex)
+
+$(TILES_TEST_BREAKS:%=$(BUILD)/breaks/%/gpu_tiles.o): $(BUILD)/breaks/%/gpu_tiles.o: src/gpu_tiles.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -DXSDK_TILES_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
+
+$(TILES_TEST_BREAKS:%=$(BUILD)/breaks/%/gpu_resolve.o): $(BUILD)/breaks/%/gpu_resolve.o: src/gpu_resolve.c
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -DXSDK_TILES_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
+
+# The broken objects come first, so the library's own are never pulled in.
+$(TILES_TEST_BREAKS:%=$(BUILD)/xsdk_tiles_%.elf): $(BUILD)/xsdk_tiles_%.elf: $(TEST_OBJECTS) \
+	$(BUILD)/breaks/%/gpu_tiles.o $(BUILD)/breaks/%/gpu_resolve.o $(BUILD)/libxsdk.a src/xsdk.ld
+	$(CC) $(LDFLAGS) -o $@ $(TEST_OBJECTS) $(BUILD)/breaks/$*/gpu_tiles.o $(BUILD)/breaks/$*/gpu_resolve.o $(LIBS)
 
 $(BUILD)/libxsdk.a: $(SDK_OBJECTS)
 	rm -f $@
