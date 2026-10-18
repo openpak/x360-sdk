@@ -1,6 +1,9 @@
 # Milestone 44: predicated tiling and multisampling
 
-Proposed on 2026-10-17, not yet agreed.
+Agreed on 2026-10-17, in two parts, in this order: 44's first part, 46, 47, then 44's second part.
+- **The first part:** tiling at one sample, steps 1 and 2, with the layer's tiled passes at one sample from step 5
+  brought forward after step 2.
+- **The second part:** multisampling, steps 3 and 4 and the rest of step 5.
 
 **The number.** SCOPE.md already names predicated tiling 44, the last of three milestones toward HDR and deferred
 rendering, after render target formats (42) and multiple render targets (43). Milestone 42's scope points to it as well:

@@ -1,7 +1,7 @@
 # Milestone 46: loops in shaders, to Shader Model 3's
 
-Proposed on 2026-10-17, not yet agreed. The first of three agreed with the user to scope by what ports from the
-GameCube, the Wii and PC games of the same years hit first: loops, then instancing, then multisampling.
+Agreed on 2026-10-17, in this order: 44's first part, 46, 47, then 44's second part. The three were scoped by what
+ports from the GameCube, the Wii and PC games of the same years hit first.
 
 ## Why
 

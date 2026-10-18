@@ -1,6 +1,6 @@
 # Milestone 47: instancing
 
-Proposed on 2026-10-17, not yet agreed.
+Agreed on 2026-10-17, in this order: 44's first part, 46, 47, then 44's second part.
 
 One of the three agreed to be scoped with the user, loops, instancing and multisampling, by what ports from the
 GameCube and Wii and PC games of the same years meet first. It's parity work (CODE_GUIDELINES.md 1.2, the exception
