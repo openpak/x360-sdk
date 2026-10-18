@@ -184,14 +184,31 @@ static bool compare_depth(XscLower *l, uint32_t reference, int64_t weights, int6
 		xsc_emit2(l, XSC_VECTOR_DP3, xsc_temp(sides), xsc_plain(xsc_const(weights)), dst, false, 0xF);
 }
 
+static const XscRole *sampler_role(XscLower *l, const XscInstr *ins)
+{
+	const XscInstr *const sampled = xsdk_xsc_by_result(l->m, xsdk_xsc_operand(ins, 0));
+	const XscRole *const role = sampled ? xsdk_xsc_role(l->si, xsdk_xsc_operand(sampled, 0)) : NULL;
+	if (!role || role->kind != XSC_ROLE_SAMPLER) {
+		xsdk_xsc_lower_refuse(l, "ImageSample needs a sampler");
+		return NULL;
+	}
+	return role;
+}
+
+bool xsdk_xsc_sample_slot(XscLower *l, const XscInstr *ins, int64_t *slot)
+{
+	const XscRole *const role = sampler_role(l, ins);
+	*slot = role ? role->a : XSC_NONE;
+	return role != NULL;
+}
+
 bool xsdk_xsc_emit_sample(XscLower *l, uint32_t ssa, const XscInstr *ins, int64_t *slot)
 {
 	const bool proj = is_projective(ins);
 	const bool dref = is_comparison(ins);
-	const XscInstr *const sampled = xsdk_xsc_by_result(l->m, xsdk_xsc_operand(ins, 0));
-	const XscRole *const role = sampled ? xsdk_xsc_role(l->si, xsdk_xsc_operand(sampled, 0)) : NULL;
-	if (!role || role->kind != XSC_ROLE_SAMPLER)
-		return xsdk_xsc_lower_refuse(l, "ImageSample needs a sampler");
+	const XscRole *const role = sampler_role(l, ins);
+	if (!role)
+		return false;
 	*slot = role->a;
 	const int64_t dim = role->b;
 	if (dim == XSC_NONE)

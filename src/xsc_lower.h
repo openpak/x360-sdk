@@ -123,6 +123,9 @@ typedef struct {
 	bool *loop_done;
 	size_t loop_depth;
 	XscSaved loop_saved[XSC_LOOP_DEPTH];
+	// By SSA id, whether a value reads what a hardware loop's pass works out, so a sample or derivative of it is
+	// lowered in the pass; NULL for a module without hardware loops.
+	bool *pass_work;
 	// The loop constants the loops read, one per count, for the runtime to set from their blocks or to 255.
 	XsdkXscNeed *loop_needs;
 	size_t loop_need_count;
@@ -135,6 +138,12 @@ bool xsdk_xsc_enter(XscLower *l);
 static inline bool xsc_failed(const XscLower *l)
 {
 	return l->x->status != XSDK_XSC_OK;
+}
+
+// Whether a sample or derivative is lowered in its hardware loop's pass, where operand() reaches it.
+static inline bool xsc_in_pass(const XscLower *l, uint32_t ssa)
+{
+	return l->pass_work && ssa < l->m->id_limit && l->pass_work[ssa];
 }
 
 static inline const char *xsc_stage_name(const XscLower *l)
@@ -290,9 +299,13 @@ enum {
 };
 // The ids a sample reads besides its sampler; their count.
 uint32_t xsdk_xsc_sample_inputs(const XscInstr *ins, uint32_t ids[XSC_SAMPLE_INPUTS]);
+// The fetch constant of the sampler a sample reads.
+bool xsdk_xsc_sample_slot(XscLower *l, const XscInstr *ins, int64_t *slot);
 // The sample's fetch into sample_reg[ssa], after its coordinate's work and any LOD or gradients; its fetch constant in
 // slot.
 bool xsdk_xsc_emit_sample(XscLower *l, uint32_t ssa, const XscInstr *ins, int64_t *slot);
+// A derivative's getGradients fetch and its pick into deriv_reg[ssa] (xsc_lower_fragment.c).
+bool xsdk_xsc_emit_derivative(XscLower *l, uint32_t ssa, const XscInstr *ins);
 
 // Stages (xsc_lower_stage.c and a file each): a container and what it needs, lower.py's literal manifest.
 typedef struct {

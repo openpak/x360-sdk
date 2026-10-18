@@ -249,14 +249,19 @@ static bool emit_cnd(XscLower *l, const XscInstr *ins, XscTypeKind kind, int64_t
 // split, as selects run them, so selects stay. An arm inside one of these stays selects, as there's one predicate.
 // Pixel shaders alone: a vertex shader's arms in execs on the predicate hung the GPU on the console
 // (docs/HARDWARE.md, "Branches, vulkan4xenon milestone 21"). An arm holding a hardware loop stays selects, as a loop
-// isn't an exec.
+// isn't an exec, and so does one holding a sample or derivative lowered in a pass, as no fetch goes on the predicate.
 static bool predicated(const XscLower *l, uint32_t branch)
 {
 	const XscBranch *const b = &l->m->branches[branch];
-	bool loop = false;
+	bool held = false;
 	for (size_t i = 0; i < l->m->loop_count; i++)
-		loop = loop || (l->m->loops[i].first >= b->first && l->m->loops[i].first < b->end);
-	return l->si->pixel && b->work && !l->in_arm && !loop && l->varies && b->condition < l->m->id_limit &&
+		held = held || (l->m->loops[i].first >= b->first && l->m->loops[i].first < b->end);
+	// A sample or derivative varies of itself.
+	for (uint32_t id = b->first; !held && id < b->end; id++) {
+		const XscInstr *const ins = xsc_in_pass(l, id) ? xsdk_xsc_by_result(l->m, id) : NULL;
+		held = ins && xsdk_xsc_varies_itself(ins);
+	}
+	return l->si->pixel && b->work && !l->in_arm && !held && l->varies && b->condition < l->m->id_limit &&
 		!l->varies[b->condition];
 }
 

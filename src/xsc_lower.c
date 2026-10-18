@@ -51,6 +51,38 @@ static bool fill_regs(Xsc *x, int64_t **out, uint32_t count)
 	return *out != NULL;
 }
 
+// Whether id is made in the pass of a hardware loop other than loop.
+static bool in_other_pass(const XscModule *m, int32_t loop, uint32_t id)
+{
+	for (size_t i = 0; i < m->loop_count; i++) {
+		if ((int32_t)i != loop && id >= m->loops[i].first && id < m->loops[i].end)
+			return true;
+	}
+	return false;
+}
+
+// Marks what reads a value at the top of a pass, or a loop's value after it inside another's pass, in one walk, as the
+// unroller makes each value after what it reads. A constant's or variable's operands are no values.
+static bool mark_pass_work(Xsc *x, XscLower *l)
+{
+	const XscModule *const m = l->m;
+	l->pass_work = xsdk_xsc_alloc(x, m->id_limit);
+	for (size_t i = 0; l->pass_work && i < m->instr_count; i++) {
+		const XscInstr *const ins = &m->instrs[i];
+		const uint32_t id = ins->result_id;
+		if (!id || id >= m->id_limit || ins->opcode == SPV_CONSTANT || ins->opcode == SPV_VARIABLE)
+			continue;
+		bool work = ins->opcode == XSC_OP_LOOP_PHI ||
+			(ins->opcode == XSC_OP_LOOP_RESULT && in_other_pass(m, l->loop_of[id], id));
+		uint32_t count;
+		const uint32_t *const ops = xsdk_xsc_operands(ins, &count);
+		for (uint32_t k = 0; !work && k < count; k++)
+			work = xsdk_xsc_id_operand(ins->opcode, k) && ops[k] < m->id_limit && l->pass_work[ops[k]];
+		l->pass_work[id] = work;
+	}
+	return l->pass_work != NULL;
+}
+
 bool xsdk_xsc_lower_init(Xsc *x, XscLower *l, const XscModule *m, const XscInterface *si, XscProgram *p,
 	const XscType *types, bool vertex, int64_t first_reg, int64_t literal_base)
 {
@@ -105,7 +137,7 @@ bool xsdk_xsc_lower_init(Xsc *x, XscLower *l, const XscModule *m, const XscInter
 		fill_regs(x, &l->sample_reg, n) && fill_regs(x, &l->deriv_reg, n) && l->matrix_cache && l->col_major &&
 		l->local_store && l->seen && l->merge_branch && fill_operands(x, &l->branch_test, branches) && l->branch_cnd &&
 		l->branch_swap && l->branch_done && l->loop_of && l->carried_of && l->loop_done &&
-		(!(m->branch_count || m->loop_count) || xsdk_xsc_find_varying(l));
+		(!(m->branch_count || m->loop_count) || xsdk_xsc_find_varying(l)) && (!m->loop_count || mark_pass_work(x, l));
 }
 
 // An SSA id's instruction, refused as Python's by_result[ssa] would fail.
@@ -1406,9 +1438,8 @@ static XscOperand operand_of(XscLower *l, uint32_t ssa, const XscInstr *ins)
 	if (op == XSC_OP_LOOP_RESULT)
 		return xsdk_xsc_loop_operand(l, ssa);
 	if (op == XSC_OP_LOOP_PHI) {
-		// Within the loop's body the value is its register, cached; only a sample or a derivative, worked out before
-		// the colours, comes to it here.
-		xsdk_xsc_lower_refuse(l, "a sample or derivative reads what a hardware loop works out (v1)");
+		// Within the loop's body the value is its register, cached, and a sample or derivative of it is lowered there.
+		xsdk_xsc_lower_refuse(l, "a hardware loop's value read outside its pass (v1)");
 		return (XscOperand){ 0 };
 	}
 	if (op == SPV_CONSTANT_TRUE || op == SPV_CONSTANT_FALSE) {
@@ -1427,15 +1458,24 @@ static XscOperand operand_of(XscLower *l, uint32_t ssa, const XscInstr *ins)
 	}
 	if (op == SPV_LOAD)
 		return load_operand(l, ssa, ins);
+	// A sample or derivative of what a hardware loop's pass works out is lowered here, in the pass, after its inputs.
+	const bool now = xsc_in_pass(l, ssa);
 	if (op == SPV_IMAGE_SAMPLE_IMPLICIT_LOD || op == SPV_IMAGE_SAMPLE_EXPLICIT_LOD || is_comparison(op) ||
-		op == SPV_IMAGE_SAMPLE_PROJ_IMPLICIT_LOD || op == SPV_IMAGE_SAMPLE_PROJ_EXPLICIT_LOD)
+		op == SPV_IMAGE_SAMPLE_PROJ_IMPLICIT_LOD || op == SPV_IMAGE_SAMPLE_PROJ_EXPLICIT_LOD) {
+		int64_t slot;
+		if (now && l->sample_reg[ssa] == XSC_NONE && !xsdk_xsc_emit_sample(l, ssa, ins, &slot))
+			return (XscOperand){ 0 };
 		return regs_by_id(l, l->sample_reg, ssa, "ImageSample was not gathered before lowering");
+	}
 	if (op == SPV_COMPOSITE_INSERT)
 		return composite_insert(l, ins);
 	if (op == SPV_VECTOR_SHUFFLE)
 		return vector_shuffle(l, ins);
-	if (op >= SPV_DPDX && op <= SPV_FWIDTH)
+	if (op >= SPV_DPDX && op <= SPV_FWIDTH) {
+		if (now && l->deriv_reg[ssa] == XSC_NONE && !xsdk_xsc_emit_derivative(l, ssa, ins))
+			return (XscOperand){ 0 };
 		return regs_by_id(l, l->deriv_reg, ssa, "derivative was not gathered before lowering");
+	}
 	return value_operand(l, ssa, ins);
 }
 

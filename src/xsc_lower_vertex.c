@@ -151,8 +151,8 @@ static bool is_sample(uint32_t opcode)
 		opcode == SPV_IMAGE_SAMPLE_PROJ_IMPLICIT_LOD || opcode == SPV_IMAGE_SAMPLE_PROJ_EXPLICIT_LOD;
 }
 
-// Every sample, after the vertex fetches and before the exports, as a pixel shader gathers its samples first; the
-// fetch constants they read marked.
+// Every sample, after the vertex fetches and before the exports, as a pixel shader gathers its samples first, but one
+// at what a hardware loop's pass works out, lowered in the pass (xsc_in_pass); the fetch constants they read marked.
 static bool sample_all(XscLower *l, bool used[FETCH_SLOTS])
 {
 	for (size_t i = 0; i < l->m->instr_count; i++) {
@@ -160,7 +160,9 @@ static bool sample_all(XscLower *l, bool used[FETCH_SLOTS])
 		if (!is_sample(ins->opcode))
 			continue;
 		int64_t slot;
-		if (!xsdk_xsc_emit_sample(l, ins->result_id, ins, &slot))
+		const bool ok = xsc_in_pass(l, ins->result_id) ? xsdk_xsc_sample_slot(l, ins, &slot)
+													   : xsdk_xsc_emit_sample(l, ins->result_id, ins, &slot);
+		if (!ok)
 			return false;
 		if (slot < 0 || slot >= FETCH_SLOTS)
 			return xsdk_xsc_lower_refuse(l, "a sampler at fetch constant %lld, past 31", (long long)slot);

@@ -152,15 +152,9 @@ static bool point_coord_register(XscLower *l, const XscInterface *si, int64_t pa
 
 static bool gather(Fragment *f, uint32_t ssa);
 
-static bool gather_derivative(Fragment *f, uint32_t ssa, const XscInstr *ins)
+bool xsdk_xsc_emit_derivative(XscLower *l, uint32_t ssa, const XscInstr *ins)
 {
-	XscLower *const l = &f->l;
-	const uint32_t value = xsdk_xsc_operand(ins, 0);
-	if (!gather(f, value))
-		return false;
-	if (l->deriv_reg[ssa] != XSC_NONE)
-		return true;
-	const XscOperand src = xsdk_xsc_to_reg(l, xsdk_xsc_lower_operand(l, value));
+	const XscOperand src = xsdk_xsc_to_reg(l, xsdk_xsc_lower_operand(l, xsdk_xsc_operand(ins, 0)));
 	if (xsc_failed(l))
 		return false;
 	const int64_t grad = xsdk_xsc_fresh(l);
@@ -191,6 +185,14 @@ static bool gather_derivative(Fragment *f, uint32_t ssa, const XscInstr *ins)
 	return true;
 }
 
+// One of what a hardware loop's pass works out is lowered in the pass (xsc_in_pass).
+static bool gather_derivative(Fragment *f, uint32_t ssa, const XscInstr *ins)
+{
+	XscLower *const l = &f->l;
+	return gather(f, xsdk_xsc_operand(ins, 0)) &&
+		(l->deriv_reg[ssa] != XSC_NONE || xsc_in_pass(l, ssa) || xsdk_xsc_emit_derivative(l, ssa, ins));
+}
+
 static bool use_slot(Fragment *f, int64_t slot)
 {
 	for (size_t i = 0; i < f->slot_count; i++) {
@@ -203,7 +205,8 @@ static bool use_slot(Fragment *f, int64_t slot)
 	return true;
 }
 
-// A tfetch, its coordinate's work and any sample that coordinate or its LOD reads first.
+// A tfetch, its coordinate's work and any sample that coordinate or its LOD reads first; one at what a hardware loop's
+// pass works out is lowered in the pass (xsc_in_pass), its sampler declared now.
 static bool gather_sample(Fragment *f, uint32_t ssa, const XscInstr *ins)
 {
 	uint32_t inputs[XSC_SAMPLE_INPUTS];
@@ -213,11 +216,12 @@ static bool gather_sample(Fragment *f, uint32_t ssa, const XscInstr *ins)
 			return false;
 	}
 	int64_t slot;
-	return xsdk_xsc_emit_sample(&f->l, ssa, ins, &slot) && use_slot(f, slot);
+	const bool ok = xsc_in_pass(&f->l, ssa) ? xsdk_xsc_sample_slot(&f->l, ins, &slot)
+											: xsdk_xsc_emit_sample(&f->l, ssa, ins, &slot);
+	return ok && use_slot(f, slot);
 }
 
-// A hardware loop's samples: those its values on entry read, and those its passes read; one at coordinates a pass works
-// out is refused as it's lowered.
+// A hardware loop's samples: those its values on entry read, and those its passes read.
 static bool gather_loop(Fragment *f, const XscHardwareLoop *loop)
 {
 	const XscModule *const m = f->l.m;
