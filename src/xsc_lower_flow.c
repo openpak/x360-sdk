@@ -48,9 +48,7 @@ bool xsdk_xsc_is_merge(const XscLower *l, uint32_t ssa)
 
 // ---- what differs from one vertex or pixel to the next ----
 
-// Whether operand i of an instruction is an id rather than a literal: an ExtInst's instruction number, a shuffle's
-// components, an extract's or insert's indices and a sample's image operands are literals.
-static bool id_operand(uint32_t opcode, uint32_t i)
+bool xsdk_xsc_id_operand(uint32_t opcode, uint32_t i)
 {
 	if (opcode >= IMAGE_SAMPLE_FIRST && opcode <= IMAGE_SAMPLE_LAST)
 		return i != 2;
@@ -65,8 +63,7 @@ static bool id_operand(uint32_t opcode, uint32_t i)
 	return true;
 }
 
-// A value read from an input, a sample or a derivative differs; a local's is taken to.
-static bool varies_itself(const XscInstr *ins)
+bool xsdk_xsc_varies_itself(const XscInstr *ins)
 {
 	const uint32_t op = ins->opcode;
 	if (op == SPV_VARIABLE) {
@@ -76,11 +73,14 @@ static bool varies_itself(const XscInstr *ins)
 	return (op >= IMAGE_SAMPLE_FIRST && op <= IMAGE_SAMPLE_LAST) || (op >= SPV_DPDX && op <= SPV_FWIDTH);
 }
 
-// A hardware loop's value varies where what it carries does, on entry or from a pass; its induction variable doesn't.
+// A hardware loop's value varies where what it carries does, on entry or from a pass; its induction variable doesn't,
+// but in a loop a pixel leaves on data, which counts its own passes (emit_loop).
 static bool loop_value_varies(const XscLower *l, uint32_t id)
 {
-	if (id >= l->m->id_limit || l->carried_of[id] < 0)
+	if (id >= l->m->id_limit || l->loop_of[id] < 0)
 		return false;
+	if (l->carried_of[id] < 0)
+		return l->m->loops[l->loop_of[id]].alive != 0;
 	const XscCarried *const c = &l->m->carried[l->carried_of[id]];
 	return (c->init < l->m->id_limit && l->varies[c->init]) || (c->next < l->m->id_limit && l->varies[c->next]);
 }
@@ -93,12 +93,12 @@ static bool mark_varying(XscLower *l, size_t first, bool *changed)
 	*changed = false;
 	for (size_t i = 0; i < m->instr_count; i++) {
 		const XscInstr *const ins = &m->instrs[i];
-		bool varies = varies_itself(ins) || loop_value_varies(l, ins->result_id);
+		bool varies = xsdk_xsc_varies_itself(ins) || loop_value_varies(l, ins->result_id);
 		uint32_t count;
 		const uint32_t *const ops = xsdk_xsc_operands(ins, &count);
 		const bool reads = i >= first && ins->opcode != SPV_VARIABLE;
 		for (uint32_t k = 0; reads && k < count; k++) {
-			if (!id_operand(ins->opcode, k) || ops[k] >= m->id_limit)
+			if (!xsdk_xsc_id_operand(ins->opcode, k) || ops[k] >= m->id_limit)
 				continue;
 			l->used[ops[k]] = true;
 			varies = varies || l->varies[ops[k]];
@@ -299,6 +299,28 @@ static void restore_caches(XscLower *l, const XscSaved *s)
 	l->a0_allocs = s->a0_allocs;
 }
 
+// p0 from a setp on src's x.
+static bool setp_on(XscLower *l, int64_t op, XscOperand src)
+{
+	if (src.kind != XSC_OPERAND_REG && src.kind != XSC_OPERAND_CONST)
+		return xsdk_xsc_fail(l->x, XSDK_XSC_MALFORMED, "a condition held in a matrix");
+	XscAlu f = xsdk_xsc_template_mov();
+	f.vector_opcode = XSC_VECTOR_MAX;
+	f.vector_dest = 0;
+	f.vector_write_mask = 0;
+	f.vector_clamp = false;
+	f.scalar_opcode = op;
+	f.scalar_dest = 0;
+	f.scalar_write_mask = 0;
+	f.scalar_clamp = false;
+	f.is_export = false;
+	f.src_reg[2] = src.value;
+	f.src_is_temp[2] = src.kind == XSC_OPERAND_REG;
+	f.src_swizzle[2] = xsdk_xsc_bsw(0);
+	f.src_negate[2] = false;
+	return xsdk_xsc_emit_alu(l, &f);
+}
+
 // p0 = the condition: a setp on a - b, or on the bool as 1 or 0 not being 0 (xenia:src/xenia/gpu/ucode.h:1162-1204).
 static bool emit_setp(XscLower *l, uint32_t cond)
 {
@@ -320,23 +342,7 @@ static bool emit_setp(XscLower *l, uint32_t cond)
 		if (xsc_failed(l))
 			return false;
 	}
-	if (src.kind != XSC_OPERAND_REG && src.kind != XSC_OPERAND_CONST)
-		return xsdk_xsc_fail(l->x, XSDK_XSC_MALFORMED, "a condition held in a matrix");
-	XscAlu f = xsdk_xsc_template_mov();
-	f.vector_opcode = XSC_VECTOR_MAX;
-	f.vector_dest = 0;
-	f.vector_write_mask = 0;
-	f.vector_clamp = false;
-	f.scalar_opcode = op;
-	f.scalar_dest = 0;
-	f.scalar_write_mask = 0;
-	f.scalar_clamp = false;
-	f.is_export = false;
-	f.src_reg[2] = src.value;
-	f.src_is_temp[2] = src.kind == XSC_OPERAND_REG;
-	f.src_swizzle[2] = xsdk_xsc_bsw(0);
-	f.src_negate[2] = false;
-	return xsdk_xsc_emit_alu(l, &f);
+	return setp_on(l, op, src);
 }
 
 static bool reached(XscLower *l, uint32_t id)
@@ -387,7 +393,7 @@ static bool lower_before(XscLower *l, uint32_t first, uint32_t end, uint32_t id)
 	const uint32_t *const ops = xsdk_xsc_operands(ins, &count);
 	bool ok = true;
 	for (uint32_t k = 0; ok && k < count; k++)
-		ok = !id_operand(ins->opcode, k) || lower_before(l, first, end, ops[k]);
+		ok = !xsdk_xsc_id_operand(ins->opcode, k) || lower_before(l, first, end, ops[k]);
 	l->depth--;
 	return ok;
 }
@@ -563,9 +569,13 @@ static bool lower_pass_inputs(XscLower *l, const XscHardwareLoop *loop)
 	return end_walk(l, ok);
 }
 
-// counter = counter + 1, a float, as xost holds integers (see "scalar int -> float").
-static bool count_pass(XscLower *l, int64_t counter)
+// counter = counter + 1, a float, as xost holds integers (see "scalar int -> float"); in a loop a pixel leaves on data,
+// + alive instead, so a pixel that left holds the pass it broke at.
+static bool count_pass(XscLower *l, int64_t counter, int64_t alive)
 {
+	if (alive != XSC_NONE)
+		return xsc_emit2(
+			l, XSC_VECTOR_ADD, xsc_temp(counter), xsc_src(xsc_reg(alive), false, xsdk_xsc_bsw(0)), counter, false, 0xF);
 	const int64_t one = xsdk_xsc_literal_splat(l, 1.0);
 	return one != XSC_NONE &&
 		xsc_emit2(l, XSC_VECTOR_ADD, xsc_temp(counter), xsc_plain(xsc_const(one)), counter, false, 0xF);
@@ -573,7 +583,9 @@ static bool count_pass(XscLower *l, int64_t counter)
 
 // Each carried value's register from its value on entry; LOOP_START; each pass's values worked out from the registers,
 // then put in them; the induction variable counted on; a break's setp; LOOP_END. The loop constant the block's int
-// sets runs it that many passes, aL from 0 by 1 (xenia:src/xenia/gpu/xenos.h:1086-1097).
+// sets runs it that many passes, aL from 0 by 1 (xenia:src/xenia/gpu/xenos.h:1086-1097). A loop a pixel leaves on data
+// sets p0 where alive is 0, and LOOP_END breaks once every pixel of the group has
+// (xenia:src/xenia/gpu/ucode.h:372-373).
 static bool emit_loop(XscLower *l, uint32_t index)
 {
 	const XscModule *const m = l->m;
@@ -633,8 +645,11 @@ static bool emit_loop(XscLower *l, uint32_t index)
 		if (!same && xsdk_xsc_emit_copy(l, next[i], regs[i], false, false, 0, 0xF, false) == XSC_NONE)
 			return false;
 	}
-	if ((counts && !count_pass(l, counter)) ||
-		!xsdk_xsc_program_end_loop(l->x, l->p, loop->break_condition != 0, loop->break_when))
+	const int64_t alive = loop->alive ? regs[l->carried_of[loop->alive] - (int32_t)loop->carried_first] : XSC_NONE;
+	const bool breaks = loop->break_condition || alive != XSC_NONE;
+	if ((counts && !count_pass(l, counter, alive)) ||
+		(alive != XSC_NONE && !setp_on(l, XSC_SCALAR_SETP_EQ, xsc_reg(alive))) ||
+		!xsdk_xsc_program_end_loop(l->x, l->p, breaks, alive != XSC_NONE || loop->break_when))
 		return false;
 	l->in_loop = false;
 	restore_caches(l, &l->loop_saved);

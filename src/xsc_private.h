@@ -177,7 +177,8 @@ typedef struct {
 
 // A loop whose count a block holds, kept for a hardware loop: the access chain to that int, the induction variable at
 // the top of each pass and after, from 0 by 1, what it carries, a break ending a pass where the condition is
-// break_when (0 for none), and the ids made in its body, first to end.
+// break_when (0 for none), the carried flag a break on data clears, 1 while the vertex or pixel is in the loop (0 for
+// none), and the ids made in its body, first to end.
 typedef struct {
 	uint32_t count;
 	uint32_t counter;
@@ -186,6 +187,7 @@ typedef struct {
 	size_t carried_count;
 	uint32_t break_condition;
 	bool break_when;
+	uint32_t alive;
 	uint32_t first;
 	uint32_t end;
 } XscHardwareLoop;
@@ -403,6 +405,11 @@ bool xsdk_xsc_sampler_dim(const XscInterface *si, uint32_t slot, int64_t *dim);
 
 // False with x's error set for a loop it can't unroll; refused says it was that and not memory.
 bool xsdk_xsc_unroll(Xsc *x, XscModule *m, bool *refused);
+// Whether operand i of an instruction is an id rather than a literal: an ExtInst's instruction number, a shuffle's
+// components, an extract's or insert's indices and a sample's image operands are literals.
+bool xsdk_xsc_id_operand(uint32_t opcode, uint32_t i);
+// A value read from an input, a sample or a derivative differs between vertices or pixels; a local's is taken to.
+bool xsdk_xsc_varies_itself(const XscInstr *ins);
 
 // ---- instructions (xasm/encode.py, xsc/templates.py) ----
 

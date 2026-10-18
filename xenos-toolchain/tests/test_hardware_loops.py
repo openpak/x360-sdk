@@ -16,8 +16,8 @@ constants from 0 and a pixel shader's from 16. The simulator runs each loop the 
   the break on a value every pixel shares. Each pixel below takes a different set of arms.
 - vk_vertex_loop_count.vert moves its position and sums a colour a pass.
 - vk_loop_swap.frag swaps two locals a pass, which the loop's registers take all at once.
-- vk_loop_break_data.frag breaks on data, which is refused: LOOP_END breaks when all 64 vertices or pixels agree
-  (xenia:src/xenia/gpu/ucode.h:372-373).
+
+Breaks and continues on data are tests/test_hardware_loop_breaks.py's.
 """
 import sys
 from pathlib import Path
@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 import xdis.simulate as simulate  # noqa: E402
 import xdis.xenos_ucode as xu  # noqa: E402
 from xasm.program import XSDK_REGISTERS  # noqa: E402
-from xsc.lower import LowerError, lower_ex  # noqa: E402
+from xsc.lower import lower_ex  # noqa: E402
 from xsc.resolve import resolve_interface  # noqa: E402
 from test_local_stores import check, module, push_constants  # noqa: E402
 
@@ -115,15 +115,6 @@ def main():
         constants.update(literals)
         got = simulate.run(blob, registers={0: [0.5, 0.5, 0.0, 0.0]}, constants=constants, loops={16: count})
         check(f"{name}, {count} passes", got.exports[0], [p * 0.5 + q for p, q in zip(x, y)])
-
-    try:
-        lower_ex(module("vk_loop_break_data.frag"), XSDK_REGISTERS)
-    except LowerError as error:
-        if "break" not in str(error):
-            raise SystemExit(f"  FAIL vk_loop_break_data.frag refused, but as: {error}")
-        print(f"  PASS vk_loop_break_data.frag refused: {error}")
-    else:
-        raise SystemExit("  FAIL vk_loop_break_data.frag lowered")
     print("OK")
 
 
