@@ -4052,3 +4052,17 @@ B = px + 10 py + base, its place in its quad and the quad's own base, 1 to 200, 
 - **Break builds.** Gating removed failed 2a and 2b; the break's condition inverted failed case 1 and 2a; the nested
   loops' constants swapped failed 4a to 4d; the sample taken once before the loop failed 7b and 7j; a0 never loaded
   failed 5a.
+
+## Breaks and continues on data in unrolled loops, milestone 46 step 2 (2026-10-18)
+
+xost gates a break or continue on data in an unrolled loop as docs/scope/46-loops.md designs it, with stopped copies
+selected by `cnd` on 1.0 and 0.0 flags (src/xsc_unroll.c, `stop_pass`), the shape step 1's case 2 proved. Logs:
+`results/2026-10-18-milestone-46-step-2/`.
+- **Every pixel left at its own pass.** xsdk_test's raster grid, `vk_loop_grid.frag` compiled on the console, 80 cells
+  of 10 by 10 pixels, each pixel's place picking a break on data in arms of an if/else, a continue on data and a break
+  the unroller folds: 0 of 472,000 pixels wrong over 59 frames. The console's compiles of it, `vk_loop_if_break.frag`
+  and `vk_vertex_loop_break.vert` matched the PC's.
+- **Break builds:** the folded break ignored got all 472,000 wrong, and a continue lowered as a break 202,960.
+- **Nothing else moved:** no other program of milestone 45's corpus compiles differently, Dusklight's pack among them;
+  vulkan4xenon_test passed 439 of 439 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates
+  before.
