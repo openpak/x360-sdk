@@ -18,7 +18,10 @@ pass in the raster test, and vk_loop_count_grid.frag, vk_loop_break_data.frag, v
 vk_vertex_loop_count_break.vert, the same in hardware loops, the grid drawn and timed in the raster test too, and
 vk_loop_float_count.frag, vk_loop_data_count.frag, vk_loop_while.frag, vk_loop_count_skip.frag,
 vk_vertex_loop_data.vert and vk_loop_data_grid.frag, loops whose count is data and block-counted ones from past 0 or by
-past 1, the grid drawn in the raster test. Prints a C header. Runs in WSL, where make builds the compiler for the PC.
+past 1, the grid drawn in the raster test, and vk_loop_nest2.frag, vk_loop_nest4.frag, vk_loop_in_data_if.frag,
+vk_loop_in_uniform_if.frag, vk_loop_in_unrolled.frag, vk_vertex_loop_nest.vert and vk_loop_nest_grid.frag, hardware
+loops nested, in an if/else and in an unrolled loop, the grid drawn in the raster test. Prints a C header. Runs in WSL,
+where make builds the compiler for the PC.
 """
 
 import struct
@@ -37,7 +40,9 @@ SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert
            "vk_frag_coord_rows.frag", "vk_loop_if_break.frag", "vk_loop_grid.frag", "vk_vertex_loop_break.vert",
            "vk_loop_count_grid.frag", "vk_loop_break_data.frag", "vk_loop_count_stop.frag",
            "vk_vertex_loop_count_break.vert", "vk_loop_float_count.frag", "vk_loop_data_count.frag",
-           "vk_loop_while.frag", "vk_loop_count_skip.frag", "vk_vertex_loop_data.vert", "vk_loop_data_grid.frag")
+           "vk_loop_while.frag", "vk_loop_count_skip.frag", "vk_vertex_loop_data.vert", "vk_loop_data_grid.frag",
+           "vk_loop_nest2.frag", "vk_loop_nest4.frag", "vk_loop_in_data_if.frag", "vk_loop_in_uniform_if.frag",
+           "vk_loop_in_unrolled.frag", "vk_vertex_loop_nest.vert", "vk_loop_nest_grid.frag")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",
