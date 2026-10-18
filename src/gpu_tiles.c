@@ -169,15 +169,15 @@ static bool same_layout(void)
 	return same;
 }
 
-// A band's resolves, the last clearing depth too unless it stays whole.
-static void resolve_band(const XsdkTileResolve *resolves, uint32_t count, uint32_t band, bool clear)
+// A band's resolves, each clearing its colour, the last its depth too unless it stays whole.
+static void resolve_band(const XsdkTileResolve *resolves, uint32_t count, uint32_t band)
 {
 	for (uint32_t i = 0; i < count; i++) {
 		const XsdkTileResolve *const r = &resolves[i];
 		assert(r->target < pass.count || (r->target == XSDK_TILE_DEPTH && pass.depth));
 		assert(r->texture->width == pass.width && r->texture->height == pass.height);
-		const bool depth = clear && pass.depth && !pass.depth_whole && i == count - 1;
-		xsdk_gpu_resolve_band(r->target, r->texture, r->clear_rgba, band * band_rows, rows_in(band), clear, depth);
+		const bool depth = pass.depth && !pass.depth_whole && i == count - 1;
+		xsdk_gpu_resolve_band(r->target, r->texture, r->clear_rgba, band * band_rows, rows_in(band), depth);
 	}
 }
 
@@ -187,31 +187,15 @@ static void put_band(uint32_t band)
 {
 	const uint32_t top = band * band_rows;
 	xsdk_gpu_set_band_targets(pass.width, pass.height, band_rows, placed, pass.count, depth_tile_of(band), true);
-#ifdef XSDK_TILES_BREAK_NOOFFSET
-	// Break build: every band drawn at the target's own rows.
-	const uint32_t window = 0;
-#else
 	const uint32_t window = ((uint32_t)-(int32_t)top & OFFSET_MASK) << Y_SHIFT;
-#endif
 	const uint32_t screen[] = { 0, SCREEN_WHOLE | rows_in(band) << Y_SHIFT };
 	GpuPackets packets = gpu_reserve_packets(WINDOW_DWORDS + (narrowed ? BIN_DWORDS : 0));
 	gpu_put_register(&packets, PA_SC_WINDOW_OFFSET, window);
 	gpu_put_registers(&packets, PA_SC_SCREEN_SCISSOR_TL, screen, 2);
-#ifdef XSDK_TILES_BREAK_NOSELECT
-	// Break build: every bin selected, so draws narrowed to other bands run in each.
-	if (narrowed)
-		put_bins(&packets, PM4_SET_BIN_SELECT, ALL_BINS);
-#else
 	if (narrowed)
 		put_bins(&packets, PM4_SET_BIN_SELECT, 1ull << band);
-#endif
 	gpu_packets_done(&packets);
-#ifdef XSDK_TILES_BREAK_NOFRAGCOORD
-	// Break build: gl_FragCoord's constant left at band 0's.
-	xsdk_gpu_put_frag_coord_top(0);
-#else
 	xsdk_gpu_put_frag_coord_top(top);
-#endif
 }
 
 // The screen scissor whole, the bins all ones as XAM leaves them, and gl_FragCoord's constant as outside a pass.
@@ -238,17 +222,11 @@ NTSTATUS xsdk_gpu_end_tiles(const XsdkTileResolve *resolves, uint32_t count)
 		return status;
 	// Band 0's clear: its resolves of what eDRAM holds, which the band then draws over.
 	if (!same_layout())
-		resolve_band(resolves, count, 0, true);
-#ifdef XSDK_TILES_BREAK_NOCLEAR
-	// Break build: the bands' resolves leave colour and depth to the band after.
-	const bool clear = false;
-#else
-	const bool clear = true;
-#endif
+		resolve_band(resolves, count, 0);
 	for (uint32_t band = 0; band < band_count(); band++) {
 		put_band(band);
 		xsdk_gpu_execute(pass_buffer);
-		resolve_band(resolves, count, band, clear);
+		resolve_band(resolves, count, band);
 	}
 	put_whole();
 	cleared = pass;

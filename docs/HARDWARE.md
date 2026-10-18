@@ -3902,9 +3902,9 @@ serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
 (docs/scope/44-tiling-and-msaa.md, step 1). Logs: `results/2026-10-17-milestone-44-step-1/`.
 - **A window offset moves a band to eDRAM's top.** `PA_SC_WINDOW_OFFSET` at (0, -64) put a 256x128 target's rows 64
   to 127 at eDRAM rows 0 to 63, under a 256x64 `PA_SC_SCREEN_SCISSOR`, every pixel and nothing else
-  (`probe_tiles.log`, `probe_tiles_2.log`, case 1). The window scissor moved with the offset, and with `window_offset_disable` stayed where
-  it was set, as Xenia has both (xenia:src/xenia/gpu/registers.h:586-633). The offset flipped to (0, 64) drew nothing
-  where it belonged (`probe_tiles_flip.log`).
+  (`probe_tiles.log`, `probe_tiles_2.log`, case 1). The window scissor moved with the offset, and with
+  `window_offset_disable` stayed where it was set, as Xenia has both (xenia:src/xenia/gpu/registers.h:586-633). The
+  offset flipped to (0, 64) drew nothing where it belonged (`probe_tiles_flip.log`).
 - **`gl_FragCoord` gives the row in the band.** Under the offset, the pixel parameters xost reads with
   `SC_OUTPUT_SCREEN_XY` held each pixel's eDRAM row, 0 to 63, not its row in the target, every one of 16,384 (case 2),
   as Xenia reads them (xenia:src/xenia/gpu/dxbc_shader_translator.cc:705-725). A tiled pass must add the band's top.
@@ -3951,3 +3951,29 @@ console with a FAT32 stick in, logs in `results/2026-10-17-usb-dir/`:
 - **xsdk now clears the buffer before each query** (src/dir.c), so a field the driver leaves reads 0, the last entry.
   From the same dirty heap both folders listed right and the title lived on (`probe_usb_dir.log`); xsdk_test's
   filesystem checks, on the hard drive, passed (`xsdk_test.log`).
+
+## Tiled passes at one sample, milestone 44 step 2 (2026-10-17)
+
+xsdk's tiled passes (`xsdk_gpu_begin_tiles`, `src/gpu_tiles.c`) on the console: a pass recorded once and run a band of
+rows at a time, as step 1 found the registers and packets work. Logs: `results/2026-10-17-milestone-44-step-2/`.
+- **Every pixel as untiled.** xsdk_test's tiles checks (`xsdk_test.log`) passed: 1280x720 in 2 bands of 384 rows and
+  3 of 256, with triangles across the band edges, xost's `gl_FragCoord` gradient, hidden quads over hierarchical
+  depth and a draw given band 0's rows that reaches into band 1; the same with depth whole; four targets, 8_8_8_8,
+  2_10_10_10, 16_16_16_16_FLOAT and 32_FLOAT, with depth, 4320 tiles in 3 bands; a 2048x2048 depth-only pass in 2
+  bands, its depth resolved a band at a time and then sampled. Each was compared with the same draws untiled.
+- **`gl_FragCoord` reads c255.** xost adds the pixel shader's constant 255 to the pixel parameters, and xsdk keeps it
+  at 0.5, and 0.5 more than the band's top in a tiled pass (`XSDK_XSC_FRAG_COORD_CONSTANT`). A shader reading it
+  leaves c252 to c255 to xsdk.
+- **Each break failed what it aims at** (`xsdk_tiles_*.log`, built from `local/m44/step2_breaks.patch`): the window
+  offset left at 0, or the resolve's base not moved, failed the 1280x720 frames, the four targets and both 2048x2048
+  checks; a band's resolve not clearing failed all those but depth whole; the bin select left all ones, or
+  `gl_FragCoord`'s constant left at band 0's, the three 1280x720 frames; the hierarchical buffer left uncleared, the
+  two band frames and the four targets.
+- **What a band costs** (`probe_tiles.log`, case 11, by the GPU's clock at 1280x720): a band's fixed cost 5 us; a
+  fill-bound frame 10,331 us untiled and 10,349 in 3 bands; a vertex-bound one 2,403, 4,515 and 6,622 us in 1, 2 and 3
+  bands, each band running every draw's vertices again; a predicated draw outside its band 0 us against 2,103 drawn.
+- **Unchanged elsewhere.** vulkan4xenon_test passed 426 of 426 twice and vkbench 14 of 14, built against it; Dusklight,
+  its pack rebuilt with this xost, ran its title scene at the frame rates before.
+- **Depth whole keeps hierarchical depth off.** Step 1 found bits 18 to 26 of `RB_HIZCONTROL` move the buffer, but a
+  recording writes the register with every depth state, so it can't differ a band; and bands keep it on only up to
+  1024 tiles of depth, the 1280x1024 milestone 30 checked.

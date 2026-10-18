@@ -473,7 +473,7 @@ uint32_t xsdk_gpu_depth_clear(void)
 // The band's rows of a tiled texture start top * pitch texels in, as a tiled texture's rows go in steps of 32
 // (docs/HARDWARE.md, "Tiling's registers and packets, milestone 44 step 1"); the copy is the band's surface whole.
 void xsdk_gpu_resolve_band(uint32_t target, const XsdkTexture *texture, const float clear_rgba[4], uint32_t top,
-	uint32_t rows, bool clear_color, bool clear_depth)
+	uint32_t rows, bool clear_depth)
 {
 	assert(texture->tiled && top % XSDK_TILE_ROWS == 0 && top + rows <= texture->height);
 	const bool depth = target == XSDK_TILE_DEPTH;
@@ -484,22 +484,12 @@ void xsdk_gpu_resolve_band(uint32_t target, const XsdkTexture *texture, const fl
 	const uint32_t dest_info =
 		depth ? DEPTH_DEST_INFO : target_dest_info(xsdk_gpu_color_target_format(target), texture->format);
 	const uint32_t texel_log2 = texture->format == XSDK_FORMAT_R16G16B16A16F ? 3 : 2;
-#ifdef XSDK_TILES_BREAK_NOMOVE
-	// Break build: every band resolved into the texture's top rows.
-	const uint32_t moved = 0;
-#else
 	const uint32_t moved = xsdk_tiled_2d(0, top, texture->pitch, texel_log2);
-#endif
-	uint32_t surface_rows = rows;
-#ifdef XSDK_TILES_BREAK_NOHIZ
-	// Break build: the copy short of its surface, so its depth clear leaves the hierarchical buffer as it was.
-	surface_rows++;
-#endif
 	const Area area = whole_area(texture->pitch, rows);
 	const uint32_t kept = clears;
-	clears = (clear_color ? COPY_CONTROL_COLOR_CLEAR : 0) | (clear_depth ? COPY_CONTROL_DEPTH_CLEAR : 0);
+	clears = COPY_CONTROL_COLOR_CLEAR | (clear_depth ? COPY_CONTROL_DEPTH_CLEAR : 0);
 	resolve(depth ? COPY_SOURCE_DEPTH : COPY_SOURCE_COLOR_0, depth ? 0 : target, texture->address + moved, &area,
-		texture->pitch, surface_rows, texture->pitch, dest_info,
+		texture->pitch, rows, texture->pitch, dest_info,
 		xsdk_gpu_resolve_bytes(texture->pitch, rows) << (texel_log2 - 2), clear);
 	clears = kept;
 }
