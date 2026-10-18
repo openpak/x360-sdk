@@ -98,6 +98,7 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | `for(i<n){ …; if(acc.c CMP k) break; }` | body `setp_*` + a predicated LOOP_END (data-dependent break) |
 | if/else in a loop body with a **constant** condition (e.g. `if(i<k)`) | unroller picks the taken arm per iteration; a `break` or `continue` in it ends the loop or the pass there (`tests/test_loop_branches.py`) |
 | if/else **on data** in an unrolled loop's body | both arms each pass, merged by a select (`tests/test_loop_branches.py`) |
+| `break` or `continue` **on data** in an unrolled loop's body | gated: each value keeps a stopped copy where its pixel or vertex stops, `running` and `alive` flags 0.0 or 1.0, and each pass's end a `cnd` on `running` (xsdk:docs/scope/46-loops.md, "The design"; `tests/test_loop_branches.py`) |
 | `transpose` (mat2/3/4) | per-row column gather (swizzled movs) |
 | `determinant` (mat2/3) | mat2 `ad−bc`; mat3 `row0·cross(row1,row2)` |
 | `inverse` (mat2/3) | mat2 closed form; mat3 adjugate (cofactor crosses) / det · `rcp` |
@@ -459,9 +460,9 @@ shader without such a branch lowers byte for byte as before.
   (xenia:src/xenia/gpu/draw_util.cc:498-502). `gl_FragDepth` stored on one path
   alone is refused for that; an interpolator or colour stored on one path takes
   that value on the other, which GLSL leaves undefined.
-- **Refused:** a `break`, `discard` or `return` in an arm of an if/else the
-  unroller merges, a `switch`, and a matrix, array or struct an if/else
-  chooses.
+- **Refused:** a `discard` or `return` in an arm of an if/else the unroller
+  merges, a `break` or `continue` in one in a loop a block counts (Loops a
+  block counts), a `switch`, and a matrix, array or struct an if/else chooses.
 - **The optimiser** leaves a program with predicated instructions alone, as it
   did before (`can_optimize`).
 
