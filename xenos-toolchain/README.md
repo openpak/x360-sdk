@@ -22,7 +22,8 @@ the console.
   [`docs/textasm.md`](docs/textasm.md)) and an N64 colour-combiner compiler (`combiner.py`).
 - **`xdis/`, the disassembler and simulator.** The microcode decoder, its ISA tables transcribed from Xenia (BSD-3,
   see `xdis/xenos_ucode.py`), the container parser and emitter ([`docs/container.md`](docs/container.md)), and
-  `simulate.py`, which runs a program's ALU, fetches and exports on the CPU.
+  `simulate.py`, which runs a program's ALU, fetches and exports on the CPU, for one vertex or pixel or a group in
+  lockstep.
 - **`xcomb/`, the combiner compiler in C99**, byte for byte the same as `xasm/combiner.py`.
 - **`tests/`**, run one file at a time in WSL: `python3 tests/test_xsc_lower.py`. `tests/test_xcomb_parity.py` builds
   `xcomb/` with MSVC and runs on Windows.

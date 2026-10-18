@@ -67,7 +67,7 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | **`discard` / `OpKill` inside `if(cond)`** | `kill_gt`/`kill_ge`/`kill_eq`/`kill_ne` ALU side effect; confirmed on the console, a `discard` on `!gl_FrontFacing` (vulkan4xenon milestone 22) |
 | **`for`/`while`** with a compile-time trip count, incl. **nested** | unrolled to branch-free SSA; induction variable constant-folded (see below) |
 | uniform-bound loop `sum += const` | real `LOOP_START/END` (G28 pending) |
-| `for (int i = 0; i < b.n; i++)`, `n` an int in a push constant or uniform block, in a vertex or pixel shader | a hardware loop the runtime counts from the block: what the loop carries in registers, `i` a float counter, an if/else in the pass, a break ending it (see "Loops a block counts"; `tests/test_hardware_loops.py`) |
+| `for (int i = 0; i < b.n; i++)`, `n` an int in a push constant or uniform block, in a vertex or pixel shader | a hardware loop the runtime counts from the block: what the loop carries in registers, `i` a float counter, an if/else in the pass, a break ending it; a `break` or `continue` on data anywhere in the pass gated as in an unrolled loop, LOOP_END breaking once no pixel of the group is left (see "Loops a block counts"; `tests/test_hardware_loops.py`, `tests/test_hardware_loop_breaks.py`) |
 | `vec4 t = ...;` (function-local) | store-forwarding |
 | uniforms (block + bare), samplers | constant regs / fetch consts |
 | Vulkan uniform / push constant block members at any std140 offset | the member's register, swizzled from its first component |
@@ -391,6 +391,18 @@ the loop. The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
   on a value every vertex or pixel shares, as LOOP_END breaks only when all 64
   agree (xenia:src/xenia/gpu/ucode.h:372-373); an if/else on data inside the
   pass is selects.
+- a `break` or `continue` on data anywhere in the pass, and that `if (c) break;`
+  where a break or continue before it in the pass stopped a pixel, gated as in
+  an unrolled loop (Control flow): stopped copies, `running` and `alive` flags,
+  and a `cnd` on `running` at the pass's end. `alive` is a register the loop
+  carries from 1, made at the pass's first break on data, `running` starting
+  each pass from it, so a pixel that left keeps its values while the rest of
+  its group runs on. A `setp_eq` on `alive` at the pass's end sets p0 where the
+  pixel has left, and LOOP_END breaks on p0, so the group leaves once none of
+  it is left. `i` counts `alive` rather than 1, so read after the loop it holds
+  the pass the pixel broke at. Nothing in the pass is on the predicate. The
+  unroller tells a value every pixel shares as the lowering does
+  (`xsdk_xsc_find_varying`).
 
 The manifest gives `("block_loop", loop_id, kind, set, binding, offset_bytes)`:
 the runtime reads the int there for each draw and sets loop constant `loop_id`
@@ -403,9 +415,18 @@ shader's from 16, 16 each: both stages read all 32 (ucode.h:352), and libxenon
 gives each stage half of the boolean constants the same way
 (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser leaves a
 program with a loop alone, as before. Refused: a loop counted by a block inside
-another loop or an if/else on data, a `continue`, a break anywhere but ending a
-pass or on data, a store into part of an output in the loop, and a sample or
-derivative at coordinates a pass works out.
+another loop or an if/else on data, a `discard` or `return` in it, a store into
+part of an output in the loop, and a sample or derivative at coordinates a pass
+works out.
+
+`tests/test_hardware_loop_breaks.py` runs each loop with a break or continue on
+data on `xdis/simulate.py` both ways: each pixel alone, its own LOOP_END
+breaking, as Xenia's translator does
+(xenia:src/xenia/gpu/spirv_shader_translator.cc:986-1000), and all of them in
+one group (`run_group`), an exec on the predicate running if any of them needs
+it and a predicated LOOP_END breaking only when every one agrees, as the
+console does (xsdk:docs/HARDWARE.md, "Loops on the console, milestone 46 step
+1").
 
 ## Control flow
 
@@ -461,8 +482,7 @@ shader without such a branch lowers byte for byte as before.
   alone is refused for that; an interpolator or colour stored on one path takes
   that value on the other, which GLSL leaves undefined.
 - **Refused:** a `discard` or `return` in an arm of an if/else the unroller
-  merges, a `break` or `continue` in one in a loop a block counts (Loops a
-  block counts), a `switch`, and a matrix, array or struct an if/else chooses.
+  merges, a `switch`, and a matrix, array or struct an if/else chooses.
 - **The optimiser** leaves a program with predicated instructions alone, as it
   did before (`can_optimize`).
 
