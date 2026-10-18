@@ -3895,3 +3895,42 @@ serialize bit makes an instruction wait. Logs: `results/2026-10-17-fetch-wait/`.
   one, and xost's allocs have Xenia's `is_unserialized` clear (xenia:src/xenia/gpu/ucode.h:488). Whether a serialized
   alloc waits for the fetches before it wasn't tried. Nor was whether a fetch must wait for the ALU's results from an
   earlier exec: 28 pixel shaders read them unserialized, and 25 of those drew the same pictures every run.
+
+## Tiling's registers and packets, milestone 44 step 1 (2026-10-17)
+
+`tests/probe_tiles.c` on the console, its cases 1 to 4 twice and 5 to 10 each alone from a fresh boot
+(docs/scope/44-tiling-and-msaa.md, step 1). Logs: `results/2026-10-17-milestone-44-step-1/`.
+- **A window offset moves a band to eDRAM's top.** `PA_SC_WINDOW_OFFSET` at (0, -64) put a 256x128 target's rows 64
+  to 127 at eDRAM rows 0 to 63, under a 256x64 `PA_SC_SCREEN_SCISSOR`, every pixel and nothing else
+  (`probe_tiles.log`, `probe_tiles_2.log`, case 1). The window scissor moved with the offset, and with `window_offset_disable` stayed where
+  it was set, as Xenia has both (xenia:src/xenia/gpu/registers.h:586-633). The offset flipped to (0, 64) drew nothing
+  where it belonged (`probe_tiles_flip.log`).
+- **`gl_FragCoord` gives the row in the band.** Under the offset, the pixel parameters xost reads with
+  `SC_OUTPUT_SCREEN_XY` held each pixel's eDRAM row, 0 to 63, not its row in the target, every one of 16,384 (case 2),
+  as Xenia reads them (xenia:src/xenia/gpu/dxbc_shader_translator.cc:705-725). A tiled pass must add the band's top.
+- **A resolve lands at a band's rows with `RB_COPY_DEST_BASE` moved.** 32-row bands resolved with the base moved by
+  the row times the pitch times 4 bytes landed at rows 32, 64 and 96 of a tiled texture, the rows around them left
+  alone (case 3), as Xenia addresses a tiled texture in 32-row steps (xenia:src/xenia/gpu/texture_address.h:190-207).
+  Not moved, every band landed at row 0 (`probe_tiles_nomove.log`).
+- **Depth stays in eDRAM across bands with `RB_DEPTH_INFO`'s base moved.** Four 32-row bands drew a fill and a near
+  quad, then a far quad hidden behind the near one, each band's depth at its own base, one wrapping from tile 2044
+  past 2047 to 3: every pixel right in both passes (case 4).
+- **The hierarchical buffer doesn't follow the depth base; bits 18 to 26 of `RB_HIZCONTROL` move it, in 512
+  pixels.** With the bits left at 0, every band's drawn quads were rejected against band 0's near depth, 24,576 pixels
+  wrong. Moved by the band's 32 rows of a 320-pixel pitch over 512, 20 a band, every pixel was right. Moved by the
+  band's 8 eDRAM tiles, band 1 overlapped band 0's and lost 1,024 pixels. Hidden quads took 3 us for 8 full-band quads
+  of the long shader against 185 us drawn, so the buffer rejected them. Milestone 30 saw the same unit from the other
+  side ("Hierarchical depth, milestone 30": 512 pixels for bit 18).
+- **Predication works as Xenia models it, with `PM4_SET_BIN_MASK` and `PM4_SET_BIN_SELECT`.** A type-3 packet with
+  header bit 0 ran only where select and mask shared a bit, over all 64 bits: masks 1, 2, 1 << 32 and all ones under
+  selects 1, 2 and 1 << 32 landed and skipped as xenia:src/xenia/gpu/command_processor.cc:704-713 and 815-828 say, in
+  the ring (case 5) and in a recording run with `PM4_INDIRECT_BUFFER` (case 8). Without the bit every draw landed
+  (`probe_tiles_nopred.log`). Each register's two words sent the other way round gave the same (case 6), so which word
+  is high isn't known: the probe sends both registers alike.
+- **The one-word packets wedge the GPU.** `PM4_SET_BIN_MASK_LO` (0x60) and the three after it, sent alone, never let
+  the fence land: 0x1740 read 0x80050110, busy, and 0x07D8 0x20007FFF, bit 29 set beside the 0x7FFF it holds at title
+  start, bit 28 (halted) clear; the read pointer had reached the write pointer (case 7). Xenia handles them
+  (command_processor.cc:793-814); the console doesn't. Tiling uses 0x50 and 0x51.
+- **XAM leaves predicated draws running.** A predicated draw before any bin packet landed (case 9), on a fresh boot and
+  after a title that left both registers all ones and ended (case 10). Whether XAM's own drawing, the Guide over the
+  dashboard, is right after that wasn't looked at.

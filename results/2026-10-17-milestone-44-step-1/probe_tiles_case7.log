@@ -1,0 +1,12 @@
+log: game:\probe_tiles.log
+log: named after \Device\Harddisk0\Partition1\xsdk\m44\probe_tiles.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+tiles probe: cases 7 to 7 (game:\tiles_case.txt names the case to start from); break build: none
+tiles probe: case 7 bins_one_word: predicated draws under 0x60 to 0x63
+tiles probe: case bins_one_word: sending PM4_SET_BIN_MASK_LO to PM4_SET_BIN_SELECT_HI (0x60 to 0x63), a word each, both all ones, alone
+tiles probe: the bin packets alone: the fence didn't land: 0xC00000B5
+tiles probe: the bin packets alone: 0x07D8 20007FFF (bit 28: halted), 0x1740 80050110 (bit 31: busy)
+tiles probe: the bin packets alone: ring base 1FC40000, control 0002060C, read pointer write-back 1FC30002, read 00000366, write 00000366
+tiles probe: FAILED, case 7 bins_one_word stopped; 0 PASS, 0 DIFFERS before it
+gpu: the GPU didn't finish: 0xC00000B5; keeping it and its memory
+exit: status 1
