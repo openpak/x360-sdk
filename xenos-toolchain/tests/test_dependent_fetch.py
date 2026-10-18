@@ -17,7 +17,8 @@ fetches" and "Slow fetches across execs").
   control flow runs straight through, nothing else is serialized either.
 - Hand-built programs: a fetch's result read in a later exec is serialized; a serialized instruction in between
   clears it; a loop carries a fetch's result from the end of its body to its start and, as it may run no times, one
-  from before it to past it; an arm on the predicate that waits leaves the other arm to wait too.
+  from before it to past it; an arm on the predicate that waits leaves the other arm to wait too; a fetch waiting for
+  the work goes before the fetches that don't, so it alone waits.
 - vk_dependent_fetch.frag has serialized ALU and fetch instructions both, and the simulator gives what the GLSL says.
 """
 import re
@@ -258,6 +259,21 @@ def check_arms():
     print("  PASS arms on the predicate: each arm's read of the fetch before them is serialized")
 
 
+def check_waiting_fetch_first():
+    """Work, then two fetches at an input and one at the work's result: the one that waits for the work goes first, so
+    it alone is serialized and the two after it don't wait for it."""
+    body = [alu(V.kAdd, 2, 0xF, r(0), c(0)), tfetch(3, 1), tfetch(4, 1), tfetch(5, 2),
+            alu(V.kAdd, 6, 0xF, r(3), r(4)), alu(V.kAdd, 7, 0xF, r(6), r(5))]
+    blob = build(body, [export(r(7))])
+    check_rule("a fetch waiting for the work", blob)
+    ops = [op for _, op in ops_of(blob)]
+    fetches = [op for op in ops if op[0]]
+    work = set().union(*(op[2] for op in ops[:ops.index(fetches[0])]))
+    if not fetches[0][3] & work or [f[1] for f in fetches] != [True, False, False]:
+        fail(f"a fetch waiting for the work: fetches {fetches}; want the one reading the work first, it alone serialized")
+    print("  PASS a fetch waiting for the stage's work goes before the fetches that don't, and alone waits")
+
+
 def check_dependent_fetch():
     blob, manifest = lower_ex(module("vk_dependent_fetch.frag"), XSDK_REGISTERS)
     kinds = [(op[0], op[1]) for _, op in ops_of(blob)]
@@ -287,6 +303,7 @@ def main():
     check_cleared()
     check_loop()
     check_arms()
+    check_waiting_fetch_first()
     check_dependent_fetch()
     print("OK")
 

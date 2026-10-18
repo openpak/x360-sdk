@@ -719,6 +719,16 @@ static bool fetch_left(const Grouping *g, XscOp *const *ops)
 	return false;
 }
 
+// Whether a fetch needs the stage's ALU work, so waits for everything before it (exec_entry).
+static bool needs_work(const Grouping *g, XscOp *const *ops, size_t k)
+{
+	for (size_t i = 0; i < g->n; i++) {
+		if (g->needs[k * g->n + i] && !ops[i]->is_fetch)
+			return true;
+	}
+	return false;
+}
+
 static void take_ready_round(Grouping *g, XscOp *const *ops, uint8_t *wanted)
 {
 	const size_t n = g->n;
@@ -740,9 +750,12 @@ static void take_ready_round(Grouping *g, XscOp *const *ops, uint8_t *wanted)
 			}
 		}
 	}
-	for (size_t k = 0; k < n; k++) {
-		if (ops[k]->is_fetch && ready(g, k))
-			take(g, k);
+	// A fetch that waits goes before those that don't, so it doesn't wait for them too.
+	for (int waits = 1; waits >= 0; waits--) {
+		for (size_t k = 0; k < n; k++) {
+			if (ops[k]->is_fetch && ready(g, k) && needs_work(g, ops, k) == waits)
+				take(g, k);
+		}
 	}
 	// Never, but never stall.
 	for (size_t k = 0; g->order_count == taken && k < n; k++) {
