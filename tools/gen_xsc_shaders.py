@@ -73,9 +73,9 @@ def main():
             print(f"static const XsdkXscNeed xsc_needs_{i}[] = {{")
             for need in manifest:
                 if need[0] == "block_loop":
-                    _, reg, kind, s, b, offset = need
+                    _, reg, kind, s, b, offset, start, step = need
                     print(f"	{{ .kind = XSDK_XSC_BLOCK_LOOP, .reg = {reg}, .regs = 1, .block = {RESOURCE_KINDS[kind]}, "
-                          f".set = {s}, .binding = {b}, .offset_bytes = {offset} }},")
+                          f".set = {s}, .binding = {b}, .offset_bytes = {offset}, .start = {start}, .step = {step} }},")
                     continue
                 if need[0] == "fixed_loop":
                     print(f"	{{ .kind = XSDK_XSC_FIXED_LOOP, .reg = {need[1]}, .regs = {need[2]} }},")
@@ -85,7 +85,7 @@ def main():
                     continue
                 reg, values = need
                 print(f"	{{ XSDK_XSC_LITERAL, {reg}, 1, {{ {', '.join(repr(v) for v in values)} }}, NULL, "
-                      f"XSDK_XSC_PUSH_CONSTANTS, 0, 0, 0 }},")
+                      f"XSDK_XSC_PUSH_CONSTANTS, 0, 0, 0, 0, 0 }},")
             print("};\n")
         if resources:
             print(f"static const XsdkXscResource xsc_resources_{i}[] = {{")

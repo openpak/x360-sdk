@@ -35,12 +35,12 @@ def lower_ex(m: spirv.Module, registers: RegisterBudget = LIBXENON_REGISTERS, op
     """Returns (container_bytes, literal_manifest). The manifest is [(constant_register, (f0,f1,f2,f3))] for GLSL
     literals, with ("array", reg, regs, uniform_name) and ("loop", loop_id, uniform_name) for a hardware loop's array
     and trip count, which the host uploads to integer_constants[8+loop_id], ("block_loop", loop_id, kind, set, binding,
-    offset_bytes) for a loop an int in a block counts, which the host reads from the block for loop constant loop_id,
-    ("fixed_loop", loop_id, passes) for loops whose count is data, which the host sets to 255 passes, and ("clip",
-    plane, constant_register) for each user clip plane gl_ClipDistance reads, which the host sets from that
-    register. registers is the runtime's register split; a shader past its kind's share raises RegisterBudgetError.
-    optimize has the compiler rewrite the instructions before they're allocated; group_fetches off lays a pixel
-    shader's fetches out as before milestone 36."""
+    offset_bytes, start, step) for a loop an int in a block counts from start by step, which the host reads from the
+    block for loop constant loop_id's passes (native.loop_passes), ("fixed_loop", loop_id, passes) for loops whose
+    count is data, which the host sets to 255 passes, and ("clip", plane, constant_register) for each user clip plane
+    gl_ClipDistance reads, which the host sets from that register. registers is the runtime's register split; a
+    shader past its kind's share raises RegisterBudgetError. optimize has the compiler rewrite the instructions before
+    they're allocated; group_fetches off lays a pixel shader's fetches out as before milestone 36."""
     try:
         container_bytes, manifest, _ = native.compile_spirv(m.blob, registers.pixel, registers.vertex, optimize,
                                                             group_fetches)

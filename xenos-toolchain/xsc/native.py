@@ -27,7 +27,8 @@ class Options(ctypes.Structure):
 class Need(ctypes.Structure):
     _fields_ = [("kind", ctypes.c_int), ("reg", ctypes.c_uint32), ("regs", ctypes.c_uint32),
                 ("value", ctypes.c_double * 4), ("name", ctypes.c_char_p), ("block", ctypes.c_int),
-                ("set", ctypes.c_uint32), ("binding", ctypes.c_uint32), ("offset_bytes", ctypes.c_uint32)]
+                ("set", ctypes.c_uint32), ("binding", ctypes.c_uint32), ("offset_bytes", ctypes.c_uint32),
+                ("start", ctypes.c_int32), ("step", ctypes.c_int32)]
 
 
 class Resource(ctypes.Structure):
@@ -109,6 +110,8 @@ def _load():
         _library.xsdk_xsc_compile.restype = ctypes.c_int
         _library.xsdk_xsc_free.argtypes = [ctypes.POINTER(Shader)]
         _library.xsdk_xsc_free.restype = None
+        _library.xsdk_xsc_loop_passes.argtypes = [ctypes.c_int32, ctypes.c_int32, ctypes.c_int32]
+        _library.xsdk_xsc_loop_passes.restype = ctypes.c_uint32
         _library.xsdk_xsc_spirv_parse.argtypes = [ctypes.POINTER(_Xsc), ctypes.POINTER(ctypes.c_uint32),
                                                   ctypes.c_size_t, ctypes.c_void_p]
         _library.xsdk_xsc_spirv_parse.restype = ctypes.c_bool
@@ -185,7 +188,7 @@ def _need(n: Need):
     if n.kind == ARRAY:
         return "array", n.reg, n.regs, n.name.decode()
     if n.kind == BLOCK_LOOP:
-        return "block_loop", n.reg, RESOURCE_KINDS[n.block], n.set, n.binding, n.offset_bytes
+        return "block_loop", n.reg, RESOURCE_KINDS[n.block], n.set, n.binding, n.offset_bytes, n.start, n.step
     if n.kind == CLIP_PLANE:
         return "clip", n.regs, n.reg
     if n.kind == FIXED_LOOP:
@@ -193,15 +196,21 @@ def _need(n: Need):
     return "loop", n.reg, n.name.decode()
 
 
+def loop_passes(start: int, step: int, n: int) -> int:
+    """The passes a block loop's loop constant runs where its block holds n (xsdk:include/xsdk/xsc.h,
+    xsdk_xsc_loop_passes)."""
+    return _load().xsdk_xsc_loop_passes(start, step, n)
+
+
 def compile_spirv(spirv: bytes, pixel_registers: int, vertex_registers: int, optimize: bool = False,
                   group_fetches: bool = True):
     """(container, manifest, resources) as lower.py's lower_ex gives the first two and build_shaders.py the last:
     the manifest [(register, (f0, f1, f2, f3))], with ("array", reg, regs, name) and ("loop", id, name) for a
-    hardware loop a bare uniform counts, ("block_loop", id, kind, set, binding, offset_bytes) for one an int in a block
-    counts, ("fixed_loop", id, passes) for loops whose count is data, which run passes, 255, and ("clip", plane,
-    register) for a user clip plane; the resources [(kind, set, binding, register, registers)], blocks, samplers,
-    comparisons, then a vertex shader's gl_InstanceIndex, the float constant the runtime writes each instance's index
-    into."""
+    hardware loop a bare uniform counts, ("block_loop", id, kind, set, binding, offset_bytes, start, step) for one an
+    int in a block counts, i from start by step, ("fixed_loop", id, passes) for loops whose count is data, which run
+    passes, 255, and ("clip", plane, register) for a user clip plane; the resources [(kind, set, binding, register,
+    registers)], blocks, samplers, comparisons, then a vertex shader's gl_InstanceIndex, the float constant the runtime
+    writes each instance's index into."""
     library = _load()
     words = (ctypes.c_uint32 * (len(spirv) // 4)).from_buffer_copy(spirv[:len(spirv) // 4 * 4])
     options = Options(pixel_registers, vertex_registers, optimize, group_fetches)

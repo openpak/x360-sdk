@@ -8,20 +8,25 @@ a loop on data is a counted loop broken out of on data. Each now runs as a hardw
 constant counts (xenia:src/xenia/gpu/xenos.h:1086-1097), its condition a break at the top of a pass, or at the end for
 a do/while, gated as any break on data is, its counter a value it carries from its start by its step; so a count past
 255 stops at 255, as one SM3 loop does. The manifest's ("fixed_loop", loop constant, 255) is one loop constant for every
-such loop of the stage. A block-counted loop from past 0 or by past 1 stays counted by the block's int, which the
-shader can't read to test i against: the hardware's counter runs from 0 by 1, and a pass it isn't at i is skipped, a
-continue on data.
+such loop of the stage. A block-counted loop from other than 0 or by past 1 stays counted by the block's int n, which
+the shader can't read to test i against: as SM3's loop takes its count from an integer constant the CPU writes, the
+manifest's ("block_loop", loop constant, kind, set, binding, offset, start, step) has the runtime write
+ceil((n - start) / step) passes, 0 to 255 (native.loop_passes), each run, i carried from its start by its step. Each
+start and step takes a loop constant of its own.
 
 Each shader runs on xdis/simulate.py in both models, each pixel or vertex alone and all in one group, at counts of 0, 1,
-counts that differ within the group and past 255, which stop at 255, with the optimiser off and on:
+counts that differ within the group and past 255, which stop at 255, with the optimiser off and on; a block loop's loop
+constant from its need through native.loop_passes:
 
 - vk_loop_float_count.frag: a count from a float uniform, a continue on data, the counter after the loop.
 - vk_loop_data_count.frag: a count from an interpolant, left on data too; a group whose pixels all leave early runs as
   many passes as its last needs.
 - vk_loop_while.frag: a while on data, left on data too, and a do/while, continued past on data, sharing a loop
   constant.
-- vk_loop_count_skip.frag: block-counted loops from 1 and by 2, sharing the block's loop constant, the second left on
-  data, both counters after.
+- vk_loop_count_skip.frag: block-counted loops from -3 and by 2 to the same int, each its own loop constant, the
+  second left on data, both counters after, at counts below the start and past 255 passes.
+- vk_loop_step_grid.frag: xsdk_test's raster grid, loops from 100 and by 2 to the same int, where the step matters past
+  255: to 300 the first runs 200 passes, to 400 the second 200.
 - vk_vertex_loop_data.vert: a vertex shader's while on a vertex input, continued past on data, its counter after.
 - vk_loop_data_grid.frag: xsdk_test's raster grid, a for, a while and a do/while on counts 0 to 321 from each pixel's
   place, at every place in a 10-pixel cell.
@@ -92,18 +97,28 @@ def while_loops(x, y):
 
 
 def count_skip(x, count):
-    """The GLSL's, the count as a loop constant takes it, 0 to 255."""
-    n = max(0, min(count, MAX_PASSES))
-    sum_x, sum_y, i, j = 0.0, 0.0, 1, 0
-    while i < n:
+    """The GLSL's, each loop stopping at 255 passes."""
+    sum_x, sum_y, i, j = 0.0, 0.0, -3, 0
+    while i < count and i < MAX_PASSES - 3:
         sum_x += STEP[0] * i
         i += 1
-    while j < n:
+    while j < count and j < 2 * MAX_PASSES:
         sum_y += STEP[1]
         if j >= x:
             break
         j += 2
     return [sum_x, sum_y, i * 0.03125, j * 0.03125]
+
+
+def step_grid(n):
+    """The GLSL's, each loop stopping at 255 passes, scaled to a colour."""
+    a, i = 0, 100
+    while i < n and a < MAX_PASSES:
+        a, i = a + 1, i + 1
+    b, j = 0, 0
+    while j < n and b < MAX_PASSES:
+        b, j = b + 1, j + 2
+    return [a / 255.0, b / 255.0, (i + j) * 0.25 / 255.0, 1.0]
 
 
 def vertex_data(x, y):
@@ -178,6 +193,11 @@ def fixed(name, optimize):
     return blob, literals
 
 
+def block_counted(loops, n):
+    """Each block loop's loop constant where its int is n, as the runtime writes it."""
+    return {entry[1]: native.loop_passes(entry[6], entry[7], n) for entry in loops}
+
+
 def check_float_count(optimize, tag):
     name = "vk_loop_float_count.frag"
     blob, literals = fixed(name, optimize)
@@ -219,15 +239,24 @@ def check_while(optimize, tag):
 
 def check_skip(optimize, tag):
     name = "vk_loop_count_skip.frag"
-    blob, literals = fixed(name, optimize)
-    places = (0.0, 1.0, 3.0, 4.0, 99.0, 300.0)
+    blob, literals, loops = lowered(name, optimize)
+    places = (0.0, 1.0, 3.0, 4.0, 99.0, 300.0, 600.0)
     lanes = [{0: [x, 0.0, 0.0, 0.0]} for x in places]
-    for count in (-5, 0, 1, 2, 5, 8, 300):
+    for count in (-5, -3, -2, 0, 1, 2, 5, 8, 251, 252, 253, 300, 510, 511, 600):
         constants = push_constants(name, [STEP])
         constants.update(literals)
-        # The layer's and xsdk_test's count, clamped to the 0 to 255 passes a loop constant runs.
-        check_models(f"{name}, count {count}, {tag}", blob, lanes, constants,
-                     {PIXEL_LOOP: max(0, min(count, MAX_PASSES))}, [count_skip(x, count) for x in places])
+        check_models(f"{name}, count {count}, {tag}", blob, lanes, constants, block_counted(loops, count),
+                     [count_skip(x, count) for x in places])
+
+
+def check_steps(optimize, tag):
+    name = "vk_loop_step_grid.frag"
+    blob, literals, loops = lowered(name, optimize)
+    lanes = [{0: [0.0] * 4}] * 2
+    for n in (-5, 0, 100, 101, 102, 300, 355, 356, 400, 510, 511, 600):
+        constants = push_constants(name, [[1.0 / 255.0, 0.0, 0.0, 0.0]])
+        constants.update(literals)
+        check_models(f"{name}, n {n}, {tag}", blob, lanes, constants, block_counted(loops, n), [step_grid(n)] * 2)
 
 
 def check_vertex(optimize, tag):
@@ -269,10 +298,15 @@ def main():
     check_shape("vk_loop_while.frag", fixed_loop, [PIXEL_LOOP] * 2, [True] * 2)
     check_shape("vk_loop_data_grid.frag", fixed_loop, [PIXEL_LOOP] * 3, [True] * 3)
     check_shape("vk_vertex_loop_data.vert", [("fixed_loop", VERTEX_LOOP, MAX_PASSES)], [VERTEX_LOOP], [True])
-    check_shape("vk_loop_count_skip.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 16)], [PIXEL_LOOP] * 2,
-                [None, True])
+    check_shape("vk_loop_count_skip.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 16, 0, 2),
+                                             ("block_loop", PIXEL_LOOP + 1, "push", 0, 0, 16, -3, 1)],
+                [PIXEL_LOOP + 1, PIXEL_LOOP], [None, True])
+    check_shape("vk_loop_step_grid.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 16, 100, 1),
+                                           ("block_loop", PIXEL_LOOP + 1, "push", 0, 0, 16, 0, 2)],
+                [PIXEL_LOOP, PIXEL_LOOP + 1], [None, None])
     for optimize in (False, True):
-        for each in (check_float_count, check_data_count, check_while, check_skip, check_vertex, check_grid):
+        for each in (check_float_count, check_data_count, check_while, check_skip, check_steps, check_vertex,
+                     check_grid):
             each(optimize, f"optimiser {'on' if optimize else 'off'}")
     print("OK")
 

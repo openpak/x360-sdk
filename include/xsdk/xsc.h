@@ -50,8 +50,8 @@ typedef enum {
 	XSDK_XSC_ARRAY,
 	// The loop count for loop constant reg, from the uniform name.
 	XSDK_XSC_LOOP,
-	// The loop count for loop constant reg, from the 32-bit int offset_bytes into the block block, set and binding
-	// name; the loop runs from aL 0 by 1, as many passes as the int, none below 1.
+	// The loop count for loop constant reg, from the 32-bit int n offset_bytes into the block block, set and binding
+	// name: for (i = start; i < n; i += step), so xsdk_xsc_loop_passes(start, step, n) passes, from aL 0 by 1.
 	XSDK_XSC_BLOCK_LOOP,
 	// User clip plane regs, 0 to 5, from constant register reg: gl_ClipDistance[regs] = dot(gl_Position, the plane)
 	// (xenos-toolchain/docs/xsc.md, "Interface conventions").
@@ -83,6 +83,9 @@ typedef struct {
 	uint32_t set;
 	uint32_t binding;
 	uint32_t offset_bytes;
+	// A block loop's i: where it starts, and what each pass adds, 1 or more.
+	int32_t start;
+	int32_t step;
 } XsdkXscNeed;
 
 // Where a block's registers, a sampler's fetch constant, a comparison's register or the instance index landed.
@@ -110,6 +113,9 @@ void xsdk_xsc_default_options(XsdkXscOptions *options);
 XsdkXscStatus xsdk_xsc_compile(
 	const uint32_t *spirv, size_t spirv_words, const XsdkXscOptions *options, XsdkXscShader *shader);
 void xsdk_xsc_free(XsdkXscShader *shader);
+// The passes a block loop's loop constant runs where its block holds n, as Shader Model 3's loop counts them:
+// ceil((n - start) / step), 0 to 255, the most one counts (xenia:src/xenia/gpu/xenos.h:1086-1097).
+uint32_t xsdk_xsc_loop_passes(int32_t start, int32_t step, int32_t n);
 // A hash of the compiler's sources, so what it compiled can be told from what a changed compiler would.
 const char *xsdk_xsc_version(void);
 

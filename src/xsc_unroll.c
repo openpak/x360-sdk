@@ -1221,8 +1221,7 @@ static bool varies(Unroller *u, const Hardware *hw, uint32_t c, bool *data)
 	return true;
 }
 
-// A break or continue on c being when, outside any arm of the pass, gated: a hardware loop's own condition, or a pass
-// it skips.
+// A break or continue on c being when, outside any arm of the pass, gated: a hardware loop's own condition.
 static bool gated_leave(Unroller *u, Unrolled *ul, uint32_t c, bool when, bool is_break)
 {
 	if (!xsdk_xsc_room(u->x, &u->path, u->arms, &u->path_capacity, sizeof *u->path))
@@ -1551,8 +1550,7 @@ static bool carry_in(Unroller *u, uint32_t iv, const bool *stored, Carry *carrie
 	return true;
 }
 
-// The continue block, its stores kept where flag is 0, as for a pixel that left the loop or skipped the pass; 0 for
-// none.
+// The continue block, its stores kept where flag is 0, as for a pixel that left the loop; 0 for none.
 static bool step_pass(Unroller *u, const Unrolled *ul, const Block *cont, uint32_t flag, LocalMap *lm)
 {
 	State kept = { 0 };
@@ -1565,22 +1563,11 @@ static bool tests_at_end(const Block *cont)
 	return cont->term && cont->term->opcode == SPV_BRANCH_CONDITIONAL;
 }
 
-// The top of a hardware loop's pass. Where a block's int counts it but i starts past 0 or steps past 1, a pass the
-// counter isn't at i is skipped, a continue, and took says which pixels run it. A loop whose count is data carries
-// alive from its first pass, so all of the pass is gated, and its condition, tested at the top but in a do/while, is a
-// break, the pass going on at the condition's arm into the loop.
-static bool top_of_pass(
-	Unroller *u, Unrolled *ul, const XscHardwareLoop *loop, uint32_t iv, uint32_t *first, uint32_t *took)
+// The top of a hardware loop's pass whose count is data: alive carried from its first pass, so all of the pass is
+// gated, and its condition, tested at the top but in a do/while, a break, the pass going on at the condition's arm
+// into the loop.
+static bool top_of_pass(Unroller *u, Unrolled *ul, uint32_t *first)
 {
-	if (loop->count) {
-		uint32_t skipped;
-		const uint32_t operands[2] = { loop->counter, u->env[iv] };
-		if (!emit_value(u, OP_I_NOT_EQUAL, u->bool_tid, operands, 2, &skipped) ||
-			!gated_leave(u, ul, skipped, true, false))
-			return false;
-		*took = ul->running;
-		return true;
-	}
 	if (!ul->alive_phi && !carry_alive(u, ul))
 		return false;
 	if (tests_at_end(block_of(u, ul->cont)))
@@ -1596,12 +1583,12 @@ static bool top_of_pass(
 }
 
 // The end of a hardware loop's pass whose counter isn't i, its values gated: the continue block run for each pixel
-// still in the loop that took the pass, then a do/while's condition, a break.
-static bool end_of_pass(Unroller *u, Unrolled *ul, const Block *cont, uint32_t took)
+// still in the loop, then a do/while's condition, a break.
+static bool end_of_pass(Unroller *u, Unrolled *ul, const Block *cont)
 {
-	uint32_t flag, c;
+	uint32_t c;
 	LocalMap lm = { 0 };
-	if (!both(u, ul->alive, took, &flag) || !step_pass(u, ul, cont, flag, &lm))
+	if (!step_pass(u, ul, cont, ul->alive, &lm))
 		return false;
 	if (!tests_at_end(cont))
 		return true;
@@ -1624,10 +1611,10 @@ static void place_alive(Unroller *u, size_t at, uint32_t phi)
 }
 
 // The loop's pass walked once from the values at its top; then what it carries holds the loop's results. A block's int
-// counts it, through chain, its passes skipped where i, iv, starts past 0 or steps past 1; or its count is data, chain
-// NULL and iv 0.
+// counts it, through chain, i, iv, from start by step, carried where it doesn't run from 0 by 1; or its count is data,
+// chain NULL and iv 0.
 static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merge, uint32_t cont, uint32_t first,
-	uint32_t iv, const XscInstr *chain, bool skip)
+	uint32_t iv, const XscInstr *chain, int32_t start, int32_t step)
 {
 	size_t depth = 1;
 	for (const Hardware *h = u->hardware; h; h = h->outer)
@@ -1642,11 +1629,11 @@ static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merg
 		return false;
 	if (parts)
 		return refuse(u, "a store into part of an output inside a hardware loop (v1)");
-	XscHardwareLoop loop = { .carried_first = u->carried_count, .first = u->counter };
+	XscHardwareLoop loop = { .start = start, .step = step, .carried_first = u->carried_count, .first = u->counter };
 	LocalMap lm = { 0 };
 	size_t carry_count = 0;
 	// The pass counter is i itself where a block's int counts the loop from 0 by 1; any other i is carried.
-	const uint32_t counted = chain && !skip ? iv : 0;
+	const uint32_t counted = chain && !start && steps_by_one(u, cont, iv) ? iv : 0;
 	const uint32_t counter_type = iv ? pointee(u, iv) : u->float_tid;
 	if ((chain && !clone_generic(u, chain, &lm)) || !carry_in(u, counted, stored, carries, &carry_count, own) ||
 		!emit_value(u, XSC_OP_LOOP_PHI, counter_type, NULL, 0, &loop.counter))
@@ -1673,21 +1660,19 @@ static bool expand_hardware_loop(Unroller *u, const Block *header, uint32_t merg
 		.counter = loop.counter,
 		.outer = enclosing };
 	uint32_t exit;
-	uint32_t took = 0;
 	bool ended = false;
 	if (!save(u, &gated.top) || !save(u, &gated.stopped) || (gated.entered && !carry_alive(u, &gated)))
 		return false;
 	u->hardware = &hw;
 	u->unrolled = &gated;
-	const bool walked =
-		(counted || top_of_pass(u, &gated, &loop, iv, &first, &took)) && walk(u, first, cont, true, &exit, &ended);
+	const bool walked = (chain || top_of_pass(u, &gated, &first)) && walk(u, first, cont, true, &exit, &ended);
 	u->hardware = enclosing;
 	u->unrolled = outer;
 	if (!walked)
 		return false;
 	if (ended && !gated.left)
 		return refuse(u, "a discard or return inside a hardware loop (v1)");
-	if (!end_pass(u, &gated) || (!counted && !end_of_pass(u, &gated, block_of(u, cont), took)))
+	if (!end_pass(u, &gated) || (!counted && !end_of_pass(u, &gated, block_of(u, cont))))
 		return false;
 	for (size_t i = 0; i < carry_count; i++) {
 		XscCarried *const c = &u->carried[loop.carried_first + i];
@@ -1740,7 +1725,7 @@ static bool expand_data_loop(Unroller *u, const Block *header, uint32_t merge, c
 		return refuse(u, "a loop's continue construct of more than one block (v1)");
 	if (loads_held_int(u, at_end ? cont : block_of(u, first)))
 		return refuse(u, "a loop's condition on a block's or uniform's int, other than i < b.n (v1)");
-	return expand_hardware_loop(u, header, merge, cont->label, first, 0, NULL, false);
+	return expand_hardware_loop(u, header, merge, cont->label, first, 0, NULL, 0, 1);
 }
 
 // Unrolls the loop whose header is header_lbl, or keeps it for a hardware loop where a block's int or data counts it;
@@ -1768,12 +1753,13 @@ static bool expand_loop(Unroller *u, const Block *header, uint32_t *merge)
 	const XscInstr *chain;
 	int64_t start;
 	if (counted_by_block(u, cond_block->term, *merge, &iv, &chain, &start)) {
-		if (start < 0 || !block_step(u, header->label, *merge, continue_lbl, iv))
+		const int64_t step = block_step(u, header->label, *merge, continue_lbl, iv);
+		if (!step)
 			return refuse(u,
-				"a loop counted by a block from below 0, or stepping i other than by a constant past 0 in "
-				"its continue block alone (v1)");
+				"a loop counted by a block, stepping i other than by a constant past 0 in its continue "
+				"block alone (v1)");
 		return expand_hardware_loop(u, header, *merge, continue_lbl, xsdk_xsc_operand(cond_block->term, 1), iv, chain,
-			start || !steps_by_one(u, continue_lbl, iv));
+			(int32_t)start, (int32_t)step);
 	}
 	LoopTest test = { 0 };
 	uint32_t body = 0;

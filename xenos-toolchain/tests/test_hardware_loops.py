@@ -7,8 +7,9 @@ and the hardware loop lowering took a bare uniform alone, which Vulkan's GLSL ha
 a loop's pass once, each local and output it carries a value at the top of the pass, and the lowering lays it out
 between LOOP_START and LOOP_END: what it carries in registers, each pass's values put in them at its end, the
 induction variable a float counting from 0. The manifest gives the loop constant and where the count is, which the
-runtime reads from the block (("block_loop", id, kind, set, binding, offset)); a vertex shader's loops take loop
-constants from 0 and a pixel shader's from 16. The simulator runs each loop the count's passes:
+runtime reads from the block (("block_loop", id, kind, set, binding, offset, start, step), from 0 by 1 here); a
+vertex shader's loops take loop constants from 0 and a pixel shader's from 16. The simulator runs each loop the
+count's passes:
 
 - vk_loop_count.frag adds a step to a base a pass, counted by a push constant: 0, 1, 3 and 7 passes.
 - vk_loop_count_if.frag, counted by a uniform buffer, has an if/else on data in its pass, reads a block's array at the
@@ -74,7 +75,7 @@ def uniform_block(name, values):
 def main():
     name = "vk_loop_count.frag"
     blob, loops, literals = lowered(name)
-    check_manifest(name, loops, [("block_loop", 16, "push", 0, 0, 32)])
+    check_manifest(name, loops, [("block_loop", 16, "push", 0, 0, 32, 0, 1)])
     for count in (0, 1, 3, 7):
         constants = push_constants(name, [STEP, BASE])
         constants.update(literals)
@@ -83,7 +84,7 @@ def main():
 
     name = "vk_loop_count_if.frag"
     blob, loops, literals = lowered(name)
-    check_manifest(name, loops, [("block_loop", 16, "uniform", 0, 0, 144)])
+    check_manifest(name, loops, [("block_loop", 16, "uniform", 0, 0, 144, 0, 1)])
     for u, count in ((0.0, 3), (0.2, 3), (0.3, 8), (0.9, 8), (0.9, 0)):
         constants = uniform_block(name, COLORS + [LIMIT])
         constants.update(literals)
@@ -92,7 +93,7 @@ def main():
 
     name = "vk_vertex_loop_count.vert"
     blob, loops, literals = lowered(name)
-    check_manifest(name, loops, [("block_loop", 0, "push", 0, 0, 16)])
+    check_manifest(name, loops, [("block_loop", 0, "push", 0, 0, 16, 0, 1)])
     position, color = [0.25, -0.5, 0.5, 1.0], [0.5, 0.25, 1.0, 0.75]
     for count in (0, 2, 5):
         constants = push_constants(name, [STEP])

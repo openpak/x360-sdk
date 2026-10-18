@@ -520,7 +520,8 @@ XscOperand xsdk_xsc_merge_operand(XscLower *l, uint32_t ssa)
 
 // ---- hardware loops ----
 
-// Where the count is: the block holding the int the chain reaches, at a byte offset (xsc_lower_block.c).
+// Where the count is: the block holding the int the chain reaches, at a byte offset (xsc_lower_block.c); and the
+// loop's start and step, which the runtime works its passes out from.
 static bool block_count(XscLower *l, const XscHardwareLoop *loop, XsdkXscNeed *need)
 {
 	XscBlockAccess access;
@@ -537,12 +538,14 @@ static bool block_count(XscLower *l, const XscHardwareLoop *loop, XsdkXscNeed *n
 		.block = block->push ? XSDK_XSC_PUSH_CONSTANTS : XSDK_XSC_UNIFORM_BUFFER,
 		.set = block->var->descriptor_set == XSC_NONE ? 0 : (uint32_t)block->var->descriptor_set,
 		.binding = block->var->binding == XSC_NONE ? 0 : (uint32_t)block->var->binding,
-		.offset_bytes = (uint32_t)((access.reg - block->reg) * REGISTER_BYTES + access.comp * MEMBER_BYTES) };
+		.offset_bytes = (uint32_t)((access.reg - block->reg) * REGISTER_BYTES + access.comp * MEMBER_BYTES),
+		.start = loop->start,
+		.step = loop->step };
 	return true;
 }
 
-// The loop constant the loop's count sets, one per count, from the stage's first: a block's int, or the fixed passes a
-// loop whose count is data runs.
+// The loop constant the loop's count sets, one per count, from the stage's first: a block's int from a start by a
+// step, or the fixed passes a loop whose count is data runs.
 static bool count_constant(XscLower *l, const XscHardwareLoop *loop, uint32_t *loop_constant)
 {
 	XsdkXscNeed need = { .kind = XSDK_XSC_FIXED_LOOP, .regs = FIXED_PASSES };
@@ -551,7 +554,7 @@ static bool count_constant(XscLower *l, const XscHardwareLoop *loop, uint32_t *l
 	for (size_t i = 0; i < l->loop_need_count; i++) {
 		const XsdkXscNeed *const n = &l->loop_needs[i];
 		if (n->kind == need.kind && n->block == need.block && n->set == need.set && n->binding == need.binding &&
-			n->offset_bytes == need.offset_bytes) {
+			n->offset_bytes == need.offset_bytes && n->start == need.start && n->step == need.step) {
 			*loop_constant = n->reg;
 			return true;
 		}
@@ -617,7 +620,7 @@ static bool count_pass(XscLower *l, int64_t counter, int64_t alive)
 
 // Each carried value's register from its value on entry; LOOP_START; each pass's values worked out from the registers,
 // then put in them; the induction variable counted on; a break's setp; LOOP_END. The loop constant the block's int
-// sets runs it that many passes, or one whose count is data 255, aL from 0 by 1
+// sets runs it the passes from the loop's start to the int by its step, or one whose count is data 255, aL from 0 by 1
 // (xenia:src/xenia/gpu/xenos.h:1086-1097). A loop a pixel leaves on data sets p0 where alive is 0, and LOOP_END breaks
 // once every pixel of the group has (xenia:src/xenia/gpu/ucode.h:372-373).
 static bool emit_loop(XscLower *l, uint32_t index)

@@ -176,11 +176,14 @@ typedef struct {
 } XscCarried;
 
 // A loop kept for a hardware loop: the access chain to the int a block holds that counts it, 0 for a loop whose count
-// is data, which runs 255 passes; the pass counter at the top of each pass and after, from 0 by 1, what it carries, a
-// break ending a pass where the condition is break_when (0 for none), the carried flag a break on data clears, 1 while
-// the vertex or pixel is in the loop (0 for none), and the ids made in its body, first to end.
+// is data, which runs 255 passes, and where the loop's i starts and what each pass adds; the pass counter at the top of
+// each pass and after, from 0 by 1, what it carries, a break ending a pass where the condition is break_when (0 for
+// none), the carried flag a break on data clears, 1 while the vertex or pixel is in the loop (0 for none), and the ids
+// made in its body, first to end.
 typedef struct {
 	uint32_t count;
+	int32_t start;
+	int32_t step;
 	uint32_t counter;
 	uint32_t counter_result;
 	size_t carried_first;

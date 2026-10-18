@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +12,8 @@ enum {
 	XSDK_PIXEL_REGISTERS = 64,
 	XSDK_VERTEX_REGISTERS = 64,
 	MODEL_VERTEX = 0,
+	// A loop constant counts 8 bits of passes (xenia:src/xenia/gpu/xenos.h:1086-1097).
+	MAX_LOOP_PASSES = 255,
 };
 
 // make works it out (Makefile, XSC_VERSION).
@@ -179,4 +182,13 @@ void xsdk_xsc_free(XsdkXscShader *shader)
 	shader->needs = NULL;
 	shader->resources = NULL;
 	shader->container_bytes = shader->need_count = shader->resource_count = 0;
+}
+
+uint32_t xsdk_xsc_loop_passes(int32_t start, int32_t step, int32_t n)
+{
+	assert(step > 0);
+	if (n <= start)
+		return 0;
+	const int64_t passes = ((int64_t)n - start + step - 1) / step;
+	return passes > MAX_LOOP_PASSES ? MAX_LOOP_PASSES : (uint32_t)passes;
 }

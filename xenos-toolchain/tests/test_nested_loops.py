@@ -307,18 +307,19 @@ def check_refused(name, words):
 
 
 def main():
-    block = ("block_loop", PIXEL_LOOP, "push", 0, 0, 16)
+    block = ("block_loop", PIXEL_LOOP, "push", 0, 0, 16, 0, 1)
     fixed = ("fixed_loop", FIXED_LOOP, MAX_PASSES)
     check_shape("vk_loop_nest2.frag", [block, fixed], [PIXEL_LOOP, FIXED_LOOP], [True, True])
-    check_shape("vk_loop_nest4.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 64), fixed],
+    check_shape("vk_loop_nest4.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 64, 0, 1), fixed],
                 [PIXEL_LOOP, FIXED_LOOP] * 2, [True, True, True, None])
-    check_shape("vk_loop_nest_grid.frag", [block, fixed, ("block_loop", PIXEL_LOOP + 2, "push", 0, 0, 20)],
+    check_shape("vk_loop_nest_grid.frag", [block, fixed, ("block_loop", PIXEL_LOOP + 2, "push", 0, 0, 20, 0, 1)],
                 [PIXEL_LOOP, FIXED_LOOP, FIXED_LOOP, PIXEL_LOOP + 2], [True, True, True, None])
     check_shape("vk_loop_in_data_if.frag", [block, fixed], [PIXEL_LOOP, FIXED_LOOP], [True, True])
-    check_shape("vk_loop_in_uniform_if.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 32)], [PIXEL_LOOP], [True])
+    check_shape("vk_loop_in_uniform_if.frag", [("block_loop", PIXEL_LOOP, "push", 0, 0, 32, 0, 1)], [PIXEL_LOOP],
+                [True])
     check_shape("vk_loop_in_unrolled.frag", [block], [PIXEL_LOOP] * 3, [True] * 3)
     check_shape("vk_vertex_loop_nest.vert", [("fixed_loop", VERTEX_LOOP, MAX_PASSES),
-                                             ("block_loop", VERTEX_LOOP + 1, "push", 0, 0, 16)],
+                                             ("block_loop", VERTEX_LOOP + 1, "push", 0, 0, 16, 0, 1)],
                 [VERTEX_LOOP, VERTEX_LOOP + 1], [True, True])
     check_refused("vk_loop_nest5.frag", "nested more than 4 deep")
     for optimize in (False, True):

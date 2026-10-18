@@ -111,11 +111,17 @@ per pixel. LOOP_END's predicated break is used only to leave early, once no pixe
   - **A new need,** `XSDK_XSC_FIXED_LOOP` (the loop constant in `reg`, the count in `regs`). A runtime writes it with
     `xsdk_gpu_loop_constant(255, 0, 1)`. vulkan4xenon's bundle carries it as a resource beside its two block-loop
     kinds, and the layer writes it with the others.
-  - **Block-counted loops** that start past 0 or step other than `i++` were to take this path too. As built in step
-    4, they stay counted by the block's int, as a shader can't read an int from a block to test `i < b.n` itself
-    (`int_operand_of`, `src/xsc_lower.c`): `i` is carried from its start by its step, and a pass whose counter isn't
-    at `i` is skipped, a gated continue. Values are exact, at the cost of n passes rather than (n - start) / step.
-  - **Loop constants** go one per distinct count rather than one per loop, from the stage's 16
+  - **Block-counted loops** that start past 0 or step other than `i++` were to take this path too. They stay counted
+    by the block's int n, as a shader can't read an int from a block to test `i < b.n` itself (`int_operand_of`,
+    `src/xsc_lower.c`), and take their passes as SM3's `loop aL, i#` does, from an integer constant the CPU writes
+    (agreed with the user, 2026-10-18):
+    - the need carries the loop's start and step, and the runtime writes `xsdk_xsc_loop_passes(start, step, n)`,
+      ceil((n - start) / step) kept between 0 and 255, into the loop constant;
+    - every pass runs, `i` carried from its start by its step; a start below 0 is taken too;
+    - a loop from 0 by 1 compiles as before, its count the plain n.
+
+    Step 4 had run n passes, skipping each whose counter wasn't at `i`, so 255 bounded n rather than the iterations.
+  - **Loop constants** go one per distinct count, start and step rather than one per loop, from the stage's 16
     (`src/xsc_lower_flow.c:9-16`).
 - **Nested loops:**
   - **To 4 hardware loops deep** (ucode.h:131); a fifth is refused.
