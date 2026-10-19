@@ -4300,3 +4300,36 @@ fans and draws past a packet go an instance at a time (vulkan4xenon:src/queue.c,
 - **Nothing else moved:** xsdk_test passed 459 of 461, the 2 the controller checks with no pad; vkbench 14 of 14;
   Dusklight's title scene ran at its frame rates before, its pack the same, and the layer takes the copies' memory
   only at the first draw that needs it.
+
+## Instancing measured, milestone 47 step 5 (2026-10-19)
+
+The probe's cost case through the milestone's own code, case 6 of `tests/probe_instancing.c` (xost's
+`vk_instance_rate.vert` plain and instanced, `xsdk_gpu_draw_instanced` and `xsdk_gpu_draw_indexed_instanced` with 64
+copies), and vkbench's `instances_4000`: `draws_4000`'s cubes, each one's matrix and tint at the instance's rate, in
+one indexed draw through each backend. Logs: `results/2026-10-19-milestone-47-step-5/`.
+- **What an instance costs**, against a draw an instance as the layer drew one before the milestone:
+
+  | | as the layer drew one | milestone 47 | of it | Done when |
+  |---|---|---|---|---|
+  | the 4-pixel cube, GPU | 0.285 us | 0.072, indexed in 64 copies | 0.25 | at most 0.5 |
+  | the 6-vertex quad, GPU | 0.273 us | 0.026, auto-indexed | 0.09 | at most 0.2 |
+  | the cube, CPU recorded | 689 clocks | 10 | 0.015 | at most 0.1 |
+  | the quad, CPU recorded | 735 clocks | 0 | 0.0006 | at most 0.1 |
+
+- **vkbench's 4,000 cubes in one draw drew `draws_4000`'s picture** through both backends, 0 of 2,304 points apart,
+  and vkbench passed 17 of 17. The medians, a frame:
+
+  | | draw+submit | from submit to the fence | the fence from the first draw |
+  |---|---|---|---|
+  | xsdk, `draws_4000` | 1,162 us | 806 | 1,968 |
+  | xsdk, `instances_4000` | 85 | 991 | 1,076 |
+  | vulkan4xenon, `draws_4000` | 3,857 | 371 | 4,228 |
+  | vulkan4xenon, `instances_4000` | 150 | 989 | 1,139 |
+
+  vkbench's gpu figure runs from the submit's end to the fence, and `draws_4000`'s GPU works through its long submit,
+  so that figure alone is larger for `instances_4000`; its fence lands sooner by the frame, at 0.55 and 0.27 of
+  `draws_4000`'s. A frame's stream fell from 180,416 and 244,454 dwords to 1,848 and 1,865.
+- **Nothing else moved:** xsdk_test passed 459 of 461, the 2 the controller checks with no pad; vulkan4xenon_test
+  492 of 492 twice; Dusklight's title scene ran at its frame rates before.
+- **Milestone 47 is done:** each of docs/scope/47-instancing.md's "Done when" holds; lists draw in one draw, indexed or
+  not, and strips, fans and draws past a packet go an instance at a time, as the scope left them.

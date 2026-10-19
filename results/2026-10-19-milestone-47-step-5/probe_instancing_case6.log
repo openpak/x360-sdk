@@ -1,0 +1,18 @@
+log: game:\probe_instancing.log
+log: named after \Device\Harddisk0\Partition1\xsdk\m47\probe_instancing.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+instancing probe: running only case xsdk; the group c0, instances from 5 in cases 2 and 3
+instancing probe: about to run case 6, xsdk: case 4's cube and quad through xost's vk_instance_rate.vert, each as the layer drew an instance before and in xsdk's instanced draws, against the scope's Done when
+instancing probe: case 6: timing the cube as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, stream 1 at the instance, the indexed draw
+instancing probe: case 6: the cube as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, stream 1 at the instance, the indexed draw: GPU 0.285 us an instance, 145.2 us for 500, 715.7 for 2500; CPU 689 clocks an instance recorded (0.216 us), 36.0 dwords; 2500 of 2500 cells drawn
+instancing probe: case 6: timing the cube in xsdk_gpu_draw_indexed_instanced, xost's instanced vk_instance_rate.vert, its 36 indices in 64 copies from xsdk_gpu_repeat_indices
+instancing probe: case 6: the cube in xsdk_gpu_draw_indexed_instanced, xost's instanced vk_instance_rate.vert, its 36 indices in 64 copies from xsdk_gpu_repeat_indices: GPU 0.072 us an instance, 39.8 us for 500, 184.6 for 2500; CPU 10 clocks an instance recorded (0.003 us), 0.4 dwords; 2500 of 2500 cells drawn
+instancing probe: case 6: timing the quad as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, stream 1 at the instance, a draw of 6
+instancing probe: case 6: the quad as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, stream 1 at the instance, a draw of 6: GPU 0.273 us an instance, 139.2 us for 500, 684.7 for 2500; CPU 735 clocks an instance recorded (0.230 us), 33.0 dwords; 2500 of 2500 cells drawn
+instancing probe: case 6: timing the quad in xsdk_gpu_draw_instanced, xost's instanced vk_instance_rate.vert, 6 vertices
+instancing probe: case 6: the quad in xsdk_gpu_draw_instanced, xost's instanced vk_instance_rate.vert, 6 vertices: GPU 0.026 us an instance, 14.2 us for 500, 65.6 for 2500; CPU 0 clocks an instance recorded (0.000 us), 0.0 dwords; 2500 of 2500 cells drawn
+instancing probe: case 6: 4 ways timed, 4 drew every cell
+instancing probe: case 6: the cube: GPU 0.072 us an instance against the layer's 0.285, 0.254 of it, done when at most 0.50; CPU 10 clocks against 689, 0.0148 of it, done when at most 0.1: MEETS
+instancing probe: case 6: the quad: GPU 0.026 us an instance against the layer's 0.273, 0.094 of it, done when at most 0.20; CPU 0 clocks against 735, 0.0006 of it, done when at most 0.1: MEETS
+instancing probe: done, 1 cases: 1 PASS, 0 DIFFERS; xsdk_gpu_close 0x00000000
+exit: status 0

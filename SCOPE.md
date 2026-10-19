@@ -974,7 +974,8 @@ gap that something running on xsdk meets becomes a milestone; the rest wait (aft
 46. **Loops in shaders.** Agreed on 2026-10-17 and done on 2026-10-18: docs/scope/46-loops.md, after 44's first part
     (HARDWARE.md, from "Loops on the console, milestone 46 step 1" to "Loops through the layer, milestone 46 step 7").
 
-47. **Instancing.** Agreed on 2026-10-17: docs/scope/47-instancing.md, after 46.
+47. **Instancing.** Agreed on 2026-10-17 and done on 2026-10-19: docs/scope/47-instancing.md, after 46 (HARDWARE.md,
+    from "Instancing on the console, milestone 47 step 1" to "Instancing measured, milestone 47 step 5").
 
 **Networking**, a scope of its own rather than a numbered milestone: sockets, and TLS 1.2 in the title's own code.
 Agreed and done on 2026-10-14: docs/scope/networking.md.
