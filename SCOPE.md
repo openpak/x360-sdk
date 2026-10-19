@@ -18,6 +18,11 @@ translation layer comes later and is out of this scope. So are games.
   2026-10-14; its commits before then are cited by the hashes of its own repository, xenosworks/xenos-toolchain.
 - **Unverified.** Where something isn't settled by these sources, it's marked unverified.
 
+**MSR[LE] feasibility probe (agreed 2026-10-18).** The user's port decision needs console measurements of data
+accesses, instruction fetch, interrupt/thread persistence, kernel crossings, and switch cost. `docs/MSR_LE.md`
+specifies the standalone `probe_msr_le.xex` and its limits. Hardware results are pending. This adds no SDK endian
+mode, game changes, or HV/HVX calls.
+
 ## 1. What already exists: the user's shader toolchain ("xost")
 
 - **What it is:** an open shader toolchain for Xenos with no Microsoft tooling, verified on a real RGH console through

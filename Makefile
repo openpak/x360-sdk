@@ -6,6 +6,7 @@ CC := $(TOOLCHAIN)gcc
 CXX := $(TOOLCHAIN)g++
 AR := $(TOOLCHAIN)ar
 OBJDUMP := $(TOOLCHAIN)objdump
+OBJCOPY := $(TOOLCHAIN)objcopy
 PYTHON ?= python3
 HOST_CC ?= gcc
 
@@ -64,7 +65,7 @@ GUIDE_CHECK_OBJECTS := $(patsubst tests/%,$(BUILD)/tests/%.o,$(basename $(GUIDE_
 PROBES := probe_spin probe_print probe_cp probe_ring probe_interrupt probe_exports probe_engines probe_swap \
 	probe_display probe_guide probe_resolve probe_triangle probe_vblank probe_720p probe_constants probe_mip_tail \
 	probe_draw_after_resolve probe_pixel_rate probe_unroll probe_hiz probe_net probe_texel_rate probe_draw_cost \
-	probe_gpu_draw_cost probe_fault probe_depth_export probe_queries probe_occlusion
+	probe_gpu_draw_cost probe_fault probe_depth_export probe_queries probe_occlusion probe_msr_le
 # vulkan4xenon milestone 28's tries at the sample counts, a probe_occlusion_<try>.xex each, in the order to run them
 # (results/2026-10-16-vulkan4xenon-milestone-28/builds.sh); outside all.
 OCCLUSION_TRIES := registers viz_query reset reset_copy reset_event flush resolve no_counters group_all group_clock \
@@ -110,6 +111,27 @@ $(BUILD)/probe_unroll.elf: $(BUILD)/tests/probe_unroll.o $(UNROLL_LOOPS_OBJECTS)
 
 $(BUILD)/probe_fault.elf: $(PROBE_FAULT_OBJECTS) $(BUILD)/libxsdk.a src/xsdk.ld
 	$(CC) $(LDFLAGS) -o $@ $(PROBE_FAULT_OBJECTS) $(LIBS)
+
+MSR_LE_OBJECTS := $(BUILD)/tests/probe_msr_le.o $(BUILD)/tests/msr_le_switch.o $(BUILD)/tests/msr_le_payload.o
+
+$(BUILD)/probe_msr_le.elf: $(MSR_LE_OBJECTS) $(BUILD)/libxsdk.a src/xsdk.ld
+	$(CC) $(LDFLAGS) -Wl,-Map,$(BUILD)/probe_msr_le.map -o $@ $(MSR_LE_OBJECTS) $(LIBS)
+
+$(BUILD)/probe_msr_le.xex: $(BUILD)/probe_msr_le.elf tools/check_msr_le.py tools/elf2xex.py
+	$(PYTHON) tools/check_msr_le.py $(BUILD)/tests/msr_le_payload.o $(BUILD)/tests/msr_le_payload_le.o $<
+	$(PYTHON) tools/elf2xex.py $< $@
+
+$(BUILD)/tests/msr_le_payload_le.o: tests/msr_le_payload.S tests/msr_le.h
+	@mkdir -p $(@D)
+	$(CC) $(ASFLAGS) -mlittle-endian -DLE_CODE -c $< -o $@
+
+$(BUILD)/tests/msr_le_payload_le.bin: $(BUILD)/tests/msr_le_payload_le.o
+	$(OBJCOPY) -O binary -j .text.payload $< $@
+
+$(BUILD)/tests/msr_le_restore_le.bin: $(BUILD)/tests/msr_le_payload_le.o
+	$(OBJCOPY) -O binary -j .text.restore $< $@
+
+$(BUILD)/tests/msr_le_switch.o: $(BUILD)/tests/msr_le_payload_le.bin $(BUILD)/tests/msr_le_restore_le.bin
 
 # probe_unroll's loops built both ways, its copy loop kept a loop rather than a call to memcpy.
 $(BUILD)/tests/unroll_loops_o2.o: tests/unroll_loops.c
