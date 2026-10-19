@@ -222,10 +222,12 @@ $(LOOP_BREAKS:%=$(BUILD)/tests/probe_loop_break_%.o): $(BUILD)/tests/probe_loop_
 loop_break_probes: $(BUILD)/probe_loop_break.xex $(LOOP_BREAKS:%=$(BUILD)/probe_loop_break_%.xex)
 
 # Milestone 47 step 1's probe of instancing, and its break builds, a probe_instancing_<break>.xex each; outside all.
+# Step 5's case compiles xost's vk_instance_rate.vert with the PC's build of the compiler.
 INSTANCING_BREAKS := nofloor pervtx nostep
 
 $(BUILD)/probe/probe_instancing_cases.h: tools/gen_instancing_probe.py tools/gen_loop_break_probe.py \
-	tools/gen_xsc_probe.py tools/gen_triangle_shaders.py
+	tools/gen_xsc_probe.py tools/gen_triangle_shaders.py xenos-toolchain/xsc/testdata/vk_instance_rate.vert.spv \
+	$(BUILD)/host/libxsc.so
 	$(PYTHON) tools/gen_instancing_probe.py $@
 
 $(BUILD)/tests/probe_instancing.o: CFLAGS += -I$(BUILD)/probe

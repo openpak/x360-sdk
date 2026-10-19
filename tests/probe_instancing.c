@@ -15,13 +15,14 @@
 
 // Milestone 47 step 1 (docs/scope/47-instancing.md): whether a vertex fetch takes its index from what an exec of ALU
 // alone worked out, the prologue that gives each vertex its instance, the division on the console's ALU, what an
-// instance costs drawn each way, and how fast the CPU reads write-combined memory. game:\instancing_start.txt may name
+// instance costs drawn each way, and how fast the CPU reads write-combined memory; and step 5's case 6, case 4's costs
+// again through xost's shaders and xsdk's instanced draws, against "Done when". game:\instancing_start.txt may name
 // one case, by number or name, to run alone.
 
 enum {
 	WIDTH = 1280,
 	HEIGHT = 720,
-	CASES = 5,
+	CASES = 6,
 	// A vertex or an instance in its stream: a position, then a colour.
 	ELEMENT_FLOATS = 8,
 	ELEMENT_BYTES = ELEMENT_FLOATS * 4,
@@ -108,7 +109,9 @@ typedef struct {
 	char text[TEXT_BYTES];
 } Tally;
 
-typedef enum { WAY_LAYER, WAY_GROUP, WAY_ONE_DRAW, WAY_COPIES } Way;
+// Case 6's two: xost's plain vk_instance_rate.vert drawn as the layer drew an instance before milestone 47, and its
+// instanced variant through xsdk_gpu_draw_instanced or xsdk_gpu_draw_indexed_instanced.
+typedef enum { WAY_LAYER, WAY_GROUP, WAY_ONE_DRAW, WAY_COPIES, WAY_XOST_LAYER, WAY_XSDK } Way;
 
 typedef struct {
 	const char *name;
@@ -122,6 +125,12 @@ typedef struct {
 	uint32_t vertices;
 } Mesh;
 
+// An instance's GPU time and CPU clocks recorded.
+typedef struct {
+	double gpu_us;
+	double clocks;
+} Cost;
+
 static const char *const start_path = "game:\\instancing_start.txt";
 
 static const XsdkVertexElement layout[] = {
@@ -134,6 +143,23 @@ static const uint32_t strides[] = { ELEMENT_BYTES, ELEMENT_BYTES };
 // The layer's way: stream 1 pointed at the instance's element, read with a stride of 0 (docs/HARDWARE.md, "Instances
 // and long strips, vulkan4xenon milestone 24").
 static const uint32_t layer_strides[] = { ELEMENT_BYTES, 0 };
+// vk_instance_rate.vert's corner, stream 0's position, and its place and tint, stream 1's two: instanced at the
+// instance's rate, and as the layer laid it out before milestone 47, stream 1 pointed at each instance.
+static const XsdkVertexElement rate_layout[] = {
+	{ .usage = XSDK_USAGE_POSITION, .format = XSDK_VERTEX_FLOAT4, .stream = 0 },
+	{ .usage = XSDK_USAGE_TEXCOORD, .format = XSDK_VERTEX_FLOAT4, .stream = 1, .per_instance = true },
+	{ .usage = XSDK_USAGE_TEXCOORD,
+		.usage_index = 1,
+		.format = XSDK_VERTEX_FLOAT4,
+		.stream = 1,
+		.offset_bytes = 16,
+		.per_instance = true },
+};
+static const XsdkVertexElement rate_layer_layout[] = {
+	{ .usage = XSDK_USAGE_POSITION, .format = XSDK_VERTEX_FLOAT4, .stream = 0 },
+	{ .usage = XSDK_USAGE_TEXCOORD, .format = XSDK_VERTEX_FLOAT4, .stream = 1 },
+	{ .usage = XSDK_USAGE_TEXCOORD, .usage_index = 1, .format = XSDK_VERTEX_FLOAT4, .stream = 1, .offset_bytes = 16 },
+};
 
 // A quad's two triangles in units of its size, and a 4-vertex quad's corners and indices drawing the same.
 static const uint8_t quad_corners[QUAD_VERTICES][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 0, 1 }, { 1, 0 }, { 1, 1 } };
@@ -161,6 +187,23 @@ static const CostVariant cost_variants[] = {
 
 enum { COST_VARIANTS = sizeof cost_variants / sizeof cost_variants[0] };
 
+// Case 6: each mesh as the layer drew an instance before milestone 47, then in the milestone's instanced draw.
+enum { CUBE_LAYER, CUBE_XSDK, QUAD_LAYER, QUAD_XSDK, XSDK_VARIANTS };
+
+static const CostVariant xsdk_variants[XSDK_VARIANTS] = {
+	[CUBE_LAYER] = { "the cube as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, "
+					 "stream 1 at the instance, the indexed draw",
+		true, WAY_XOST_LAYER, 1 },
+	[CUBE_XSDK] = { "the cube in xsdk_gpu_draw_indexed_instanced, xost's instanced vk_instance_rate.vert, its 36 "
+					"indices in 64 copies from xsdk_gpu_repeat_indices",
+		true, WAY_XSDK, 64 },
+	[QUAD_LAYER] = { "the quad as the layer drew an instance before, xost's plain vk_instance_rate.vert: the group, "
+					 "stream 1 at the instance, a draw of 6",
+		false, WAY_XOST_LAYER, 0 },
+	[QUAD_XSDK] = { "the quad in xsdk_gpu_draw_instanced, xost's instanced vk_instance_rate.vert, 6 vertices", false,
+		WAY_XSDK, 0 },
+};
+
 static volatile uint32_t *vertices;
 static volatile uint32_t *instances;
 static volatile uint32_t *indices;
@@ -169,7 +212,10 @@ static XsdkShader copy_shader;
 static XsdkShader instanced_shader;
 static XsdkShader plain_shader;
 static XsdkShader pixel_shader;
+static XsdkShader rate_plain_shader;
+static XsdkShader rate_instanced_shader;
 static uint32_t cube_indices[CUBE_INDICES];
+static XsdkRepeatedIndices cube_copies;
 
 static uint32_t min_u32(uint32_t a, uint32_t b)
 {
@@ -609,9 +655,19 @@ static void put_cost_meshes(void)
 	hand_to_gpu(instances, LARGE * ELEMENT_BYTES);
 }
 
+static bool through_xost(const CostVariant *v)
+{
+	return v->way == WAY_XOST_LAYER || v->way == WAY_XSDK;
+}
+
+static uint32_t case_of(const CostVariant *v)
+{
+	return through_xost(v) ? 6 : 4;
+}
+
 static bool indexed(const CostVariant *v)
 {
-	return v->way == WAY_COPIES || (v->way == WAY_LAYER && v->cube);
+	return v->way == WAY_COPIES || (v->cube && (v->way == WAY_LAYER || through_xost(v)));
 }
 
 static Mesh cost_mesh(const CostVariant *v)
@@ -621,24 +677,39 @@ static Mesh cost_mesh(const CostVariant *v)
 	return indexed(v) ? (Mesh){ QUAD_CORNERS_AT, QUAD_CORNERS } : (Mesh){ QUAD_AT, QUAD_VERTICES };
 }
 
+// xsdk's copies for its indexed instanced draw, the probe's own for the other ways.
 static Copies cost_copies(const CostVariant *v)
 {
 	if (!indexed(v))
 		return (Copies){ 0 };
+	if (v->way == WAY_XSDK) {
+		xsdk_gpu_repeat_indices(&cube_copies, indices, cube_indices, CUBE_INDICES, v->copies);
+		hand_to_gpu(indices, xsdk_gpu_repeated_index_bytes(cube_indices, CUBE_INDICES, v->copies));
+		return (Copies){ 0 };
+	}
 	return v->cube ? make_copies(cube_indices, CUBE_INDICES, CUBE_STEP, v->copies, false)
 				   : make_copies(quad_indices, QUAD_VERTICES, QUAD_STEP, v->copies, false);
+}
+
+static const XsdkShader *cost_shader(const CostVariant *v)
+{
+	if (v->way == WAY_XOST_LAYER)
+		return &rate_plain_shader;
+	if (v->way == WAY_XSDK)
+		return &rate_instanced_shader;
+	return v->way == WAY_LAYER ? &plain_shader : &instanced_shader;
 }
 
 static void cost_state(const CostVariant *v)
 {
 	const Mesh m = cost_mesh(v);
-	set_draw_state(v->way == WAY_LAYER ? &plain_shader : &instanced_shader);
+	set_draw_state(cost_shader(v));
 	xsdk_gpu_set_vertices(0, xsdk_gpu_address(vertices) + m.at * ELEMENT_BYTES, m.vertices * ELEMENT_BYTES);
 	xsdk_gpu_set_vertices(1, xsdk_gpu_address(instances), LARGE * ELEMENT_BYTES);
 }
 
-// As vulkan4xenon draws an instance now (vulkan4xenon:src/queue.c, draw_instance and draw_indexed_instance):
-// gl_InstanceIndex's group, the stream at the instance's rate pointed at its element, and the draw.
+// As vulkan4xenon drew every instance before milestone 47 step 4 (vulkan4xenon:src/queue.c, draw_instance and
+// draw_indexed_instance): gl_InstanceIndex's group, the stream at the instance's rate pointed at its element, the draw.
 static void record_layer(const CostVariant *v, const Copies *copies, uint32_t count)
 {
 	const uint32_t base = xsdk_gpu_address(instances);
@@ -656,8 +727,12 @@ static void record_layer(const CostVariant *v, const Copies *copies, uint32_t co
 static void record_instances(const CostVariant *v, const Copies *copies, uint32_t count)
 {
 	const uint32_t vertex_count = cost_mesh(v).vertices;
-	if (v->way == WAY_LAYER)
+	if (v->way == WAY_LAYER || v->way == WAY_XOST_LAYER)
 		record_layer(v, copies, count);
+	else if (v->way == WAY_XSDK && v->cube)
+		xsdk_gpu_draw_indexed_instanced(XSDK_PRIMITIVE_TRIANGLE_LIST, &cube_copies, 0, count);
+	else if (v->way == WAY_XSDK)
+		xsdk_gpu_draw_instanced(XSDK_PRIMITIVE_TRIANGLE_LIST, vertex_count, 0, count);
 	else if (v->way == WAY_GROUP)
 		draw_auto(XSDK_PRIMITIVE_TRIANGLE_LIST, vertex_count, 0, count, 1);
 	else if (v->way == WAY_ONE_DRAW)
@@ -691,14 +766,15 @@ static bool time_batch(const CostVariant *v, const XsdkCommandBuffer *buffer, ui
 {
 	xsdk_gpu_resolve(xsdk_gpu_address(image), WIDTH, HEIGHT, CLEAR_ARGB);
 	cost_state(v);
-	if (!wait_logged(4))
+	if (!wait_logged(case_of(v)))
 		return false;
 	const uint64_t start = time_base();
 	xsdk_gpu_execute(buffer);
 	const uint32_t fence = xsdk_gpu_fence();
 	while (!xsdk_gpu_fence_done(fence)) {
 		if (time_base() - start > (uint64_t)FENCE_TIMEOUT_MS * TICKS_PER_MS) {
-			xsdk_log_write("instancing probe: case 4: %s: the batch's fence didn't land", v->name);
+			xsdk_log_write(
+				"instancing probe: case %u: %s: the batch's fence didn't land", (unsigned)case_of(v), v->name);
 			probe_report_cp("instancing probe", "after the hang");
 			return false;
 		}
@@ -707,14 +783,16 @@ static bool time_batch(const CostVariant *v, const XsdkCommandBuffer *buffer, ui
 	return true;
 }
 
-// The cells whose centre shows its instance's colour, after the large batch.
-static uint32_t cells_drawn(void)
+// The cells whose centre shows its instance's colour, after the large batch; vk_instance_rate.vert's colour is the
+// instance's alone, without the vertex's blue.
+static uint32_t cells_drawn(const CostVariant *v)
 {
+	const uint32_t blue = through_xost(v) ? 0 : CHECK;
 	uint32_t drawn = 0;
 	for (uint32_t e = 0; e < LARGE; e++) {
 		const uint32_t x = e % COST_COLUMNS * COST_CELL_WIDTH + COST_CELL_WIDTH / 2;
 		const uint32_t y = e / COST_COLUMNS * COST_CELL_HEIGHT + COST_CELL_HEIGHT / 2;
-		drawn += image[tiled_index(x, y, WIDTH)] == instance_stored(e, CHECK);
+		drawn += image[tiled_index(x, y, WIDTH)] == instance_stored(e, blue);
 	}
 	return drawn;
 }
@@ -724,16 +802,17 @@ static double microseconds(uint64_t ticks)
 	return (double)ticks * 1000.0 / TICKS_PER_MS;
 }
 
-static Result cost_variant(const CostVariant *v, XsdkCommandBuffer buffers[SIZES])
+static Result cost_variant(const CostVariant *v, XsdkCommandBuffer buffers[SIZES], Cost *cost)
 {
-	xsdk_log_write("instancing probe: case 4: timing %s", v->name);
+	const unsigned case_number = (unsigned)case_of(v);
+	xsdk_log_write("instancing probe: case %u: timing %s", case_number, v->name);
 	const Copies copies = cost_copies(v);
 	uint64_t recorded = 0;
 	// The way's streams set first: a stream's fetch constant goes out with its whole group as xsdk keeps it, so the
 	// layer's way, recording stream 1, records stream 0 as it stands (src/gpu_draw.c, xsdk_gpu_set_vertices).
 	cost_state(v);
 	if (!record_batches(v, &copies, buffers, &recorded)) {
-		xsdk_log_write("instancing probe: case 4: %s: a batch outgrew its buffer", v->name);
+		xsdk_log_write("instancing probe: case %u: %s: a batch outgrew its buffer", case_number, v->name);
 		return DIFFERED;
 	}
 	const uint32_t dwords = buffers[1].count;
@@ -747,41 +826,76 @@ static Result cost_variant(const CostVariant *v, XsdkCommandBuffer buffers[SIZES
 				best[s] = ticks;
 		}
 	}
-	if (!resolve_and_wait(4))
+	if (!resolve_and_wait(case_number))
 		return STOPPED;
-	const uint32_t drawn = cells_drawn();
+	const uint32_t drawn = cells_drawn(v);
 	const double small = microseconds(best[0]);
 	const double large = microseconds(best[1]);
-	const double clocks = (double)recorded * CLOCKS_PER_TICK / LARGE;
+	*cost = (Cost){ (large - small) / (LARGE - SMALL), (double)recorded * CLOCKS_PER_TICK / LARGE };
 	xsdk_log_write(
-		"instancing probe: case 4: %s: GPU %.3f us an instance, %.1f us for %u, %.1f for %u; CPU %.0f clocks an "
+		"instancing probe: case %u: %s: GPU %.3f us an instance, %.1f us for %u, %.1f for %u; CPU %.0f clocks an "
 		"instance recorded (%.3f us), %.1f dwords; %u of %u cells drawn",
-		v->name, (large - small) / (LARGE - SMALL), small, (unsigned)SMALL, large, (unsigned)LARGE, clocks,
-		clocks / CLOCKS_PER_US, (double)dwords / LARGE, (unsigned)drawn, (unsigned)LARGE);
+		case_number, v->name, cost->gpu_us, small, (unsigned)SMALL, large, (unsigned)LARGE, cost->clocks,
+		cost->clocks / CLOCKS_PER_US, (double)dwords / LARGE, (unsigned)drawn, (unsigned)LARGE);
 	return drawn == LARGE ? PASSED : DIFFERED;
 }
 
-static Result run_cost(void)
+// Each variant timed into costs, on case 4's meshes and batches.
+static Result run_variants(uint32_t case_number, const CostVariant *variants, uint32_t count, Cost *costs)
 {
 	put_cost_meshes();
 	XsdkCommandBuffer buffers[SIZES];
 	if (!NT_SUCCESS(xsdk_gpu_command_buffer_create(&buffers[0], SMALL * MAX_INSTANCE_DWORDS)) ||
 		!NT_SUCCESS(xsdk_gpu_command_buffer_create(&buffers[1], LARGE * MAX_INSTANCE_DWORDS))) {
-		xsdk_log_write("instancing probe: case 4: no memory for the batches");
+		xsdk_log_write("instancing probe: case %u: no memory for the batches", (unsigned)case_number);
 		return DIFFERED;
 	}
 	uint32_t differed = 0;
-	for (uint32_t v = 0; v < COST_VARIANTS; v++) {
-		const Result r = cost_variant(&cost_variants[v], buffers);
+	for (uint32_t v = 0; v < count; v++) {
+		const Result r = cost_variant(&variants[v], buffers, &costs[v]);
 		if (r == STOPPED)
 			return STOPPED;
 		differed += r == DIFFERED;
 	}
 	xsdk_gpu_command_buffer_free(&buffers[0]);
 	xsdk_gpu_command_buffer_free(&buffers[1]);
-	xsdk_log_write("instancing probe: case 4: %u ways timed, %u drew every cell", (unsigned)COST_VARIANTS,
-		(unsigned)(COST_VARIANTS - differed));
+	xsdk_log_write("instancing probe: case %u: %u ways timed, %u drew every cell", (unsigned)case_number,
+		(unsigned)count, (unsigned)(count - differed));
 	return differed ? DIFFERED : PASSED;
+}
+
+static Result run_cost(void)
+{
+	Cost costs[COST_VARIANTS];
+	return run_variants(4, cost_variants, COST_VARIANTS, costs);
+}
+
+// One mesh's instanced draw against the layer's way before milestone 47, an instance each, as "Done when" reads
+// (docs/scope/47-instancing.md): its GPU time at most gpu_most of the layer's, and its CPU at most a tenth.
+static bool meets(const char *mesh, const Cost *layer, const Cost *instanced, double gpu_most)
+{
+	const double cpu_most = 0.1;
+	const double gpu = instanced->gpu_us / layer->gpu_us;
+	const double cpu = instanced->clocks / layer->clocks;
+	const bool met = gpu <= gpu_most && cpu <= cpu_most;
+	xsdk_log_write(
+		"instancing probe: case 6: %s: GPU %.3f us an instance against the layer's %.3f, %.3f of it, done when at most "
+		"%.2f; CPU %.0f clocks against %.0f, %.4f of it, done when at most %.1f: %s",
+		mesh, instanced->gpu_us, layer->gpu_us, gpu, gpu_most, instanced->clocks, layer->clocks, cpu, cpu_most,
+		met ? "MEETS" : "MISSES");
+	return met;
+}
+
+// Case 6: case 4's costs again through xost's shaders and xsdk's instanced draws, against "Done when".
+static Result run_xsdk(void)
+{
+	Cost costs[XSDK_VARIANTS];
+	const Result r = run_variants(6, xsdk_variants, XSDK_VARIANTS, costs);
+	if (r == STOPPED)
+		return STOPPED;
+	const bool cube = meets("the cube", &costs[CUBE_LAYER], &costs[CUBE_XSDK], 0.5);
+	const bool quad = meets("the quad", &costs[QUAD_LAYER], &costs[QUAD_XSDK], 0.2);
+	return r == PASSED && cube && quad ? PASSED : DIFFERED;
 }
 
 // Volatile 32-bit loads, summed so none is left out; a call, so the timing can't move past them.
@@ -852,6 +966,10 @@ static const Case cases[CASES] = {
 		run_division },
 	{ "cost", "GPU time over 500 and 2,500 instances and CPU clocks an instance recorded, each way", run_cost },
 	{ "readback", "64 KB read from write-combined memory with 32-bit and 128-bit loads", run_readback },
+	{ "xsdk",
+		"case 4's cube and quad through xost's vk_instance_rate.vert, each as the layer drew an instance before and in "
+		"xsdk's instanced draws, against the scope's Done when",
+		run_xsdk },
 };
 
 // The case game:\instancing_start.txt names, 1 to CASES, or 0 for all of them.
@@ -868,8 +986,8 @@ static uint32_t start_case(void)
 			return c + 1;
 	}
 	xsdk_log_write(
-		"instancing probe: %s names no case: give 1 to %u, or fetch, prologue, division, cost or "
-		"readback; running them all",
+		"instancing probe: %s names no case: give 1 to %u, or fetch, prologue, division, cost, readback or "
+		"xsdk; running them all",
 		start_path, (unsigned)CASES);
 	return 0;
 }
@@ -888,6 +1006,12 @@ static bool make_resources(void)
 		NT_SUCCESS(xsdk_shader_set_vertex_layout(&instanced_shader, layout, 4, strides)) &&
 		NT_SUCCESS(xsdk_shader_load(&plain_shader, probe_plain_shader, sizeof probe_plain_shader)) &&
 		NT_SUCCESS(xsdk_shader_set_vertex_layout(&plain_shader, layout, 4, layer_strides)) &&
+		NT_SUCCESS(xsdk_shader_load(&rate_plain_shader, probe_rate_plain_shader, sizeof probe_rate_plain_shader)) &&
+		NT_SUCCESS(xsdk_shader_set_vertex_layout(&rate_plain_shader, rate_layer_layout, 3, layer_strides)) &&
+		NT_SUCCESS(xsdk_shader_load(
+			&rate_instanced_shader, probe_rate_instanced_shader, sizeof probe_rate_instanced_shader)) &&
+		NT_SUCCESS(xsdk_shader_set_vertex_layout(&rate_instanced_shader, rate_layout, 3, strides)) &&
+		rate_instanced_shader.instanced && rate_instanced_shader.instance_constant == PROBE_RATE_GROUP &&
 		NT_SUCCESS(xsdk_shader_load(&pixel_shader, triangle_pixel_shader, sizeof triangle_pixel_shader)))
 		return true;
 	xsdk_log_write("instancing probe: FAILED, the buffers or the shaders couldn't be made");
