@@ -37,18 +37,42 @@ static bool has_branches(const XscModule *m)
 	return false;
 }
 
-// Fetch r0, the vertex index, last (xenia:src/xenia/gpu/dxbc_shader_translator_fetch.cc:80-88).
-static bool fetch_inputs(XscLower *l, const XscInterface *si)
+// Each input fetched at index.x into the registers from first: at r0 from r0, r0 last as it's the vertex index
+// (xenia:src/xenia/gpu/dxbc_shader_translator_fetch.cc:80-88), or at an instanced shader's t from r1.
+static bool fetch_inputs(XscLower *l, const XscInterface *si, int64_t index, int64_t first)
 {
 	for (size_t n = si->vfetch_count; n-- > 0;) {
 		const XscVarUse *const use = &si->vfetch[n];
 		XscFetch f = xsdk_xsc_template_vfetch();
-		f.dest = (int64_t)n;
+		f.dest = first + (int64_t)n;
+		f.src = index;
 		if (!xsdk_xsc_program_vfetch(l->x, l->p, use->a, use->b, &f))
 			return false;
-		l->inputs[use->var->vid] = (int64_t)n;
+		l->inputs[use->var->vid] = f.dest;
 	}
 	return true;
+}
+
+// k = floor(r0.x * c.x + c.y), t.x = r0.x - c.z * k, t.y = k + c.w, from the instance group c, in an exec of ALU alone
+// before the fetches, as the console drew it (docs/HARDWARE.md, "Instancing on the console, milestone 47 step 1");
+// gl_InstanceIndex is t.y, held whole in l->instance if the shader reads it. Gives t.
+static int64_t prologue(XscLower *l, int64_t group, bool reads_index)
+{
+	const XscOperand c = xsc_const(group);
+	const XscSrc index = xsc_src(xsc_reg(0), false, xsdk_xsc_bsw(0));
+	const int64_t q = xsdk_xsc_fresh(l), k = xsdk_xsc_fresh(l), t = xsdk_xsc_fresh(l);
+	if (!xsc_emit3(l, XSC_VECTOR_MAD, index, xsc_src(c, false, xsdk_xsc_bsw(0)), xsc_src(c, false, xsdk_xsc_bsw(1)), q,
+			false, 0xF) ||
+		!xsc_emit2(l, XSC_VECTOR_FLOOR, xsc_temp(q), xsc_temp(q), k, false, 0xF) ||
+		!xsc_emit3(l, XSC_VECTOR_MAD, xsc_src(c, true, xsdk_xsc_bsw(2)), xsc_temp(k), index, t, false, 0x1) ||
+		!xsc_emit2(l, XSC_VECTOR_ADD, xsc_temp(k), xsc_src(c, false, xsdk_xsc_bsw(3)), t, false, 0x2))
+		return XSC_NONE;
+	if (reads_index) {
+		l->instance = xsdk_xsc_emit_copy(l, xsc_reg(t), XSC_NONE, false, false, xsdk_xsc_bsw(1), 0xF, false);
+		if (l->instance == XSC_NONE)
+			return XSC_NONE;
+	}
+	return xsdk_xsc_program_predicate(l->x, l->p, XSC_PREDICATE_NONE) ? t : XSC_NONE;
 }
 
 // The member of gl_PerVertex decorated with this BuiltIn.
@@ -171,8 +195,9 @@ static bool sample_all(XscLower *l, bool used[FETCH_SLOTS])
 	return true;
 }
 
-// The samplers first, as a pixel shader's container has them, then the uniforms and the literals.
-static bool add_constants(XscLower *l, const XscInterface *si, const bool used[FETCH_SLOTS], XscConstants *constants)
+// The samplers first, as a pixel shader's container has them, then the uniforms, the instance group and the literals.
+static bool add_constants(
+	XscLower *l, const XscInterface *si, const bool used[FETCH_SLOTS], int64_t group, XscConstants *constants)
 {
 	for (int64_t slot = 0; slot < FETCH_SLOTS; slot++) {
 		const char *const name = used[slot] ? xsdk_xsc_format(l->x, "tex%lld", (long long)slot) : NULL;
@@ -190,9 +215,7 @@ static bool add_constants(XscLower *l, const XscInterface *si, const bool used[F
 		if (!xsdk_xsc_add_constant(l->x, constants, c))
 			return false;
 	}
-	const int64_t instance = xsdk_xsc_instance_index_reg(si);
-	if (instance != XSC_NONE &&
-		!xsdk_xsc_add_constant(l->x, constants, xsdk_xsc_vector_constant("gl_InstanceIndex", instance, 1)))
+	if (group != XSC_NONE && !xsdk_xsc_add_constant(l->x, constants, xsdk_xsc_vector_constant("_instance", group, 1)))
 		return false;
 	return xsdk_xsc_literal_constants(l, constants);
 }
@@ -326,10 +349,17 @@ bool xsdk_xsc_lower_vertex(Xsc *x, const XscModule *m, const XsdkXscOptions *opt
 	p.optimize = options->optimize;
 	// Temps run past r63 till the allocator packs them.
 	p.whole_sources = true;
+	const int64_t index_group = xsdk_xsc_instance_index_reg(si);
+	// The option's group takes the register past what the shader declares, as gl_InstanceIndex's does.
+	out->instance = index_group == XSC_NONE && options->instanced ? si->constant_end++ : index_group;
+	// An instanced shader's fetches leave r0, the vertex index its prologue reads, as the hardware filled it.
+	const int64_t first = out->instance != XSC_NONE;
 	XscLower l;
-	const int64_t first_reg = (int64_t)si->vfetch_count;
-	if (!xsdk_xsc_lower_init(x, &l, m, si, &p, types, true, first_reg, xsdk_xsc_literal_base(si)) ||
-		!fetch_inputs(&l, si))
+	if (!xsdk_xsc_lower_init(
+			x, &l, m, si, &p, types, true, first + (int64_t)si->vfetch_count, xsdk_xsc_literal_base(si)))
+		return false;
+	const int64_t index = first ? prologue(&l, out->instance, index_group != XSC_NONE) : 0;
+	if (index == XSC_NONE || !fetch_inputs(&l, si, index, first))
 		return false;
 	bool *const locals = xsdk_xsc_local_vars(x, m, 0, m->instr_count);
 	if (!locals || !xsdk_xsc_check_local_stores(x, m, locals, 0, 0))
@@ -340,7 +370,7 @@ bool xsdk_xsc_lower_vertex(Xsc *x, const XscModule *m, const XsdkXscOptions *opt
 	const PerVertex pv = per_vertex(m, types, si);
 	const uint32_t position = position_value(&l, &pv, &stores);
 	return !xsc_failed(&l) && sample_all(&l, used) && lower_body(&l, si, &pv, &stores, position) &&
-		add_constants(&l, si, used, &constants) &&
+		add_constants(&l, si, used, out->instance, &constants) &&
 		xsdk_xsc_program_finish(x, &p, constants.items, constants.count, &out->container, &out->container_bytes) &&
 		xsdk_xsc_literal_needs(&l, out) && xsdk_xsc_loop_needs(&l, out) && clip_planes(&l, &pv, &stores, position, out);
 }

@@ -729,10 +729,10 @@ static XscOperand int_operand_of(XscLower *l, uint32_t ssa)
 		const uint32_t src = xsdk_xsc_operand(ins, 0);
 		if (src < l->m->id_limit && l->local_store[src])
 			return xsdk_xsc_int_operand(l, l->local_store[src]);
-		// gl_InstanceIndex, which the runtime writes as a float in every component (xsc_resolve.c).
+		// gl_InstanceIndex, which the prologue holds as a float in every component (xsc_lower_vertex.c).
 		const XscRole *const role = xsdk_xsc_role(l->si, src);
 		if (role->kind == XSC_ROLE_INSTANCE_INDEX)
-			return xsc_const(role->a);
+			return xsc_reg(l->instance);
 		xsdk_xsc_lower_refuse(l, "integer Load must be a foldable local");
 		return (XscOperand){ 0 };
 	}
@@ -1218,7 +1218,7 @@ static XscOperand load_operand(XscLower *l, uint32_t ssa, const XscInstr *ins)
 		return xsc_const(role->a);
 	}
 	if (role->kind == XSC_ROLE_INSTANCE_INDEX)
-		return xsc_const(role->a);
+		return xsc_reg(l->instance);
 	xsdk_xsc_lower_refuse(l, "%s: unresolved Load %%%u", xsc_stage_name(l), (unsigned)src);
 	return (XscOperand){ 0 };
 }

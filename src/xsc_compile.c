@@ -31,7 +31,8 @@ void xsdk_xsc_default_options(XsdkXscOptions *options)
 	*options = (XsdkXscOptions){ .pixel_registers = XSDK_PIXEL_REGISTERS,
 		.vertex_registers = XSDK_VERTEX_REGISTERS,
 		.optimize = false,
-		.group_fetches = true };
+		.group_fetches = true,
+		.instanced = false };
 }
 
 static bool has_loop(const XscModule *m)
@@ -76,10 +77,9 @@ static uint32_t or_zero(int64_t value)
 }
 
 // Where each block's registers, each sampler's fetch constant and each comparison's register landed: blocks first, then
-// samplers, then comparisons, then the instance index.
-static XsdkXscResource *resources(const XscInterface *si, size_t *count)
+// samplers, then comparisons, then the instance group.
+static XsdkXscResource *resources(const XscInterface *si, int64_t instance, size_t *count)
 {
-	const int64_t instance = xsdk_xsc_instance_index_reg(si);
 	*count = si->block_count + si->sampler_count + si->comparison_count + (instance != XSC_NONE);
 	XsdkXscResource *const out = calloc(*count ? *count : 1, sizeof *out);
 	if (!out)
@@ -100,7 +100,7 @@ static XsdkXscResource *resources(const XscInterface *si, size_t *count)
 			or_zero(c->var->descriptor_set), or_zero(c->var->binding), c->a, 1 };
 	}
 	if (instance != XSC_NONE)
-		out[*count - 1] = (XsdkXscResource){ XSDK_XSC_INSTANCE_INDEX, 0, 0, (uint32_t)instance, 1 };
+		out[*count - 1] = (XsdkXscResource){ XSDK_XSC_INSTANCE, 0, 0, (uint32_t)instance, 1 };
 	return out;
 }
 
@@ -132,7 +132,7 @@ static bool copy_out(Xsc *x, const XscInterface *si, const XscLowered *lowered, 
 {
 	shader->container = malloc(lowered->container_bytes ? lowered->container_bytes : 1);
 	shader->needs = copy_needs(lowered);
-	shader->resources = resources(si, &shader->resource_count);
+	shader->resources = resources(si, lowered->instance, &shader->resource_count);
 	if (!shader->container || !shader->needs || !shader->resources)
 		return xsdk_xsc_fail(x, XSDK_XSC_OUT_OF_MEMORY, "out of memory");
 	memcpy(shader->container, lowered->container, lowered->container_bytes);
@@ -148,7 +148,7 @@ static XsdkXscStatus compile_once(
 	Xsc x = { .status = XSDK_XSC_OK };
 	XscModule m;
 	XscInterface si;
-	XscLowered lowered = { 0 };
+	XscLowered lowered = { .instance = XSC_NONE };
 	const bool ok = xsdk_xsc_spirv_parse(&x, spirv, spirv_words, &m) && lower(&x, &m, options, &si, &lowered) &&
 		copy_out(&x, &si, &lowered, shader);
 	if (!ok && x.status == XSDK_XSC_OK)

@@ -68,6 +68,8 @@ typedef struct {
 	bool vertex;
 	int64_t next_reg;
 	int64_t lit_base;
+	// The register an instanced vertex shader's prologue holds gl_InstanceIndex in, in every component.
+	int64_t instance;
 	XscLiteral *pool;
 	double *pool_keys;
 	size_t pool_count;
@@ -314,6 +316,8 @@ typedef struct {
 	XsdkXscNeed *needs;
 	size_t need_count;
 	size_t need_capacity;
+	// An instanced vertex shader's group register, or XSC_NONE.
+	int64_t instance;
 } XscLowered;
 
 // Every OpStore's value by its target, the last store's (lower.py _store_map); the targets in first-store order.

@@ -21,7 +21,7 @@ FRAG_COORD_CONSTANT = 255
 
 class Options(ctypes.Structure):
     _fields_ = [("pixel_registers", ctypes.c_uint32), ("vertex_registers", ctypes.c_uint32),
-                ("optimize", ctypes.c_bool), ("group_fetches", ctypes.c_bool)]
+                ("optimize", ctypes.c_bool), ("group_fetches", ctypes.c_bool), ("instanced", ctypes.c_bool)]
 
 
 class Need(ctypes.Structure):
@@ -203,17 +203,18 @@ def loop_passes(start: int, step: int, n: int) -> int:
 
 
 def compile_spirv(spirv: bytes, pixel_registers: int, vertex_registers: int, optimize: bool = False,
-                  group_fetches: bool = True):
+                  group_fetches: bool = True, instanced: bool = False):
     """(container, manifest, resources) as lower.py's lower_ex gives the first two and build_shaders.py the last:
     the manifest [(register, (f0, f1, f2, f3))], with ("array", reg, regs, name) and ("loop", id, name) for a
     hardware loop a bare uniform counts, ("block_loop", id, kind, set, binding, offset_bytes, start, step) for one an
     int in a block counts, i from start by step, ("fixed_loop", id, passes) for loops whose count is data, which run
     passes, 255, and ("clip", plane, register) for a user clip plane; the resources [(kind, set, binding, register,
-    registers)], blocks, samplers, comparisons, then a vertex shader's gl_InstanceIndex, the float constant the runtime
-    writes each instance's index into."""
+    registers)], blocks, samplers, comparisons, then an instanced vertex shader's group, the float constant the runtime
+    writes before each piece of a draw (xsdk:include/xsdk/xsc.h, XSDK_XSC_INSTANCE). instanced lowers a vertex shader
+    for instanced draws, as one reading gl_InstanceIndex always is."""
     library = _load()
     words = (ctypes.c_uint32 * (len(spirv) // 4)).from_buffer_copy(spirv[:len(spirv) // 4 * 4])
-    options = Options(pixel_registers, vertex_registers, optimize, group_fetches)
+    options = Options(pixel_registers, vertex_registers, optimize, group_fetches, instanced)
     shader = Shader()
     status = library.xsdk_xsc_compile(words, len(words), ctypes.byref(options), ctypes.byref(shader))
     if status != OK:

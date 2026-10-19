@@ -554,8 +554,9 @@ enum {
 	BUILTIN_INSTANCE_INDEX = 43,
 };
 
-// gl_InstanceIndex in a vertex shader takes the register past the blocks, so it shares no group of 4 with a uniform
-// block the GPU may load, as a group loaded mustn't also be set (include/xsdk/gpu.h, xsdk_gpu_load_vertex_constants).
+// The instance group of a vertex shader reading gl_InstanceIndex takes the register past the blocks, so it shares no
+// group of 4 with a uniform block the GPU may load, as a group loaded mustn't also be set (include/xsdk/gpu.h,
+// xsdk_gpu_load_vertex_constants).
 static bool assign_instance_index(Xsc *x, XscInterface *si, const XscVar *vars, size_t var_count, int64_t *end)
 {
 	for (size_t i = 0; i < var_count && !si->pixel; i++) {

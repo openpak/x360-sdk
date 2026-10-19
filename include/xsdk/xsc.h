@@ -40,6 +40,8 @@ typedef struct {
 	bool optimize;
 	// Lays a pixel shader's fetches out together, after their coordinates; off, as before milestone 36.
 	bool group_fetches;
+	// Lowers a vertex shader for instanced draws, as one reading gl_InstanceIndex always is (XSDK_XSC_INSTANCE).
+	bool instanced;
 } XsdkXscOptions;
 
 // What a shader needs the runtime to set besides its blocks and samplers.
@@ -67,9 +69,10 @@ typedef enum {
 	// A sampler2DShadow's compare op, which the runtime writes to the register as the weights of the reference below,
 	// equal to and above the depth, 1 or 0 each, then 0.
 	XSDK_XSC_COMPARISON,
-	// The float constant a vertex shader reads gl_InstanceIndex from, which the runtime writes each instance's index
-	// into, in every component; set and binding 0.
-	XSDK_XSC_INSTANCE_INDEX,
+	// An instanced vertex shader's group, the float constant the runtime writes before each piece of a draw: 1/S, 0.5/S
+	// (0 for S a power of two), S, and the piece's first instance, S the vertices or the copies' step an instance
+	// (xenos-toolchain/docs/xsc.md, "Interface conventions"); set and binding 0.
+	XSDK_XSC_INSTANCE,
 } XsdkXscResourceKind;
 
 typedef struct {
@@ -88,7 +91,7 @@ typedef struct {
 	int32_t step;
 } XsdkXscNeed;
 
-// Where a block's registers, a sampler's fetch constant, a comparison's register or the instance index landed.
+// Where a block's registers, a sampler's fetch constant, a comparison's register or the instance group landed.
 typedef struct {
 	XsdkXscResourceKind kind;
 	uint32_t set;

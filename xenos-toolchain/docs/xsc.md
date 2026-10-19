@@ -82,7 +82,7 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | fragment `gl_FragDepth`, stored once outside any `if/else` | `oDepth.x___` after the colour, the record's ps_export_mode 3 (`tests/test_frag_depth.py`) |
 | fragment `gl_FragDepth` stored in both arms of an `if/else`, or before one and again in an arm | merged by a select as a vertex shader's outputs are, exported once; stored on one path alone, refused (see Control flow) |
 | a store into one component of a local or an output, `v.x = …` | an insert into the vector it held (`tests/test_local_stores.py`) |
-| vertex `gl_InstanceIndex`, firstInstance included | a float constant the runtime writes each instance's index into (see Interface conventions); `float()` of it, integer arithmetic on it and a block array's index at it lower as integers do (`tests/test_instance_index.py`). `gl_VertexIndex` is refused |
+| vertex `gl_InstanceIndex`, firstInstance included | t.y, the instance an instanced shader's prologue works out from the instance group, held in every component of a register (see Interface conventions); `float()` of it, integer arithmetic on it and a block array's index at it lower as integers do (`tests/test_instancing.py`). `gl_VertexIndex` is refused |
 | fragment outputs at locations 0 to 3, each stored once outside any `if/else` when there are several | `oC0` to `oC3`, the four colour targets, a float in every component; the record's outputs mask names them (`tests/test_color_outputs.py`) |
 | vertex `gl_ClipDistance[n] = dot(gl_Position, plane)`, n 0 to 5, the plane a whole vec4 of a uniform or push constant block | no instruction: user clip plane n, the manifest's `("clip", n, register)`; any other form, and `gl_CullDistance`, refused (`tests/test_clip_distance.py`) |
 | float / vec literals in FS/VS | constant pool; 0/1 folds (see below) |
@@ -157,15 +157,26 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
   a pixel shader's predicated if/else arms where an arm loaded a0 at another
   index, as a0 then holds what the arm that ran loaded (xsdk:docs/HARDWARE.md,
   "a0 and the predicate's execs").
-- gl_InstanceIndex (Vulkan's InstanceIndex) → the float constant register
-  past the blocks, before the literals, so no uniform block the GPU may load
-  shares its group of 4. The runtime writes the instance's index, a float, into
-  every component of it before each instance's draw, as vulkan4xenon draws an
-  instance at a time (vulkan4xenon:docs/ROADMAP.md, milestone 24). The
-  compiler lists it among the resources, kind `XSDK_XSC_INSTANCE_INDEX`
+- A vertex shader that reads gl_InstanceIndex (Vulkan's InstanceIndex), or
+  any compiled with the `instanced` option (`XsdkXscOptions`, `xsc/native.py`),
+  is lowered for instanced draws (xsdk:docs/scope/47-instancing.md). Its
+  instance group is the float constant register past the blocks, before the
+  literals, so no uniform block the GPU may load shares its group of 4. The
+  runtime writes it before each piece of a draw: x 1/S, y 0.5/S (0 for S a
+  power of two), z S and w the piece's first instance, S the vertices an
+  instance auto-indexed or the copies' step of a repeated index buffer. The
+  compiler lists it among the resources, kind `XSDK_XSC_INSTANCE`
   (`include/xsdk/xsc.h`), "instance" in `xsc/native.py`, and the container's
-  constant table names it. A vertex shader's other built-in inputs, as
-  gl_VertexIndex, aren't streams, and loading one is refused.
+  constant table names it `_instance`, which marks the shader instanced. An
+  exec of ALU alone before the fetches works out k = floor(r0.x * c.x + c.y),
+  t.x = r0.x - c.z * k, the vertex, and t.y = k + c.w, the instance, as the
+  console drew it (xsdk:docs/HARDWARE.md, "Instancing on the console,
+  milestone 47 step 1"); the fetches leave r0 as it was. Every vertex fetch
+  reads t.x, its source swizzle, bits 30 and 31 of its first word, 0, so the
+  runtime points one at the instance's rate at t.y by writing 1 there
+  (xenia:src/xenia/gpu/ucode.h:758). gl_InstanceIndex is t.y. A vertex
+  shader's other built-in inputs, as gl_VertexIndex, aren't streams, and
+  loading one is refused.
 - gl_FragCoord → the pixel parameters, which the container turns on: its
   record's SQ_PROGRAM_CNTL has PARAM_GEN, and its SQ_CONTEXT_MISC has
   PARAM_GEN_POS, the register past the interpolators, where the GPU writes the
