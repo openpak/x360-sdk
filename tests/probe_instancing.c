@@ -729,6 +729,9 @@ static Result cost_variant(const CostVariant *v, XsdkCommandBuffer buffers[SIZES
 	xsdk_log_write("instancing probe: case 4: timing %s", v->name);
 	const Copies copies = cost_copies(v);
 	uint64_t recorded = 0;
+	// The way's streams set first: a stream's fetch constant goes out with its whole group as xsdk keeps it, so the
+	// layer's way, recording stream 1, records stream 0 as it stands (src/gpu_draw.c, xsdk_gpu_set_vertices).
+	cost_state(v);
 	if (!record_batches(v, &copies, buffers, &recorded)) {
 		xsdk_log_write("instancing probe: case 4: %s: a batch outgrew its buffer", v->name);
 		return DIFFERED;
