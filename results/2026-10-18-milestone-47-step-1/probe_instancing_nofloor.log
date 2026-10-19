@@ -1,0 +1,77 @@
+log: game:\probe_instancing_nofloor.log
+log: named after \Device\Harddisk0\Partition1\xsdk\m47\probe_instancing_nofloor.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+open: NtCreateFile(game:\instancing_start.txt) failed: 0xC0000034
+instancing probe: running every case; the group c0, instances from 5 in cases 2 and 3
+instancing probe: BREAK BUILD: the prologue without its floor; on the simulator it fails 2 auto, 2 indexed, 3 V 3, 3 V 7, 3 V 255, 3 V 257, 3 V 4369, 3 V 21845, 3 V 65535, 3 S 2, 3 S 4, 3 S 256, 3 S 4096, 3 S 65536, 3 S 1048576
+instancing probe: about to run case 1, fetch: r0 copied into r1 in an exec of ALU alone, 64 quads' positions and colours fetched at r1.x in the next
+instancing probe: case 1: 64 quads fetched at a copy of r0.x: PASS, 64 of 64 cells
+instancing probe: about to run case 2, prologue: the design's prologue: 64 instances of a 6-vertex quad, then from a 4-vertex quad's 6 indices in 64 copies moved on by 4, each instance's cell and colour from stream 1
+instancing probe: case 2: about to draw 64 instances of a 6-vertex quad, auto-indexed
+instancing probe: case 2: 64 instances of a 6-vertex quad, auto-indexed: DIFFERS, 0 of 64 cells; first wrong: cell 0 held 202020FF, wanted 5A0005FF; cell 1 held 202020FF, wanted 5A0006FF; cell 2 held 202020FF, wanted 5A0007FF; cell 3 held 202020FF, wanted 5A0008FF;
+instancing probe: case 2: about to draw 64 copies of a 4-vertex quad's 6 indices, moved on by 4
+instancing probe: case 2: 64 copies of a 4-vertex quad's 6 indices, 16-bit: DIFFERS, 0 of 64 cells; first wrong: cell 0 held 202020FF, wanted 5A0005FF; cell 1 held 202020FF, wanted 5A0006FF; cell 2 held 202020FF, wanted 5A0007FF; cell 3 held 202020FF, wanted 5A0008FF;
+instancing probe: about to run case 3, division: points, one a vertex, at the counts that leave the division the least room, every one checked
+instancing probe: case 3: about to draw V 3, auto-indexed: 21845 instances from 5, 65535 points
+instancing probe: case 3: V 3, auto-indexed: 21845 instances from 5, 65535 points: DIFFERS, 21845 of 65535 points right, 0 a pixel off, 43690 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 4, instance 1, vertex 1, at (8,0) held 202020FF, wanted 010006FF; index 5, instance 1, vertex 2, at (10,0) held 202020FF, wanted 020006FF;
+instancing probe: case 3: about to draw V 7, auto-indexed: 9362 instances from 5, 65534 points
+instancing probe: case 3: V 7, auto-indexed: 9362 instances from 5, 65534 points: DIFFERS, 9362 of 65534 points right, 0 a pixel off, 56172 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw V 255, auto-indexed: 257 instances from 5, 65535 points
+instancing probe: case 3: V 255, auto-indexed: 257 instances from 5, 65535 points: DIFFERS, 257 of 65535 points right, 0 a pixel off, 65278 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw V 257, auto-indexed: 255 instances from 5, 65535 points
+instancing probe: case 3: V 257, auto-indexed: 255 instances from 5, 65535 points: DIFFERS, 255 of 65535 points right, 0 a pixel off, 65280 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw V 4369, auto-indexed: 15 instances from 5, 65535 points
+instancing probe: case 3: V 4369, auto-indexed: 15 instances from 5, 65535 points: DIFFERS, 15 of 65535 points right, 0 a pixel off, 65520 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw V 21845, auto-indexed: 3 instances from 5, 65535 points
+instancing probe: case 3: V 21845, auto-indexed: 3 instances from 5, 65535 points: DIFFERS, 3 of 65535 points right, 0 a pixel off, 65532 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw V 65535, auto-indexed: 1 instances from 5, 65535 points
+instancing probe: case 3: V 65535, auto-indexed: 1 instances from 5, 65535 points: DIFFERS, 1 of 65535 points right, 0 a pixel off, 65534 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw S 2, indexed: 32767 copies of 2, 32-bit, indices to 65533
+instancing probe: case 3: S 2, indexed: 32767 copies of 2, 32-bit, indices to 65533: DIFFERS, 32767 of 65534 points right, 0 a pixel off, 32767 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 3, instance 1, vertex 1, at (6,0) held 202020FF, wanted 010006FF; index 5, instance 2, vertex 1, at (10,0) held 202020FF, wanted 010007FF; index 7, instance 3, vertex 1, at (14,0) held 202020FF, wanted 010008FF;
+instancing probe: case 3: about to draw S 4, indexed: 21845 copies of 3, 32-bit, indices to 87378
+instancing probe: case 3: S 4, indexed: 21845 copies of 3, 32-bit, indices to 87378: DIFFERS, 21845 of 65535 points right, 0 a pixel off, 43690 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 5, instance 1, vertex 1, at (8,0) held 202020FF, wanted 010006FF; index 6, instance 1, vertex 2, at (10,0) held 202020FF, wanted 020006FF;
+instancing probe: case 3: about to draw S 256, indexed: 508 copies of 129, 32-bit, indices to 129920
+instancing probe: case 3: S 256, indexed: 508 copies of 129, 32-bit, indices to 129920: DIFFERS, 508 of 65532 points right, 0 a pixel off, 65024 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw S 4096, indexed: 31 copies of 2049, 32-bit, indices to 124928
+instancing probe: case 3: S 4096, indexed: 31 copies of 2049, 32-bit, indices to 124928: DIFFERS, 31 of 63519 points right, 0 a pixel off, 63488 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw S 65536, indexed: 255 copies of 5, 32-bit, indices to 16646148
+instancing probe: case 3: S 65536, indexed: 255 copies of 5, 32-bit, indices to 16646148: DIFFERS, 255 of 1275 points right, 0 a pixel off, 1020 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw S 1048576, indexed: 16 copies of 16, 32-bit, indices to 15728655
+instancing probe: case 3: S 1048576, indexed: 16 copies of 16, 32-bit, indices to 15728655: DIFFERS, 16 of 256 points right, 0 a pixel off, 240 elsewhere; first wrong: index 1, instance 0, vertex 1, at (2,0) held 202020FF, wanted 010005FF; index 2, instance 0, vertex 2, at (4,0) held 202020FF, wanted 020005FF; index 3, instance 0, vertex 3, at (6,0) held 202020FF, wanted 030005FF; index 4, instance 0, vertex 4, at (8,0) held 202020FF, wanted 040005FF;
+instancing probe: case 3: about to draw S 8388608, indexed: 2 copies of 1, 32-bit, indices to 8388608
+instancing probe: case 3: S 8388608, indexed: 2 copies of 1, 32-bit, indices to 8388608: PASS, 2 of 2 points right, 0 a pixel off, 0 elsewhere
+instancing probe: case 3: DIFFERS, 1 of 14 counts right
+instancing probe: about to run case 4, cost: GPU time over 500 and 2,500 instances and CPU clocks an instance recorded, each way
+instancing probe: case 4: timing the cube as the layer draws an instance now: the group, stream 1 at the instance, the indexed draw
+instancing probe: case 4: the cube as the layer draws an instance now: the group, stream 1 at the instance, the indexed draw: GPU 0.288 us an instance, 145.5 us for 500, 721.9 for 2500; CPU 716 clocks an instance recorded (0.224 us), 36.0 dwords; 2500 of 2500 cells drawn
+instancing probe: case 4: timing the cube a draw an instance, only the group between: its 36 corners auto-indexed
+instancing probe: case 4: the cube a draw an instance, only the group between: its 36 corners auto-indexed: GPU 0.207 us an instance, 106.2 us for 500, 519.3 for 2500; CPU 485 clocks an instance recorded (0.152 us), 22.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the cube in one draw: its 36 corners auto-indexed, pieces of 1,820 instances
+instancing probe: case 4: the cube in one draw: its 36 corners auto-indexed, pieces of 1,820 instances: GPU 0.144 us an instance, 75.4 us for 500, 364.2 for 2500; CPU 1 clocks an instance recorded (0.000 us), 0.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the cube from its 36 indices in copies of 1
+instancing probe: case 4: the cube from its 36 indices in copies of 1: GPU 0.203 us an instance, 104.3 us for 500, 509.5 for 2500; CPU 634 clocks an instance recorded (0.199 us), 25.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the cube from its 36 indices in copies of 8
+instancing probe: case 4: the cube from its 36 indices in copies of 8: GPU 0.096 us an instance, 51.7 us for 500, 244.2 for 2500; CPU 80 clocks an instance recorded (0.025 us), 3.1 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the cube from its 36 indices in copies of 64
+instancing probe: case 4: the cube from its 36 indices in copies of 64: GPU 0.096 us an instance, 51.5 us for 500, 244.2 for 2500; CPU 10 clocks an instance recorded (0.003 us), 0.4 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the cube from its 36 indices in copies of 512
+instancing probe: case 4: the cube from its 36 indices in copies of 512: GPU 0.096 us an instance, 51.4 us for 500, 244.0 for 2500; CPU 1 clocks an instance recorded (0.000 us), 0.1 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad as the layer draws an instance now: the group, stream 1 at the instance, a draw of 6
+instancing probe: case 4: the quad as the layer draws an instance now: the group, stream 1 at the instance, a draw of 6: GPU 0.273 us an instance, 139.2 us for 500, 684.6 for 2500; CPU 747 clocks an instance recorded (0.234 us), 33.0 dwords; 2500 of 2500 cells drawn
+instancing probe: case 4: timing the quad a draw an instance, only the group between: 6 vertices auto-indexed
+instancing probe: case 4: the quad a draw an instance, only the group between: 6 vertices auto-indexed: GPU 0.207 us an instance, 106.0 us for 500, 519.1 for 2500; CPU 482 clocks an instance recorded (0.151 us), 22.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad in one draw: 6 vertices auto-indexed, pieces of 10,922 instances
+instancing probe: case 4: the quad in one draw: 6 vertices auto-indexed, pieces of 10,922 instances: GPU 0.024 us an instance, 15.3 us for 500, 63.4 for 2500; CPU 0 clocks an instance recorded (0.000 us), 0.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad from a 4-vertex quad's 6 indices in copies of 1
+instancing probe: case 4: the quad from a 4-vertex quad's 6 indices in copies of 1: GPU 0.202 us an instance, 104.2 us for 500, 509.1 for 2500; CPU 634 clocks an instance recorded (0.199 us), 25.0 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad from a 4-vertex quad's 6 indices in copies of 8
+instancing probe: case 4: the quad from a 4-vertex quad's 6 indices in copies of 8: GPU 0.025 us an instance, 15.9 us for 500, 66.5 for 2500; CPU 80 clocks an instance recorded (0.025 us), 3.1 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad from a 4-vertex quad's 6 indices in copies of 64
+instancing probe: case 4: the quad from a 4-vertex quad's 6 indices in copies of 64: GPU 0.016 us an instance, 11.5 us for 500, 44.0 for 2500; CPU 10 clocks an instance recorded (0.003 us), 0.4 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: timing the quad from a 4-vertex quad's 6 indices in copies of 512
+instancing probe: case 4: the quad from a 4-vertex quad's 6 indices in copies of 512: GPU 0.016 us an instance, 11.3 us for 500, 43.4 for 2500; CPU 1 clocks an instance recorded (0.000 us), 0.1 dwords; 0 of 2500 cells drawn
+instancing probe: case 4: 14 ways timed, 2 drew every cell
+instancing probe: about to run case 5, readback: 64 KB read from write-combined memory with 32-bit and 128-bit loads
+instancing probe: case 5: 64 KB of write-combined memory, the best of 8: 32-bit loads 21.0 MB/s (3127.4 us), 128-bit loads 80.2 MB/s (817.2 us); every sum right
+instancing probe: done, 5 cases: 2 PASS, 3 DIFFERS; xsdk_gpu_close 0x00000000
+exit: status 0

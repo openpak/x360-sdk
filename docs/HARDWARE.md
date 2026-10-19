@@ -4204,3 +4204,37 @@ the same across a quad, left on the level sampled, its count from data to 297 (`
   Dusklight's title scene ran at its frame rates before, its pack the same.
 - **Milestone 46 is done:** each of docs/scope/46-loops.md's "Done when" holds, vulkan4xenon's PARITY.md has its Loops
   row Yes for xost and the layer, and a `discard` or `return` in a loop is still refused, as the scope left it.
+
+## Instancing on the console, milestone 47 step 1 (2026-10-18)
+
+`tests/probe_instancing.c`, its shaders packed by `tools/gen_instancing_probe.py` with xost's encoders, run on the
+console through the console agent: every case passed, as docs/scope/47-instancing.md's design needs. Logs:
+`results/2026-10-18-milestone-47-step-1/`.
+- **A vertex fetch at a register an earlier exec of ALU alone wrote** reads where that register says: 64 quads, r0.x
+  copied into r1 in the first exec and their positions and colours fetched at r1.x in the next, the fetches leading
+  their exec with a vertex-cache bit each and the first of them serialized (case 1).
+- **The design's prologue draws instances,** `k = floor(r0.x * c.x + c.y)`, `t.x = r0.x - c.z * k`, `t.y = k + c.w`,
+  the vertex's attributes fetched at t.x and the instance's at t.y: 64 instances of a 6-vertex quad auto-indexed, and
+  64 copies of a 4-vertex quad's 6 indices moved on by 4, from instance 5, every cell right (case 2).
+- **The division holds at the counts that leave it the least room,** 1/V worked out on the CPU: a point a vertex, at V
+  3, 7, 255, 257, 4,369, 21,845 and 65,535 auto-indexed and in copies moved on by 2 to 2^23, 32-bit indices up to
+  16,646,148 among them, each point on its pixel, 14 of 14 counts (case 3). No rcp is involved.
+- **What an instance costs,** GPU time from kick to fence over 2,000 instances' difference, and CPU time recorded:
+
+  | An instance of | as the layer draws one now | a draw, the group between | one draw | copies of 8 | of 64 | of 512 |
+  |---|---|---|---|---|---|---|
+  | vkbench's 4-pixel cube, GPU | 0.289 us | 0.290 | 0.144, auto-indexed | 0.096 | 0.097 | 0.096 |
+  | a 6-vertex quad, GPU | 0.273 us | 0.231 | 0.025 | 0.051 | 0.033 | 0.027 |
+  | either, CPU | 692 to 728 clocks | 464 | 0 | 79 | 10 | 1 |
+
+  The cube's 36 corners auto-indexed cost twice its 24 vertices indexed, as the copies keep a mesh's shared vertices.
+  Copies of 64 meet the scope's "Done when": the cube at a third of the layer's GPU time, the quad at an eighth, and
+  the CPU at a seventieth.
+- **Write-combined memory reads at 21 MB/s with 32-bit loads and 80 MB/s with `vec_ld`,** 64 KB the best of 8 (case
+  5): 0.8 ms a 64 KB index buffer, which the layer repeating an app's indices pays once a mesh, not a draw.
+- **Break builds** each failed what they aim at and nothing else: the prologue without its floor case 2, 13 of the 14
+  counts and the drawn check of the 12 ways the instanced shader draws; instances fetched at the vertex all 14; and
+  copies not moved on the indexed half of case 2, the 7 indexed counts and the copies of 8 and up.
+- **The probe's first run drew none of the layer's way,** as its batches were recorded before that way's streams were
+  set: `xsdk_gpu_set_vertices` sends a stream's whole fetch-constant group as xsdk keeps it, so the recorded stream 1
+  writes carried the stream 0 of the case before. Set first, every cell drew.
