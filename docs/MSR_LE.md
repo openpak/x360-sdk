@@ -1,7 +1,9 @@
 # MSR[LE] console experiment
 
-Status: **prepared for hardware; no console result yet**. This is the port feasibility probe requested on 2026-10-18,
-not an SDK endian mode or a change to the game/toolchain. Build output stays under this worktree's `build/`.
+Status: **the first console run stopped at the BE exception control, before any LE switch**. The user reported a
+console crash. `mfmsr` returned `0xB030` and the BE harness passed; LE behavior and the cause of the crash remain
+unresolved. Evidence is in `results/2026-10-18-msr-le-handler-crash/` and `docs/HARDWARE.md`. This is the port feasibility
+probe requested on 2026-10-18, not an SDK endian mode or a change to the game/toolchain.
 
 ## Run
 
@@ -12,14 +14,21 @@ wsl.exe -d Debian --exec bash -c 'cd /mnt/z/xsdk-msr-le/Xbox-360-SDK && make cle
 ```
 
 Copy `build/probe_msr_le.xex` to the console and launch it. It writes `probe_msr_le.log` beside the title. With no
-configuration file, it runs `all`. An optional `probe_msr_le.txt` beside the title selects:
+configuration file, it now runs `handler`, stopping before any LE switch. The startup line includes
+`handler diagnostics v2` to distinguish this build. An optional `probe_msr_le.txt` beside the title selects:
 
-| Text | Tests after the switch/fetch/handler controls |
+| Text | Tests |
 |---|---|
-| `all` | Data accesses, persistence, timing, direct query, direct wait |
-| `core` | Data accesses, persistence, timing |
-| `query` | Direct `KeQuerySystemTime` |
-| `wait` | Direct `NtWaitForSingleObjectEx` |
+| `handler` (default) | BE execution, deliberate illegal instruction and recovery, BE load; then stop |
+| `all` | BE controls, switch/fetch, data accesses, persistence, timing, direct query, direct wait |
+| `core` | BE controls, switch/fetch, data accesses, persistence, timing |
+| `query` | BE controls, switch/fetch, direct `KeQuerySystemTime` |
+| `wait` | BE controls, switch/fetch, direct `NtWaitForSingleObjectEx` |
+
+For the next run, leave the configuration absent or set it to `handler`. This still deliberately raises the same
+exception that preceded the reported crash; recovery has not yet been verified with this revision. A completed run
+must report all three BE controls passing and `stopping before any LE switch`. Use an explicit LE mode only after
+this prerequisite works. The mode does not weaken or bypass the exception control.
 
 Each potentially faulting experiment logs `BEGIN` before entry and `END` after recovery. If the console stops, retain
 the log before relaunching; the next launch overwrites it. `core`, `query`, and `wait` let later experiments run
@@ -81,6 +90,15 @@ under `results/<run-date>-msr-le/` and only then add settled findings to `docs/H
    cost. It is not a direct hardware cycle-counter reading or a ready-made port boundary trampoline.
 
 ## Recovery and limits
+
+The original handler could reject pointers before printing anything, and read the saved frame with a 64-bit load
+before its first diagnostic. Thus the missing `fault:` line in the first run does not establish whether the kernel
+entered the callback, a check rejected it, or the callback itself faulted. No specific cause is asserted from that log.
+The revised handler follows the earlier `probe_fault` scaffold: a recursion guard before logging, entry arguments
+logged before reading exception pointers, current callback stack bounds, and volatile 32-bit context accesses.
+It validates only the aligned words it actually reads and logs each rejection, the IAR redirect, and its return.
+The main-thread stack bounds and code addresses are also logged before the test. These are diagnostic changes,
+not a console-verified crash fix.
 
 The handler accepts only known probe instruction addresses on the main thread's exact saved frame. It records the
 exception and redirects IAR to the matching-endian restore gate. It does not edit the context's word at +4, whose

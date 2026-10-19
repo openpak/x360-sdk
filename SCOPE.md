@@ -20,8 +20,10 @@ translation layer comes later and is out of this scope. So are games.
 
 **MSR[LE] feasibility probe (agreed 2026-10-18).** The user's port decision needs console measurements of data
 accesses, instruction fetch, interrupt/thread persistence, kernel crossings, and switch cost. `docs/MSR_LE.md`
-specifies the standalone `probe_msr_le.xex` and its limits. Hardware results are pending. This adds no SDK endian
-mode, game changes, or HV/HVX calls.
+specifies the standalone `probe_msr_le.xex` and its limits. Its first console run passed BE execution and `mfmsr`,
+then stopped at the BE exception control before any LE switch (HARDWARE.md, "MSR[LE] probe stops at its BE exception
+control"). LE results remain pending; the next build defaults to the BE controls with handler diagnostics.
+This adds no SDK endian mode, game changes, or HV/HVX calls.
 
 ## 1. What already exists: the user's shader toolchain ("xost")
 

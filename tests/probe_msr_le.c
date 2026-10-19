@@ -16,7 +16,7 @@ enum {
 	CLEAR_HANDLER = 0x36E,
 	CONTEXT_IAR = 8,
 	CONTEXT_R1 = 0x20,
-	CONTEXT_BYTES = 0x228,
+	CONTEXT_BYTES = CONTEXT_R1 + 8,
 	ALIGNMENT = 0x80000002,
 	ILLEGAL_INSTRUCTION = 0xC000001D,
 	// Console timing: docs/HARDWARE.md, "The time base runs at 49.875 MHz".
@@ -53,9 +53,9 @@ static const uint8_t source[] __attribute__((aligned(16))) =
 	"\xA5\xA5\xA5\xA5\xA5\xA5\xA5\xA5"
 	"\xA5\xA5\xA5\xA5\xA5\xA5\xA5\xA5";
 static uint8_t destination[32] __attribute__((aligned(16)));
-static uint32_t stack_bounds[2];
 static MsrLeResult *active_result;
 static Fault fault;
+static uint32_t in_handler;
 static uint32_t passed_count;
 static uint32_t failed_count;
 static uint32_t selected_method;
@@ -76,9 +76,9 @@ static void check(const char *name, bool passed)
 	failed_count += !passed;
 }
 
-static bool on_stack(uint32_t address, uint32_t bytes)
+static bool on_stack(uint32_t address, uint32_t bytes, const uint32_t bounds[2])
 {
-	return address >= stack_bounds[0] && address <= stack_bounds[1] && bytes <= stack_bounds[1] - address;
+	return !(address & 3) && address >= bounds[0] && address < bounds[1] && bytes <= bounds[1] - address;
 }
 
 static bool between(uint32_t address, const char *begin, const char *end)
@@ -86,21 +86,39 @@ static bool between(uint32_t address, const char *begin, const char *end)
 	return address >= (uint32_t)begin && address < (uint32_t)end;
 }
 
-static int32_t handle_fault(uint32_t pointers)
+static int32_t recover_fault(uint32_t pointers)
 {
-	if (!active_result || !on_stack(pointers, 8))
+	if (!active_result) {
+		xsdk_log_write("fault: rejected, no active probe");
 		return 0;
-	const uint32_t *pair = (const uint32_t *)pointers;
-	if (!on_stack(pair[0], 0x50) || !on_stack(pair[1], CONTEXT_BYTES))
+	}
+	uint32_t bounds[2];
+	xsdk_msr_le_stack(bounds);
+	xsdk_log_write("fault: callback stack=%08X..%08X expected frame=%08X", bounds[0], bounds[1], active_result->frame);
+	if (!on_stack(pointers, 8, bounds)) {
+		xsdk_log_write("fault: rejected, argument is not an aligned pair on the callback stack");
 		return 0;
-	const uint32_t *record = (const uint32_t *)pair[0];
-	uint8_t *context = (uint8_t *)pair[1];
-	const uint32_t iar = *(uint32_t *)(context + CONTEXT_IAR);
-	const uint64_t frame = *(uint64_t *)(context + CONTEXT_R1);
-	xsdk_log_write("fault: code=0x%08X address=%08X IAR=%08X context+4=%08X frame=%016llX", record[0], record[3], iar,
-		*(uint32_t *)(context + 4), (unsigned long long)frame);
-	if (frame != active_result->frame || iar != record[3] || fault.calls != 0)
+	}
+	const volatile uint32_t *pair = (const volatile uint32_t *)pointers;
+	const uint32_t record_at = pair[0];
+	const uint32_t context_at = pair[1];
+	xsdk_log_write("fault: pair record=%08X context=%08X", record_at, context_at);
+	if (!on_stack(record_at, 16, bounds) || !on_stack(context_at, CONTEXT_BYTES, bounds)) {
+		xsdk_log_write("fault: rejected, required record/context words are outside the callback stack or unaligned");
 		return 0;
+	}
+	const volatile uint32_t *record = (const volatile uint32_t *)record_at;
+	volatile uint32_t *context = (volatile uint32_t *)context_at;
+	const uint32_t iar = context[CONTEXT_IAR / 4];
+	// Word reads match probe_fault's console-tested context reader without assuming eight-byte alignment.
+	const uint32_t frame_high = context[CONTEXT_R1 / 4];
+	const uint32_t frame = context[CONTEXT_R1 / 4 + 1];
+	xsdk_log_write("fault: code=0x%08X address=%08X IAR=%08X context+4=%08X frame=%08X:%08X", record[0], record[3], iar,
+		context[1], frame_high, frame);
+	if (frame_high || frame != active_result->frame || iar != record[3] || fault.calls != 0) {
+		xsdk_log_write("fault: rejected, frame/address mismatch or a previous recovery already faulted");
+		return 0;
+	}
 	uint32_t resume;
 	if (iar == (uint32_t)xsdk_msr_le_read_site)
 		resume = (uint32_t)xsdk_msr_le_unwind;
@@ -111,11 +129,26 @@ static int32_t handle_fault(uint32_t pointers)
 	else if (iar == (uint32_t)xsdk_msr_le_fault_site || between(iar, xsdk_msr_le_gate, xsdk_msr_le_le_payload_end) ||
 		between(iar, xsdk_msr_le_payload, xsdk_msr_le_payload_end))
 		resume = (uint32_t)xsdk_msr_le_recover;
-	else
+	else {
+		xsdk_log_write("fault: rejected, IAR is outside the recoverable probe sites");
 		return 0;
-	fault = (Fault){ 1, record[0], iar, *(uint32_t *)(context + 4) };
-	*(uint32_t *)(context + CONTEXT_IAR) = resume;
+	}
+	fault = (Fault){ 1, record[0], iar, context[1] };
+	context[CONTEXT_IAR / 4] = resume;
+	xsdk_log_write("fault: redirect IAR=%08X", resume);
 	return -1;
+}
+
+static int32_t handle_fault(uint32_t first, uint32_t second, uint32_t third, uint32_t fourth)
+{
+	// Match probe_fault's guard before any logging or exception-pointer reads.
+	if (__atomic_exchange_n(&in_handler, 1, __ATOMIC_ACQUIRE))
+		return 0;
+	xsdk_log_write("fault: entered handler, arguments=%08X %08X %08X %08X", first, second, third, fourth);
+	const int32_t result = recover_fault(first);
+	xsdk_log_write("fault: handler returns %d", (int)result);
+	__atomic_store_n(&in_handler, 0, __ATOMIC_RELEASE);
+	return result;
 }
 
 static bool resolve_handlers(SetHandler *set, ClearHandler *clear)
@@ -179,7 +212,7 @@ static bool kept_le(const MsrLeResult *result)
 	return (result->inside & 1) && result->after == result->before && result->fetch == selected_fetch;
 }
 
-static bool discover(bool viable[2])
+static bool controls(void)
 {
 	MsrLeResult result;
 	MsrLeRequest work = request(LE_FETCH, LE_CONTROL);
@@ -201,11 +234,15 @@ static bool discover(bool viable[2])
 	ok = run("BE lwz control", &result, &work);
 	ok = ok && result.value == BE_WORD && !(result.inside & 1) && result.before == result.after;
 	check("BE lwz sees 11 22 33 44 at the source address", ok);
-	if (!ok)
-		return false;
+	return ok;
+}
+
+static bool discover(bool viable[2])
+{
+	MsrLeResult result;
 	for (uint32_t method = LE_MTMSRD; method <= LE_RFID; method++) {
-		work = request(LE_FETCH, method);
-		ok = run(method == LE_MTMSRD ? "mtmsrd LE fetch" : "rfid LE fetch", &result, &work);
+		const MsrLeRequest work = request(LE_FETCH, method);
+		const bool ok = run(method == LE_MTMSRD ? "mtmsrd LE fetch" : "rfid LE fetch", &result, &work);
 		viable[method] = ok && (result.inside & 1) && result.after == result.before && result.value == 0x13579BDF;
 		xsdk_log_write("OBS switch %u: %s", method, viable[method] ? "LE round trip observed" : "LE not established");
 		if (viable[method] && (!viable[LE_MTMSRD] || method == LE_MTMSRD)) {
@@ -527,7 +564,7 @@ static void switch_cost(uint32_t method)
 
 static bool read_mode(char mode[16])
 {
-	strcpy(mode, "all");
+	strcpy(mode, "handler");
 	FILE *file = fopen("probe_msr_le.txt", "r");
 	if (!file) {
 		if (errno == ENOENT)
@@ -542,25 +579,28 @@ static bool read_mode(char mode[16])
 		return false;
 	}
 	mode[strcspn(mode, "\r\n \t")] = '\0';
-	return strcmp(mode, "all") == 0 || strcmp(mode, "core") == 0 || strcmp(mode, "query") == 0 ||
-		strcmp(mode, "wait") == 0;
+	return strcmp(mode, "handler") == 0 || strcmp(mode, "all") == 0 || strcmp(mode, "core") == 0 ||
+		strcmp(mode, "query") == 0 || strcmp(mode, "wait") == 0;
 }
 
 int main(void)
 {
 	char mode[16];
 	if (!read_mode(mode)) {
-		xsdk_log_write("probe_msr_le.txt must contain all, core, query, or wait");
+		xsdk_log_write("probe_msr_le.txt must contain handler, all, core, query, or wait");
 		return 1;
 	}
-	xsdk_log_write("probe_msr_le: mode=%s; hardware experiment, no HV/HVX calls", mode);
+	xsdk_log_write("probe_msr_le: handler diagnostics v2; mode=%s; no HV/HVX calls", mode);
 	xsdk_log_write("Fetch is measured before data tests; C and logging run only after restoring BE");
 	const NTSTATUS moved = xsdk_thread_move(0);
 	if (!NT_SUCCESS(moved)) {
 		xsdk_log_write("xsdk_thread_move(0) failed: 0x%08X", (unsigned)moved);
 		return 1;
 	}
-	xsdk_msr_le_stack(stack_bounds);
+	uint32_t bounds[2];
+	xsdk_msr_le_stack(bounds);
+	xsdk_log_write("main stack=%08X..%08X handler=%08X fault site=%08X recovery=%08X", bounds[0], bounds[1],
+		(uint32_t)handle_fault, (uint32_t)xsdk_msr_le_fault_site, (uint32_t)xsdk_msr_le_recover);
 	SetHandler set = NULL;
 	ClearHandler clear = NULL;
 	if (!resolve_handlers(&set, &clear))
@@ -569,7 +609,11 @@ int main(void)
 	const uint32_t hook = set(address, address);
 	xsdk_log_write("set handler returned 0x%08X; the fault control verifies installation", hook);
 	bool viable[2] = { false, false };
-	if (discover(viable)) {
+	const bool controls_ok = controls();
+	if (strcmp(mode, "handler") == 0) {
+		xsdk_log_write(
+			"handler mode: BE controls %s; stopping before any LE switch", controls_ok ? "passed" : "failed");
+	} else if (controls_ok && discover(viable)) {
 		xsdk_log_write("selected switch=%u fetch=%s", selected_method, selected_fetch ? "LE words" : "BE words");
 		if (strcmp(mode, "all") == 0 || strcmp(mode, "core") == 0) {
 			if (data_accesses())

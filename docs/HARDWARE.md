@@ -4238,3 +4238,21 @@ console through the console agent: every case passed, as docs/scope/47-instancin
 - **The probe's first run drew none of the layer's way,** as its batches were recorded before that way's streams were
   set: `xsdk_gpu_set_vertices` sends a stream's whole fetch-constant group as xsdk keeps it, so the recorded stream 1
   writes carried the stream 0 of the case before. Set first, every cell drew.
+
+## MSR[LE] probe stops at its BE exception control (2026-10-18)
+
+In the first hardware run of the probe introduced in commit `1d1086c`, the user reported that the console crashed
+immediately after the last line of `results/2026-10-18-msr-le-handler-crash/probe_msr_le.log`.
+
+- **BE execution and `mfmsr` passed.** The assembly harness returned `0x13579BDF`, with MSR `0x000000000000B030`
+  before, inside, and after: PR=0, EE=1, HV=0, LE=0.
+- **The next test did not return.** The final line is `BEGIN handler control: method=2 operation=13`. That path
+  executes the deliberate `.long 0` at `xsdk_msr_le_fault_site` while still BE, before either switching path.
+  There is no handler diagnostic or `END handler control` in the log. The registration call returned zero, which
+  the earlier fault probe also observed; that return alone does not prove the callback was installed or entered.
+- **The failure mechanism is not established.** The original handler checks pointers and reads context words before
+  its first log line. This record cannot distinguish no callback, an early rejection, or a fault within the callback.
+  The next revision adds guarded entry/rejection/resume diagnostics, reads current callback stack bounds and
+  32-bit context words as `probe_fault` does, and defaults to BE controls only. Those changes still need a console run.
+- **No LE behavior was measured.** Data ordering, LE fetch, persistence, kernel crossings, switching privilege and
+  cost remain unanswered. This crash is not evidence for or against the proposed LE port.
