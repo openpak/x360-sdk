@@ -4238,3 +4238,21 @@ console through the console agent: every case passed, as docs/scope/47-instancin
 - **The probe's first run drew none of the layer's way,** as its batches were recorded before that way's streams were
   set: `xsdk_gpu_set_vertices` sends a stream's whole fetch-constant group as xsdk keeps it, so the recorded stream 1
   writes carried the stream 0 of the case before. Set first, every cell drew.
+
+## Instanced vertex shaders in xost, milestone 47 step 2 (2026-10-18)
+
+xost lowers a vertex shader that reads `gl_InstanceIndex`, or one compiled with the `instanced` option, with step 1's
+prologue in an exec of ALU alone before its fetches, every fetch at t.x and `gl_InstanceIndex` t.y, from the instance
+group the runtime writes, `XSDK_XSC_INSTANCE` (src/xsc_lower_vertex.c, `prologue`). Until step 4, vulkan4xenon draws an
+instance at a time with the group (0, 0, 0, the instance), so the prologue keeps the vertex's index and gives the
+instance. Logs: `results/2026-10-18-milestone-47-step-2/`.
+- **The prologue drew through the layer:** vulkan4xenon_test's instancing rows, `instanced.vert` from the bundle
+  rebuilt with this xost and its plain shader without `gl_InstanceIndex`, `vkCmdDraw`, `vkCmdDrawIndexed` and both
+  indirect draws from instances 1 to 5, every frame right; vulkan4xenon_test passed 487 of 487 twice.
+- **Nothing else moved:** xsdk_test passed 447 of 449, the 2 the controller checks with no pad; of milestone 45's
+  corpus only the shaders reading `gl_InstanceIndex` compile differently, and of vulkan4xenon's bundles only
+  `instanced.vert`; Dusklight's pack is the same. vkbench passed 14 of 14, and Dusklight's title scene ran at its
+  frame rates before.
+- **Off the console,** `tests/test_instancing.py` ran every vertex of N instances of V and of copies of a quad's
+  indices on xost's simulator, and the division for every V to 65,535 and S to 2^23 under three roundings, the least
+  room left 0.4854/V; the prologue without its floor failed the simulated draws.
