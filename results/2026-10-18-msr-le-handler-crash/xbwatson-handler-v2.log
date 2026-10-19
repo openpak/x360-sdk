@@ -1,0 +1,20 @@
+xbWatson: Connection to Xbox successful
+xbWatson: Xbox is restarting
+
+Execution Thread Found.  Information has been removed
+MultiDiscEngineProcess: info TitleId 00000000 does not match current TitleId 5853444b, disabling
+log: game:\probe_msr_le.log
+log: named after \Device\Harddisk0\Partition1\probe_msr_le.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+open: NtCreateFile(game:\probe_msr_le.txt) failed: 0xC0000034
+probe_msr_le: handler diagnostics v2; mode=handler; no HV/HVX calls
+Fetch is measured before data tests; C and logging run only after restoring BE
+main stack=70010000..70110000 handler=82030A20 fault site=82032FBC recovery=820331F4
+set handler returned 0x00000000; the fault control verifies installation
+BEGIN BE control: method=2 operation=0
+END BE control: completed=1 faults=0 fetch=BE words MSR=000000000000B030 -> 000000000000B030 -> 000000000000B030
+values: 0000000013579BDF 0000000000000000 passes=0 errors=0
+PASS: BE control executes and mfmsr is accessible
+initial MSR: PR=0 EE=1 HV=0; only LE is requested
+BEGIN handler control: method=2 operation=13
+Exception : 4177526784 3221225501 2181246908 FirstChance

@@ -4253,6 +4253,21 @@ immediately after the last line of `results/2026-10-18-msr-le-handler-crash/prob
 - **The failure mechanism is not established.** The original handler checks pointers and reads context words before
   its first log line. This record cannot distinguish no callback, an early rejection, or a fault within the callback.
   The next revision adds guarded entry/rejection/resume diagnostics, reads current callback stack bounds and
-  32-bit context words as `probe_fault` does, and defaults to BE controls only. Those changes still need a console run.
+  32-bit context words as `probe_fault` does, and defaults to BE controls only. That revision's rerun is recorded below.
 - **No LE behavior was measured.** Data ordering, LE fetch, persistence, kernel crossings, switching privilege and
   cost remain unanswered. This crash is not evidence for or against the proposed LE port.
+
+The diagnostic revision (`c33ac8b`, startup `handler diagnostics v2`, default `handler` mode) also left the console
+unresponsive, as the user explicitly confirmed. Their pasted Watson transcript is preserved in the same directory
+as `xbwatson-handler-v2.log`.
+
+- **The reported exception is the deliberate control fault.** Watson's decimal `3221225501` is `0xC000001D`, and
+  `2181246908` is `0x82032FBC`, exactly the logged `xsdk_msr_le_fault_site`. The exception is before either LE switch,
+  not at the handler (`0x82030A20`) or restore gate (`0x820331F4`). BE execution again returned MSR `0xB030`.
+- **There is still no callback-entry diagnostic.** Watson labels the notification `FirstChance`. That label alone
+  cannot establish whether the debug monitor stopped execution or exception dispatch failed before the first log.
+  The transcript has no second-chance event or handler return; neither a debugger pause nor a kernel fault is proven.
+- **The handler edits did not establish recovery.** The next comparison is the existing `probe_fault.xex` in its
+  default `probe` mode under the same console/debugger setup. Its source recovered the same illegal-instruction code
+  in the 2026-10-15 run above. A fresh baseline run can distinguish a failure shared with the older probe from one
+  specific to the MSR probe; it is not yet a result. No code is changed on the strength of the first-chance label.

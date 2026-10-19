@@ -5,6 +5,13 @@ console crash. `mfmsr` returned `0xB030` and the BE harness passed; LE behavior 
 unresolved. Evidence is in `results/2026-10-18-msr-le-handler-crash/` and `docs/HARDWARE.md`. This is the port feasibility
 probe requested on 2026-10-18, not an SDK endian mode or a change to the game/toolchain.
 
+The diagnostic v2 rerun also left the console unresponsive. Watson reported `0xC000001D` at `0x82032FBC`, exactly
+the deliberate BE fault site, with `FirstChance` and no handler-entry line. The decimal values and transcript are
+preserved in `results/2026-10-18-msr-le-handler-crash/xbwatson-handler-v2.log`. This confirms the fault location, not
+the cause of the hang. The next comparison is `build/probe_fault.xex` with `probe_fault.txt` absent or containing
+`probe`, keeping the same console and Watson setup. That probe's earlier hardware run recovered from this exception
+code; its new log will check whether exception delivery still works in the baseline before changing the MSR probe.
+
 ## Run
 
 Build from PowerShell:
@@ -25,7 +32,8 @@ configuration file, it now runs `handler`, stopping before any LE switch. The st
 | `query` | BE controls, switch/fetch, direct `KeQuerySystemTime` |
 | `wait` | BE controls, switch/fetch, direct `NtWaitForSingleObjectEx` |
 
-For the next run, leave the configuration absent or set it to `handler`. This still deliberately raises the same
+When returning to this probe after the baseline comparison, leave the configuration absent or set it to `handler`.
+This still deliberately raises the same
 exception that preceded the reported crash; recovery has not yet been verified with this revision. A completed run
 must report all three BE controls passing and `stopping before any LE switch`. Use an explicit LE mode only after
 this prerequisite works. The mode does not weaken or bypass the exception control.
