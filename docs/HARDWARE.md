@@ -4305,3 +4305,18 @@ is `results/2026-10-18-hv-le-control/probe_hv_le-v1.log`; `docs/HV_LE.md` record
   eight-byte alignment its integer saves need, and assigns separate rejection codes.
 - **LE remains untested.** This control run never requested it. Installation and HV entry are established only
   for this console setup; BE data, LE fetch/data, title-side persistence, kernel crossings and cost remain open.
+
+The complete v2 control transcript is `results/2026-10-18-hv-le-control/probe_hv_le-v2.log`. It supersedes an
+initial file fragment that ended mid-line; the full transcript ends with a successful control and exit status 0.
+
+- **The HV stack needs the probe's eight-byte guard.** The register-only callback returned `0000006A01F61EF8`,
+  `mod8=0 mod16=8`. The old sixteen-byte guard would reject this stack. With the corrected guard, the payload's
+  64-bit saves/restores and BE data window completed, followed by a clean title return.
+- **BE fetch and aligned integer data passed.** The window recorded BE words and sentinel `13579BDF`, with MSR
+  `9000000000001000` before, requested, inside and after. `lwz`, `lhz` and `ld` returned `11223344`, `1122` and
+  `1122334455667788`. `stw` of `11223344` left `11 22 33 44 00 00 00 00`, read back one byte at a time.
+- **Bounded report reads and title returns passed.** Index 12 returned -1 as intended; indices 0 through 11
+  returned cleanly. Each call preserved title MSR `9030` and the checked nonvolatile GPRs, CR2-4, LR, r2/r13 and
+  stack. The missing optional configuration selected `retail control` correctly.
+- **The LE stage is next.** The same v2 executable can now run with `retail le`, after a cold boot. This control
+  did not request LE; it says nothing yet about LE fetch/data, title-side persistence, kernel crossings or cost.

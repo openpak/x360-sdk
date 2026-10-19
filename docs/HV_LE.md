@@ -2,8 +2,9 @@
 
 `build/probe_hv_le.xex` implements the separate experiment authorized on 2026-10-18. The first hardware run
 installed the expansion and confirmed HV=1 with a clean title return. Its BE data operation was rejected before
-the test window; no LE request was made. The v2 build diagnoses that rejection and corrects an unnecessarily
-strict stack alignment check. BE data and LE behavior remain unmeasured.
+the test window. The v2 control run measured the HV stack's eight-byte alignment, passed BE loads/stores and
+exact return checks, and exited with status zero. The next run uses the same executable with `retail le`;
+LE behavior remains unmeasured.
 The earlier title-side probe measured HV=0 and stopped in its BE exception test before requesting LE
 (`MSR_LE.md`). This probe neither injects that fault nor installs an exception handler.
 
@@ -103,13 +104,31 @@ Installation returned zero, the identity returned `48564C4500000001`, and the le
 The BE data call returned -1, then the title exited with status 1. That v1 code used the same rejection for an
 invalid operation, HV clear, LE set, or a stack not aligned to sixteen bytes. The stack guard is the likely cause,
 given the successful preceding controls, but the log does not identify which check rejected this call. V2 uses
-the eight-byte alignment required by its integer saves and distinguishes the rejections. Its hardware rerun is
-pending. Neither the initial rejection nor the corrected build establishes LE support.
+the eight-byte alignment required by its integer saves and distinguishes the rejections. The completed v2
+control run is recorded below. Neither the initial rejection nor the corrected build establishes LE support.
 
 The v2 delivery passed a clean full `make -j32` build with zero compiler/linker warnings and all five host tests
 in WSL and Windows. Its payload ID is `82F7BBC4`, SHA-256
 `82f7bbc43a647fa67ec2f1d8182e4572d94c180190aebb2d184a12f2747dcacc`; the XEX SHA-256 is
-`db26852551fc651c47fc0f04d0e080d261e3feec31f1ba2d4ad9f0c73110c006`. Repeat `retail control` first.
+`db26852551fc651c47fc0f04d0e080d261e3feec31f1ba2d4ad9f0c73110c006`.
+
+## Completed v2 control (2026-10-18)
+
+The user's complete transcript is `results/2026-10-18-hv-le-control/probe_hv_le-v2.log`. It supersedes the earlier
+file fragment that ended partway through the stack line; that fragment did not establish a failure.
+
+The stack callback returned `0000006A01F61EF8`, with `mod8=0 mod16=8`. V1's sixteen-byte guard would reject this
+stack; v2's eight-byte guard accepted it and the BE data window completed. The out-of-range report control returned
+-1 as intended, and all twelve valid report reads returned cleanly.
+
+The BE window recorded HV MSR `9000000000001000` before, requested, inside and after, BE instruction words and
+sentinel `13579BDF`. It loaded `11223344`, `1122` and `1122334455667788`; storing `11223344` produced bytes
+`11 22 33 44 00 00 00 00`, verified individually. Every title return kept MSR `9030` and the checked registers
+unchanged. The log ends with `PASS: control stage complete` and `exit: status 0`.
+
+This satisfies the prerequisite for the LE stage. Cold-boot, put `retail le` in `probe_hv_le.txt` beside the same
+v2 XEX, and run it. The mode repeats all controls, tests register-only LE fetch and exact restoration, then tests
+aligned integer LE data only if fetch/readback/restoration passed. No LE result follows from the BE control.
 
 ## Sources
 

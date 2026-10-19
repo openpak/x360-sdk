@@ -33,7 +33,9 @@ integer data accesses inside HV, restoring BE before returning. `docs/HV_LE.md` 
 unsigned-expansion firmware prerequisite, public sources, and unmeasured behavior. This is the narrow exception
 in CODE_GUIDELINES.md; it adds no firmware patch, general peek/poke API, or SDK-wide HV interface. The first console
 run installed the unsigned expansion and measured HV=1 with a clean title return. Its BE data operation was
-rejected before the window; v2 diagnoses that rejection. BE data and all LE results remain pending.
+rejected before the window. V2 measured an eight-byte-aligned HV stack with remainder eight modulo sixteen,
+passed aligned BE loads/stores and exact return checks, and exited successfully. All LE results remain pending;
+the next run uses the same v2 executable with `retail le` configuration.
 
 ## 1. What already exists: the user's shader toolchain ("xost")
 
