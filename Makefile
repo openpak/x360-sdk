@@ -75,7 +75,7 @@ PROBE_FAULT_OBJECTS := $(BUILD)/tests/probe_fault.o $(BUILD)/tests/probe_fault_s
 UNROLL_O2_FLAGS := -munroll-only-small-loops -fno-rename-registers
 UNROLL_LOOPS_OBJECTS := $(BUILD)/tests/unroll_loops_o2.o $(BUILD)/tests/unroll_loops_unrolled.o
 
-.PHONY: all clean cmake_check occlusion_tries tiles_probe loop_break_probes
+.PHONY: all clean cmake_check occlusion_tries tiles_probe loop_break_probes instancing_probes
 # Keep the ELFs and objects that pattern rules build on the way to a .xex.
 .SECONDARY:
 all: $(BUILD)/xsdk_test.xex $(BUILD)/host/libxsc.so $(BUILD)/audio_check.xex $(BUILD)/pacing_test.xex \
@@ -220,6 +220,23 @@ $(LOOP_BREAKS:%=$(BUILD)/tests/probe_loop_break_%.o): $(BUILD)/tests/probe_loop_
 	$(CC) $(CFLAGS) -I$(BUILD)/probe -DLOOP_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
 
 loop_break_probes: $(BUILD)/probe_loop_break.xex $(LOOP_BREAKS:%=$(BUILD)/probe_loop_break_%.xex)
+
+# Milestone 47 step 1's probe of instancing, and its break builds, a probe_instancing_<break>.xex each; outside all.
+INSTANCING_BREAKS := nofloor pervtx nostep
+
+$(BUILD)/probe/probe_instancing_cases.h: tools/gen_instancing_probe.py tools/gen_loop_break_probe.py \
+	tools/gen_xsc_probe.py tools/gen_triangle_shaders.py
+	$(PYTHON) tools/gen_instancing_probe.py $@
+
+$(BUILD)/tests/probe_instancing.o: CFLAGS += -I$(BUILD)/probe
+$(BUILD)/tests/probe_instancing.o: $(BUILD)/probe/probe_instancing_cases.h
+
+$(INSTANCING_BREAKS:%=$(BUILD)/tests/probe_instancing_%.o): $(BUILD)/tests/probe_instancing_%.o: \
+	tests/probe_instancing.c $(BUILD)/probe/probe_instancing_cases.h
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I$(BUILD)/probe -DINSTANCING_BREAK_$(shell echo $* | tr a-z A-Z) -c $< -o $@
+
+instancing_probes: $(BUILD)/probe_instancing.xex $(INSTANCING_BREAKS:%=$(BUILD)/probe_instancing_%.xex)
 
 $(BUILD)/host/libxsc.so: $(XSC_SOURCES:src/%.c=$(BUILD)/host/%.o)
 	$(HOST_CC) -shared -o $@ $^
