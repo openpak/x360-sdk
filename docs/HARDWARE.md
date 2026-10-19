@@ -4187,3 +4187,20 @@ fetches serialized and grouped there as elsewhere, a setter run whole (src/xsc_l
 - **Nothing else moved:** of milestone 45's corpus, only step 6's new shaders and three vertex shaders reading `int()`
   of a float attribute, one copy longer each, compile differently; Dusklight's pack is the same. vulkan4xenon_test
   passed 455 of 455 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.
+
+## Loops through the layer, milestone 46 step 7 (2026-10-18)
+
+vulkan4xenon_test draws milestone 46's loop shapes through the layer, each shader from the bundle and again compiled on
+the console, each a strip whose pixels take their passes from their place: breaks and continues on data in an unrolled
+loop (`loop_break.frag`) and in a hardware loop, its counter after it (`loop_count_break.frag`); loops nested 3 deep,
+two in an if/else on data (`loop_nest.frag`); and samples in a pass, at a LOD each pixel works out and at gradients
+the same across a quad, left on the level sampled, its count from data to 297 (`loop_sample.frag`). Logs:
+`results/2026-10-18-milestone-46-step-7/`.
+- **Every scene drew as worked out:** vulkan4xenon_test passed 487 of 487 twice, its 32 new checks among them, and the
+  shader cache kept the 14 shaders compiled on the console.
+- **Break build:** the layer writing the loop constant of loops whose count is data one pass short failed the samples
+  scene's four colour checks and nothing else.
+- **Nothing else moved:** xsdk_test passed 447 of 449, the 2 the controller checks with no pad; vkbench 14 of 14; and
+  Dusklight's title scene ran at its frame rates before, its pack the same.
+- **Milestone 46 is done:** each of docs/scope/46-loops.md's "Done when" holds, vulkan4xenon's PARITY.md has its Loops
+  row Yes for xost and the layer, and a `discard` or `return` in a loop is still refused, as the scope left it.

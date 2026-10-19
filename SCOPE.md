@@ -971,7 +971,8 @@ gap that something running on xsdk meets becomes a milestone; the rest wait (aft
 45. **xost's code quality.** Agreed and done on 2026-10-17: docs/scope/45-xost-code-quality.md (HARDWARE.md, "xost's
     code quality, milestone 45").
 
-46. **Loops in shaders.** Agreed on 2026-10-17: docs/scope/46-loops.md, after 44's first part.
+46. **Loops in shaders.** Agreed on 2026-10-17 and done on 2026-10-18: docs/scope/46-loops.md, after 44's first part
+    (HARDWARE.md, from "Loops on the console, milestone 46 step 1" to "Loops through the layer, milestone 46 step 7").
 
 47. **Instancing.** Agreed on 2026-10-17: docs/scope/47-instancing.md, after 46.
 
