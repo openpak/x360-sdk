@@ -4279,3 +4279,24 @@ shaders compiled by xost on the console, each check its own frame resolved and r
   indexed grids; strips drawing their first instance alone the strips.
 - **Nothing else moved:** xsdk_test passed 459 of 461, the 2 the controller checks with no pad; vulkan4xenon_test 487
   of 487 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.
+
+## Instanced draws through the layer, milestone 47 step 4 (2026-10-19)
+
+A vulkan4xenon pipeline with a binding at the instance's rate takes its vertex shader's instanced variant, from the
+bundle or compiled on the console; its lists draw in one `xsdk_gpu_draw_instanced`, and its indexed lists of more
+than one instance from the app's indices repeated into 64 copies, read from mapped memory 16 bytes a load; strips,
+fans and draws past a packet go an instance at a time (vulkan4xenon:src/queue.c, src/transfer.c). Logs:
+`results/2026-10-19-milestone-47-step-4/`.
+- **Every instanced row drew as worked out,** vulkan4xenon_test passing 492 of 492 twice: `vkCmdDraw`,
+  `vkCmdDrawIndexed` from index 8, both indirect draws, a shader without `gl_InstanceIndex` through its instanced
+  variant, a strip instanced, and a list of 7 vertices an instance with its 7th never drawn.
+- **1,000 instances in one `vkCmdDraw` added 22 dwords to the stream,** each in its cell in its colour.
+- **Break builds** each failed what they aim at: `firstInstance` left out of the group the 7 rows that start past
+  instance 0; copies from the index buffer's start the two indexed rows; the 7-vertex list concatenated whole its row;
+  a draw an instance for lists the 1,000 instances' dwords alone. The plain variant where the shader lacks
+  `gl_InstanceIndex` failed its row, the 7-vertex list's, the variant's count and the shader cache's, and also the
+  indirect rows and the strip's: its attributes at the instance's rate, fetched at each vertex's index with their
+  stream's stride, stretch its triangles over theirs.
+- **Nothing else moved:** xsdk_test passed 459 of 461, the 2 the controller checks with no pad; vkbench 14 of 14;
+  Dusklight's title scene ran at its frame rates before, its pack the same, and the layer takes the copies' memory
+  only at the first draw that needs it.
