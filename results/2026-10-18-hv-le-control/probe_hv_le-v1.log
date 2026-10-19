@@ -1,0 +1,27 @@
+Execution Thread Found.  Information has been removed
+MultiDiscEngineProcess: info TitleId 00000000 does not match current TitleId 5853444b, disabling
+log: game:\probe_hv_le.log
+log: named after \Device\Harddisk0\Partition1\probe_hv_le.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+open: NtCreateFile(game:\probe_hv_le.txt) failed: 0xC0000034
+probe_hv_le v1: profile=retail mode=control expansion=2BA3FB50 payload SHA256=2ba3fb50ab87e9b94c59cfd6e389c2133903b307a088d48efafa554f4d36a5e6
+Unsigned plaintext expansion: firmware must already accept it; this probe changes no firmware
+Services install=72 call=73; no fault injection or title exception handler
+BEGIN install expansion: service=0x72 argument=0000000000001000
+END install expansion: value=0000000000000000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: source-built expansion installed
+BEGIN payload identity: service=0x73 argument=0000000000000000
+END payload identity: value=48564C4500000001 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: payload identity and 64-bit result ABI
+BEGIN HV control (mfmsr only): service=0x73 argument=0000000000000001
+END HV control (mfmsr only): value=9000000000001000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+HV entry MSR=9000000000001000 HV=1 LE=0 EE=0 SF=1
+PASS: HV=1, LE=0 inside the expansion, followed by a clean title return
+BEGIN BE data control: service=0x73 argument=0000000000000002
+END BE data control: value=FFFFFFFFFFFFFFFF title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+FAIL: expansion operation completed
+exit: status 1

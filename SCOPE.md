@@ -25,7 +25,15 @@ then stopped at the BE exception control before any LE switch (HARDWARE.md, "MSR
 control"). Its diagnostic rerun and the original fault probe's baseline rerun also left the console unresponsive
 before any handler-entry log with Watson connected. LE results remain pending; the probe defaults to BE controls,
 and the next baseline comparison removes the debugger connection without changing the executable.
-This adds no SDK endian mode, game changes, or HV/HVX calls.
+That title-side probe adds no SDK endian mode, game changes, or HV/HVX calls.
+
+On 2026-10-18 the user separately authorized `probe_hv_le.xex`: a standalone source-built HV expansion probe.
+It first checks HV=1 and an unchanged title return, then optionally measures LE instruction fetch and aligned
+integer data accesses inside HV, restoring BE before returning. `docs/HV_LE.md` specifies the two run stages,
+unsigned-expansion firmware prerequisite, public sources, and unmeasured behavior. This is the narrow exception
+in CODE_GUIDELINES.md; it adds no firmware patch, general peek/poke API, or SDK-wide HV interface. The first console
+run installed the unsigned expansion and measured HV=1 with a clean title return. Its BE data operation was
+rejected before the window; v2 diagnoses that rejection. BE data and all LE results remain pending.
 
 ## 1. What already exists: the user's shader toolchain ("xost")
 

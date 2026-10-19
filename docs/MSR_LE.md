@@ -19,8 +19,9 @@ interception. The missing optional `probe_fault.txt` selected the intended defau
 The next check uses the same `probe_fault.xex`, with `probe_fault.txt` absent or containing `probe`: fully close
 Watson and other attached debuggers, cold-boot the console, launch the baseline, and retrieve `probe_fault.log`
 afterward without a debugger connected during the run. Keep the binary and console configuration unchanged.
-Do not advance to LE experiments until BE exception recovery works. No further probe code change follows from
-this baseline log alone.
+Do not advance this title-side probe to LE experiments until BE exception recovery works. No further change to
+this probe follows from this baseline log alone. The separately authorized HV expansion probe in `HV_LE.md` uses
+no deliberate fault and no title exception handler; its own control return gates its LE tests.
 
 ## Run
 

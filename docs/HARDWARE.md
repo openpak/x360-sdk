@@ -4288,3 +4288,20 @@ confirmed that it also left the console unresponsive with Watson connected.
   afterward without reconnecting a debugger during the run. A handler entry and completed recoveries would narrow
   the difference to that setup; another hang would leave a shared exception-path failure to investigate. Keep the
   MSR probe in BE-only `handler` mode until recovery is demonstrated. This comparison has not yet been run.
+
+## HV expansion entry and return (2026-10-18)
+
+The user's first `probe_hv_le.xex` run used the retail service profile and default `control` mode. The transcript
+is `results/2026-10-18-hv-le-control/probe_hv_le-v1.log`; `docs/HV_LE.md` records its build identity and procedure.
+
+- **The source-built unsigned expansion installed.** Service `0x72` returned zero; service `0x73` returned the
+  expected 64-bit identity `48564C4500000001` for payload `2BA3FB50`. The probe made no firmware modifications.
+- **The callback entered HV and returned cleanly.** Its leaf `mfmsr` returned `9000000000001000`: HV=1, LE=0,
+  EE=0, SF=1. The title's MSR was `9030` before and after every call, with no detected damage to the nonvolatile
+  GPRs, CR2-4, LR, r2/r13 or stack.
+- **The BE data operation was rejected before the test window.** It returned `FFFFFFFFFFFFFFFF` and the title
+  exited with status 1. V1 shared this result among invalid-operation, HV/LE and sixteen-byte stack checks.
+  The stack check is the likely cause, not yet measured. V2 adds a register-only stack diagnostic, requires the
+  eight-byte alignment its integer saves need, and assigns separate rejection codes.
+- **LE remains untested.** This control run never requested it. Installation and HV entry are established only
+  for this console setup; BE data, LE fetch/data, title-side persistence, kernel crossings and cost remain open.
