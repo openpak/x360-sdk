@@ -67,7 +67,10 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | **`discard` / `OpKill` inside `if(cond)`** | `kill_gt`/`kill_ge`/`kill_eq`/`kill_ne` ALU side effect; confirmed on the console, a `discard` on `!gl_FrontFacing` (vulkan4xenon milestone 22) |
 | **`for`/`while`** with a compile-time trip count, incl. **nested** | unrolled to branch-free SSA; induction variable constant-folded (see below) |
 | uniform-bound loop `sum += const` | real `LOOP_START/END` (G28 pending) |
-| `for (int i = 0; i < b.n; i++)`, `n` an int in a push constant or uniform block, in a vertex or pixel shader | a hardware loop the runtime counts from the block: what the loop carries in registers, `i` a float counter, an if/else in the pass, a break ending it; a `break` or `continue` on data anywhere in the pass gated as in an unrolled loop, LOOP_END breaking once no pixel of the group is left (see "Loops a block counts"; `tests/test_hardware_loops.py`, `tests/test_hardware_loop_breaks.py`) |
+| `for (int i = s; i < b.n; i += k)`, `n` an int in a push constant or uniform block, `s` and `k` constants, in a vertex or pixel shader | a hardware loop of ceil((n - s) / k) passes, which the runtime works out from the block, as Shader Model 3's `loop` counts them: what the loop carries in registers, `i` a float counter, an if/else in the pass, a break ending it; a `break` or `continue` on data anywhere in the pass gated as in an unrolled loop, LOOP_END breaking once no pixel of the group is left (see "Loops a block counts"; `tests/test_hardware_loops.py`, `tests/test_hardware_loop_breaks.py`) |
+| a loop whose count is data: a `for` to `int()` of a float or an interpolant, `while` and `do`/`while` on data | a hardware loop of 255 passes, the most a loop constant counts, left on its condition, a gated break at the top of the pass or, for a `do`/`while`, at its end; the manifest's `("fixed_loop", id, 255)` (see "Loops a block counts"; `tests/test_data_loops.py`) |
+| hardware loops nested 4 deep, and in an if/else on data or an unrolled loop's pass | each level its own loop constant, registers and gating (see "Loops a block counts"; `tests/test_nested_loops.py`) |
+| a sample or derivative of what a hardware loop's pass works out | lowered in the pass, after what it reads (see "Loops a block counts"; `tests/test_loop_samples.py`) |
 | `vec4 t = ...;` (function-local) | store-forwarding |
 | uniforms (block + bare), samplers | constant regs / fetch consts |
 | Vulkan uniform / push constant block members at any std140 offset | the member's register, swizzled from its first component |
@@ -95,10 +98,10 @@ came from; that test and its test vectors stay in xost's archived repo (github.c
 | `texture()` with a computed coord | coord expression emitted, then tfetch (not just bare interpolators); a coord from another sample (a dependent read) has that sample fetched first; in a pixel shader the coords' work goes first and the fetches together (see Fetch layout) |
 | `CompositeInsert` (`v[i] = x`) | copy + masked component mov |
 | uniform-array loop `for(i<n) sum += w[i]` | real loop; body `add acc, acc, c[base+aL]` (aL-relative array read) |
-| `for(i<n){ …; if(acc.c CMP k) break; }` | body `setp_*` + a predicated LOOP_END (data-dependent break) |
+| `for(i<n){ …; if(acc.c CMP k) break; }`, `n` a bare uniform | body `setp_*` + a predicated LOOP_END (see Loops) |
 | if/else in a loop body with a **constant** condition (e.g. `if(i<k)`) | unroller picks the taken arm per iteration; a `break` or `continue` in it ends the loop or the pass there (`tests/test_loop_branches.py`) |
 | if/else **on data** in an unrolled loop's body | both arms each pass, merged by a select (`tests/test_loop_branches.py`) |
-| `break` or `continue` **on data** in an unrolled loop's body | gated: each value keeps a stopped copy where its pixel or vertex stops, `running` and `alive` flags 0.0 or 1.0, and each pass's end a `cnd` on `running` (xsdk:docs/scope/46-loops.md, "The design"; `tests/test_loop_branches.py`) |
+| `break` or `continue` **on data** in an unrolled loop's body | gated: each value keeps a stopped copy where its pixel or vertex stops, `running` and `alive` flags 0.0 or 1.0, and each pass's end a `cnd` on `running` (see Loops; `tests/test_loop_branches.py`) |
 | `transpose` (mat2/3/4) | per-row column gather (swizzled movs) |
 | `determinant` (mat2/3) | mat2 `ad−bc`; mat3 `row0·cross(row1,row2)` |
 | `inverse` (mat2/3) | mat2 closed form; mat3 adjugate (cofactor crosses) / det · `rcp` |
@@ -330,57 +333,83 @@ result in a later one. `tests/test_dependent_fetch.py` checks it.
 
 ## Loops (unrolling + mem2reg)
 
-glslang (`-G --target-env opengl`) lowers `for`/`while` to mutable-memory form:
-an `OpLoopMerge` header, loop-carried values held in Function-storage
-`OpVariable`s mutated by `OpStore`, and an integer induction variable. xsc's
-unroller (`xsdk:src/xsc_unroll.c`) runs as a pre-pass **whenever a module contains a loop** and rewrites
-the whole function body into flat, branch-free SSA by symbolically executing the
-structured CFG:
+glslang lowers `for`/`while` to mutable-memory form: an `OpLoopMerge` header,
+loop-carried values held in Function-storage `OpVariable`s mutated by
+`OpStore`, and an integer induction variable. xsc's unroller
+(`xsdk:src/xsc_unroll.c`) runs as a pre-pass **whenever a module contains a
+loop** and rewrites the whole function body into flat SSA by symbolically
+executing the structured CFG. Each loop goes one of three ways:
 
-- **Trip count** is recovered from the induction variable's constant
-  init / comparison / step and the body is replicated that many times. The
-  induction variable is **constant-folded**, so `float(i)`, `i*k`,
-  `float(i)*0.2`, etc. become literals (no integer ALU reaches the GPU).
+- **A count the unroller works out,** from the induction variable's constant
+  init, comparison and step, unrolls: the body is replicated that many times,
+  to 4096 passes (`MAX_TRIP`), past which the loop is refused. The induction
+  variable is **constant-folded**, so `float(i)`, `i*k`, `float(i)*0.2`, etc.
+  become literals (no integer ALU reaches the GPU).
+- **A count an int in a push constant or uniform block holds, or data,** keeps
+  a hardware loop (Loops a block counts).
+- **A count a bare uniform holds,** which only OpenGL's GLSL has, takes a
+  lowering of its own (below).
+
+In an unrolled loop:
+
 - **mem2reg**: every Function-local variable is threaded through an environment,
   so loop-carried accumulation *and* post-loop read-modify-write (`c *= k;`)
   resolve to SSA values — the lowering's single-store-per-variable model never
   sees the multiple stores.
 - **Nested** loops expand innermost-first; **`while`** (increment in the body)
   and **`for`** (increment in the continue block) are both handled.
+- **An if/else** on a condition the unroller folds, such as `if (i < k)`, takes
+  the arm it picks each pass; one on data runs both arms each pass and merges
+  them with selects (Control flow).
+- **A `break` or `continue` the unroller folds,** such as `if (i == 2) break;`,
+  ends the loop or the pass where the walk meets it. Before milestone 46 the
+  walk dropped it and ran every pass.
+- **A `break` or `continue` on data** is gated (xsdk:docs/scope/46-loops.md,
+  "The design"). The pass carries two flags, 0.0 or 1.0 as xsc holds bools:
+  `running` while the pixel or vertex runs this pass, and `alive` while it's
+  still in the loop. At a break or continue on `c`, each value the loop carries
+  keeps a stopped copy, `cnd(running && c, value now, stopped)`, `running`
+  becomes `running && !c`, and a break clears `alive`. At the pass's end each
+  value is `cnd(running, value at the end, stopped)`, and the next pass's
+  `running` starts from `alive`, so the values of a pixel that left never
+  change again. The arms of an if/else on data carry the flags as they carry
+  locals, and the counter, read after a loop left on data, holds the pass it
+  broke at. It's all straight-line code, which the optimiser and
+  `xdis/equivalence.py` take as they are (`tests/test_loop_branches.py`; on the
+  console, xsdk:docs/HARDWARE.md, "Breaks and continues on data in unrolled
+  loops, milestone 46 step 2").
+- **Refused:** a `discard` or `return` in a loop, and a `continue` on data
+  where the counter isn't what it is at the pass's end, as in a `while` that
+  steps it after the `continue`.
 
-If unrolling fails on the minimal uniform-bound accumulator pattern
-`for(i=0;i<u_count;i++) sum += const;`, xsc routes to a tiny register-machine
-lowerer instead: initialize a persistent GPR, wrap the body in
-`begin_loop/end_loop`, and return a manifest entry `("loop", id, name)` so the
-host uploads `integer_constants[8+id]`. See `loop_uniform.frag`; gallery G28 is
-console-pending.
+A loop a bare uniform counts, `for(i=0;i<u_count;i++)`, which doesn't unroll,
+goes to a tiny register-machine lowerer (`xsdk:src/xsc_lower_loop.c`): it
+initializes a persistent GPR, wraps the body in `begin_loop/end_loop`, and
+returns a manifest entry `("loop", id, name)` so the host uploads
+`integer_constants[8+id]`. It takes `sum += const` (gallery G28,
+console-pending), **`sum += w[i]`**, a uniform array indexed by the loop
+counter, lowering to the aL-relative `c[base+aL]` read (the ISA primitive
+hardware-proven as G29), and `if(cond) break;`, a body `setp_*` and a
+predicated LOOP_END (the G30 primitive, hardware-proven). See
+`loop_uniform.frag`.
 
 Because the pass is a no-op when there is no loop, loop-free shaders still lower
 byte-for-byte as before. Unrolled shaders then go through the normal pipeline,
-including the 16-GPR register allocator (e.g. `loop_stair` 17→3 GPRs). See
-`loop_*` in `xsc/testdata/` and the `LOOP` gallery slot.
-
-Data-dependent loops use real `LOOP_START/END`: `sum += const` (G28) and now
-**`sum += w[i]`** — a uniform array indexed by the loop counter, lowering to the
-aL-relative `c[base+aL]` read (the ISA primitive hardware-proven as G29). The
-predicated `while`-break primitive is hardware-proven (G30); see below.
-
-A data-dependent `while`-break (`if(cond) break;`) now lowers from GLSL to a
-body `setp_*` + a predicated LOOP_END (the G30 primitive). An if/else **with a
-constant condition** inside a loop body unrolls (the arm is picked per pass); one
-on data runs both arms each pass and merges them (Control flow).
+including the register allocator (e.g. `loop_stair` 17→3 GPRs). See `loop_*` in
+`xsc/testdata/` and the `LOOP` gallery slot.
 
 ### Loops a block counts
 
 A Vulkan shader has no bare uniforms, so the shape above never comes from one;
 its loops count to an int in a push constant or uniform block, or to data. The
-unroller (`xsdk:src/xsc_unroll.c`) keeps such a loop,
-`for (int i = 0; i < b.n; i++)` (or `b.n > i`), stepping `i++` in its continue
-block, for a hardware loop: it walks the pass once, each local and whole output
-the loop stores and held a value of before it carried as a value at the top of
-the pass, and a value after the loop. A loop whose count is data, or one `b.n`
-counts from past 0 or by past 1, is kept too (xsdk:docs/scope/46-loops.md,
-step 4). The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
+unroller (`xsdk:src/xsc_unroll.c`) keeps such a loop for a hardware loop:
+`for (int i = s; i < b.n; i += k)` (or `b.n > i`), from a constant start by a
+constant step in its continue block, and a loop whose count is data, a `for` to
+`int()` of a float or an interpolant, a `while` or a `do`/`while` on data
+(xsdk:docs/scope/46-loops.md). It walks the pass once, each local and whole
+output the loop stores and held a value of before it carried as a value at the
+top of the pass, and a value after the loop. The lowering
+(`xsdk:src/xsc_lower_flow.c`) lays it out:
 
 - each carried value's register from its value on entry, then LOOP_START;
 - the pass worked out from the registers, what it reads from before the loop
@@ -396,16 +425,18 @@ step 4). The lowering (`xsdk:src/xsc_lower_flow.c`) lays it out:
   pass is selects.
 - a `break` or `continue` on data anywhere in the pass, and that `if (c) break;`
   where a break or continue before it in the pass stopped a pixel, gated as in
-  an unrolled loop (Control flow): stopped copies, `running` and `alive` flags,
-  and a `cnd` on `running` at the pass's end. `alive` is a register the loop
-  carries from 1, made at the pass's first break on data, `running` starting
-  each pass from it, so a pixel that left keeps its values while the rest of
-  its group runs on. A `setp_eq` on `alive` at the pass's end sets p0 where the
-  pixel has left, and LOOP_END breaks on p0, so the group leaves once none of
-  it is left. `i` counts `alive` rather than 1, so read after the loop it holds
-  the pass the pixel broke at. Nothing in the pass is on the predicate. The
-  unroller tells a value every pixel shares as the lowering does
-  (`xsdk_xsc_find_varying`).
+  an unrolled loop (Loops): stopped copies, `running` and `alive` flags, and a
+  `cnd` on `running` at the pass's end. `alive` is a register the loop carries
+  from 1, made at the pass's first break on data, `running` starting each pass
+  from it, so a pixel that left keeps its values while the rest of its group
+  runs on. A `setp_eq` on `alive` at the pass's end sets p0 where the pixel has
+  left, and LOOP_END breaks on p0, so the group leaves once none of it is left.
+  `i` counts `alive` rather than 1, so read after the loop it holds the pass the
+  pixel broke at. Nothing in the pass is on the predicate. The unroller tells a
+  value every pixel shares as the lowering does (`xsdk_xsc_find_varying`).
+- a loop whose count is data its condition as such a break, at the top of the
+  pass, or at its end for a `do`/`while`, so a group leaves once every pixel's
+  condition has.
 
 The manifest gives `("block_loop", loop_id, kind, set, binding, offset_bytes,
 start, step)`: the runtime reads the int `n` there for each draw and sets loop
@@ -415,24 +446,39 @@ none for `n` at `start` or less; the constant counts to 255
 (xenia:src/xenia/gpu/xenos.h:1086-1097). On the console a pixel shader's
 `loop i0` ran 0, 1 and 3 passes as loop constant 0 said (xsdk:docs/HARDWARE.md,
 "Shader constants: partial writes hang the GPU, libxenon's whole blocks
-don't"). A vertex shader's loops take loop constants from 0 and a pixel
-shader's from 16, 16 each, one for each count, start and step: both stages
+don't"). A loop whose count is data gives `("fixed_loop", loop_id, 255)`, the
+need `XSDK_XSC_FIXED_LOOP`, whose loop constant the runtime sets to 255 passes,
+`xsdk_gpu_loop_constant(255, 0, 1)`, the most it counts and Shader Model 3's
+own: such a loop stops at 255 passes where GLSL would run on. A vertex shader's
+loops take loop constants from 0 and a pixel shader's from 16, 16 each, one for
+each count, start and step, loops whose count is data sharing one: both stages
 read all 32 (ucode.h:352), and libxenon gives each stage half of the boolean
 constants the same way (libxenon:drivers/xenos/xe.c:2038-2064). The optimiser
-leaves a program with a loop alone, as before. Hardware loops nest 4 deep
-(ucode.h:131), each level its own registers and gating, an inner loop's `alive`
-starting from the `running` of the pass it's in; the outer LOOP_START comes
-first and the inner LOOP_END first. One inside an if/else on data runs for every
-pixel, as both arms do, merged by selects; one inside an unrolled loop is copied
-once a pass, the copies sharing a loop constant (`tests/test_nested_loops.py`).
+leaves a program with a hardware loop alone.
+
+Hardware loops nest 4 deep (ucode.h:131), each level its own registers and
+gating, an inner loop's `alive` starting from the `running` of the pass it's
+in; the outer LOOP_START comes first and the inner LOOP_END first. One inside an
+if/else on data runs for every pixel, as both arms do, merged by selects; one
+inside an unrolled loop is copied once a pass, the copies sharing a loop
+constant (`tests/test_nested_loops.py`).
+
 A sample or derivative of what a pass works out is lowered in the pass, after
 what it reads, its fetches serialized and laid out within the pass as elsewhere
 (Fetch layout); one of what the pass doesn't work out goes before the loop. An
 implicit LOD or a derivative there reads the quad's pixels in the same pass,
-which GLSL leaves undefined where they leave at different passes
-(`tests/test_loop_samples.py`). Refused: a fifth nested hardware loop, a
-`discard` or `return` in a loop, and a store into part of an output in the
-loop.
+which GLSL leaves undefined where they leave at different passes. A LOD from
+`textureGrad`'s gradients is one a 2x2 quad, from its first pixel inside the
+primitive (LOD and gradients), and a pixel that left holds its values, so
+gradients it worked out go on steering its quad's LOD: they want to be the same
+across a quad, as derivatives of a value linear across it are
+(`tests/test_loop_samples.py`).
+
+Refused: a fifth nested hardware loop; a `discard` or `return` in a loop; a
+store into part of an output in a hardware loop, which a local does instead; a
+loop's condition on a block's int other than `i < b.n`; a matrix, array or
+struct a hardware loop carries; and loops needing more than 16 loop constants
+in a stage.
 
 `tests/test_hardware_loop_breaks.py` runs each loop with a break or continue on
 data on `xdis/simulate.py` both ways: each pixel alone, its own LOOP_END
@@ -441,7 +487,11 @@ breaking, as Xenia's translator does
 one group (`run_group`), an exec on the predicate running if any of them needs
 it and a predicated LOOP_END breaking only when every one agrees, as the
 console does (xsdk:docs/HARDWARE.md, "Loops on the console, milestone 46 step
-1").
+1"); `tests/test_data_loops.py`, `tests/test_nested_loops.py` and
+`tests/test_loop_samples.py` do the same for loops whose count is data, nested
+loops and samples in a pass. On the console, xsdk_test's raster grids drew
+every pixel as the GLSL has it, each shape compiled there as on the PC
+(xsdk:docs/HARDWARE.md, milestone 46 steps 2 to 6).
 
 ## Control flow
 
@@ -450,8 +500,9 @@ shader, in a loop's body, or around a pixel shader's `gl_FragDepth`: it runs
 both arms, each from the locals and outputs as they were before the branch, and
 where the arms meet it gives each local and output they leave apart a select of
 the condition and the two values, and each Phi there (glslang's `&&` and `||`)
-the same. Outputs are kept as locals are and stored once at the end. The
-lowering (`xsdk:src/xsc_lower_flow.c`) then picks, for each if/else:
+the same. Outputs are kept as locals are and stored once at the end. A `break`
+or `continue` in an arm is gated (Loops). The lowering
+(`xsdk:src/xsc_lower_flow.c`) then picks, for each if/else:
 
 - **Execs on the predicate,** in a pixel shader where every pixel takes the same
   arm, as its condition reads only constants (uniforms, push constants, literals), and
@@ -518,6 +569,13 @@ checks arms using a0 in plain execs and arms without it on the predicate.
   multiply and 4×4 inverse (register-heavy) are not lowered.
 - **Runtime integer division** is float-emulated and **approximate** (a small
   bias corrects exact multiples; non-negative domain).
+- **Float `/` and `mod()`** go through `rcp`, which lands a hair low for some
+  divisors: on the console `mod(x, 3.0)` at 3 and `mod(x, 5.0)` at 5, 10 and 15
+  gave the divisor, not 0, which GLSL's precision for a division allows
+  (xsdk:docs/HARDWARE.md, "Samples in a loop's pass, milestone 46 step 6").
+- **Loops:** a `discard` or `return` in a loop, a store into part of an output
+  in a hardware loop, a fifth nested hardware loop, and more than 255 passes of
+  one hardware loop, which Shader Model 3 hasn't either (Loops a block counts).
 
 `dFdx`/`dFdy`/`fwidth` are **hardware-verified** (the `getTextureGradients`
 fetch is benign to the pipeline -- confirmed by the DSOLID isolation slot
@@ -609,3 +667,12 @@ Measured on the console through the SDK: two kinds of code xsc writes run
 slower than they need to. A scalar chain lowers as `.xxxx` vector ops rather
 than scalar ops co-issued beside vector ones, and a vec4 plus a float lowers
 as four adds, a component each.
+
+Loops, left out of milestone 46 (xsdk:docs/scope/46-loops.md, "Not in it"):
+- a constant count with a break on data unrolls and runs every pass, gated,
+  where a hardware loop would stop once its group has left, which on the
+  console costs nothing past the passes run (xsdk:docs/HARDWARE.md, "Loops on
+  the console, milestone 46 step 1");
+- the optimiser leaves a program with a hardware loop alone;
+- one hardware loop runs at most 255 passes: two nested loops could count past
+  it, and SPIR-V's iteration hints could bound a loop on data lower.
