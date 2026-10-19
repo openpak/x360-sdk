@@ -4256,3 +4256,26 @@ instance. Logs: `results/2026-10-18-milestone-47-step-2/`.
 - **Off the console,** `tests/test_instancing.py` ran every vertex of N instances of V and of copies of a quad's
   indices on xost's simulator, and the division for every V to 65,535 and S to 2^23 under three roundings, the least
   room left 0.4854/V; the prologue without its floor failed the simulated draws.
+
+## Instanced draws in xsdk, milestone 47 step 3 (2026-10-18)
+
+`xsdk_gpu_draw_instanced` draws a list's instances in pieces of whole instances up to 65,535 vertices and a strip's or
+a fan's an instance a piece, the group written before each piece; `xsdk_gpu_repeat_indices` writes a mesh's indices in
+copies moved on by S, the power of two above its largest, 16-bit while they fit, for `xsdk_gpu_draw_indexed_instanced`;
+an element marked `per_instance` is fetched at t.y (src/gpu_draw.c, src/shader.c). xsdk_test's `test_instancing.c`, its
+shaders compiled by xost on the console, each check its own frame resolved and read back. Logs:
+`results/2026-10-18-milestone-47-step-3/`.
+- **12,000 instances of a 6-vertex quad in one call,** two pieces from instance 100, each an 8 by 8 cell of 1280 by
+  720 placed and coloured by its instance's element and `gl_InstanceIndex`: every cell right, the 2,400 past them
+  clear.
+- **The same from a 4-vertex quad's indices,** in 64 copies 16-bit moved on by 4, and from a quad at vertices 69,996
+  to 69,999 in 128 copies 32-bit moved on by 131,072: every cell right.
+- **50 instances of a triangle strip,** an instance a piece: every pixel checked right.
+- **A point a vertex at V 255, 257 and 21,845,** as many instances as a packet holds: all 196,605 points on their
+  pixels.
+- **Break builds** each failed what they aim at and nothing else: instances fetched at the vertex all three grids; 1/S
+  taken for S + 1 the auto-indexed and 16-bit grids and the points, the 32-bit copies' indices lying where that floor
+  still lands right; pieces after the first without their first instance the two-piece grid; copies not moved on the
+  indexed grids; strips drawing their first instance alone the strips.
+- **Nothing else moved:** xsdk_test passed 459 of 461, the 2 the controller checks with no pad; vulkan4xenon_test 487
+  of 487 twice, vkbench 14 of 14, and Dusklight's title scene ran at its frame rates before.
