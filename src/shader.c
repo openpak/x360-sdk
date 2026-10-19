@@ -34,6 +34,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "gpu_private.h"
 #include "microcode_private.h"
@@ -41,16 +42,36 @@
 #include "xsdk/kernel.h"
 #include "xsdk/log.h"
 
-// Container dwords: the header's magic, microcode base and record offset (xe.h:111-121, xe.c:614-629).
+// Container dwords: the header's magic, microcode base, constant table and record offset (xe.h:111-121, xe.c:614-629;
+// XenosRecomp:XenosRecomp/shader.h:96-107).
 enum {
 	HEADER_MAGIC = 0,
 	HEADER_MICROCODE_BASE = 1,
+	HEADER_CONSTANT_TABLE = 4,
 	HEADER_RECORD_OFFSET = 6,
 	HEADER_DWORDS = 9,
 	MAGIC_MASK = 0xFFFFFF00,
 	MAGIC = 0x102A1100,
 	MAGIC_VERTEX = 1,
 };
+
+// The constant table: its size, then its header, from which its count's and its constants' offsets count; a constant's
+// name offset, then its register set and index (XenosRecomp:XenosRecomp/constant_table.h:54-88).
+enum {
+	TABLE_SIZE_BYTES = 4,
+	TABLE_COUNT = 3,
+	TABLE_CONSTANTS = 4,
+	TABLE_HEADER_BYTES = 7 * 4,
+	CONSTANT_NAME = 0,
+	CONSTANT_REGISTER = 1,
+	CONSTANT_BYTES = 5 * 4,
+	REGISTER_SET_FLOAT4 = 2,
+	REGISTER_INDEX_MASK = 0xFFFF,
+	REGISTER_SET_SHIFT = 16,
+};
+
+// xost names its instance group so (xenos-toolchain/docs/xsc.md, "Interface conventions").
+static const char instance_name[] = "_instance";
 
 // Shader record dwords, then a vertex shader's skip count, fetch count and patch table (xe.h:123-129, xe.c:808-814).
 enum {
@@ -71,6 +92,10 @@ enum {
 	FETCH_CONSTANT_SELECT_SHIFT = 25,
 	FETCH_CONSTANT_MASK = 0x7F << FETCH_CONSTANT_INDEX_SHIFT,
 	FETCH_PREFETCH_MASK = 0x38000000,
+	// The component of its register a fetch takes its index from: an instanced shader's t.x, the vertex, or t.y, the
+	// instance (xenia:src/xenia/gpu/ucode.h:758; xenos-toolchain/docs/xsc.md, "Interface conventions").
+	FETCH_SOURCE_SWIZZLE_SHIFT = 30,
+	FETCH_SOURCE_SWIZZLE_MASK = 3u << FETCH_SOURCE_SWIZZLE_SHIFT,
 	FETCH_SWIZZLE_MASK = 0xFFF,
 	FETCH_SIGNED = 1 << 12,
 	FETCH_INTEGER = 1 << 13,
@@ -166,6 +191,32 @@ static const XsdkVertexElement *find_element(
 	return NULL;
 }
 
+// The float constant the container's constant table names _instance; false without one, as in libxenon's containers.
+static bool find_instance_group(const uint32_t *container, uint32_t size_bytes, uint32_t *reg)
+{
+	const uint32_t at = container[HEADER_CONSTANT_TABLE];
+	if (!at || at % 4 || at > size_bytes - TABLE_SIZE_BYTES - TABLE_HEADER_BYTES)
+		return false;
+	const uint32_t *const table = &container[(at + TABLE_SIZE_BYTES) / 4];
+	const uint32_t room = size_bytes - at - TABLE_SIZE_BYTES;
+	const uint32_t count = table[TABLE_COUNT];
+	const uint32_t first = table[TABLE_CONSTANTS];
+	if (first % 4 || first > room || count > (room - first) / CONSTANT_BYTES)
+		return false;
+	for (uint32_t i = 0; i < count; i++) {
+		const uint32_t *const constant = &table[(first + i * CONSTANT_BYTES) / 4];
+		const uint32_t name = constant[CONSTANT_NAME];
+		const uint32_t index = constant[CONSTANT_REGISTER] & REGISTER_INDEX_MASK;
+		if (name > room - sizeof instance_name ||
+			constant[CONSTANT_REGISTER] >> REGISTER_SET_SHIFT != REGISTER_SET_FLOAT4 || index >= XSDK_FLOAT_CONSTANTS ||
+			memcmp((const char *)table + name, instance_name, sizeof instance_name))
+			continue;
+		*reg = index;
+		return true;
+	}
+	return false;
+}
+
 // Xe_LoadShaderFromMemory and Xe_InstantiateShader (xe.c:613-629, 935-947).
 NTSTATUS xsdk_shader_load(XsdkShader *shader, const uint32_t *container, uint32_t size_bytes)
 {
@@ -191,6 +242,8 @@ NTSTATUS xsdk_shader_load(XsdkShader *shader, const uint32_t *container, uint32_
 			return reject("fetch patch records out of bounds");
 	}
 
+	uint32_t instance_constant = 0;
+	const bool instanced = is_vertex && find_instance_group(container, size_bytes, &instance_constant);
 	volatile uint32_t *const microcode = xsdk_microcode_alloc(microcode_bytes);
 	if (!microcode)
 		return STATUS_NO_MEMORY;
@@ -208,6 +261,8 @@ NTSTATUS xsdk_shader_load(XsdkShader *shader, const uint32_t *container, uint32_
 		.fetches = fetch_count ? &container[fetch_dword] : NULL,
 		.fetch_count = fetch_count,
 		.source = &container[microcode_offset / 4],
+		.instanced = instanced,
+		.instance_constant = instance_constant,
 	};
 	return STATUS_SUCCESS;
 }
@@ -254,6 +309,8 @@ NTSTATUS xsdk_shader_set_vertex_layout(
 		if (element->format >= XSDK_VERTEX_FORMATS || element->stream >= XSDK_VERTEX_STREAMS ||
 			!picks_in_range(element))
 			return reject("vertex format, stream or component out of range");
+		if (element->per_instance && !shader->instanced)
+			return reject("an element at the instance's rate for a vertex shader that isn't instanced");
 		const uint32_t stride_bytes = stream_strides[element->stream];
 		if (stride_bytes % 4 || stride_bytes / 4 > FETCH_STRIDE_MASK)
 			return reject("vertex stride not a whole number of dwords up to 255");
@@ -263,9 +320,11 @@ NTSTATUS xsdk_shader_set_vertex_layout(
 		const uint32_t constant = STREAM_0_FETCH_CONSTANT - element->stream;
 		const uint32_t *const source = &shader->source[slot * SLOT_DWORDS];
 		volatile uint32_t *const fetch = &shader->microcode[slot * SLOT_DWORDS];
-		fetch[0] = (source[0] & ~(FETCH_CONSTANT_MASK | FETCH_PREFETCH_MASK)) |
+		const uint32_t instance_swizzle = element->per_instance ? FETCH_SOURCE_SWIZZLE_MASK : 0;
+		fetch[0] = (source[0] & ~(FETCH_CONSTANT_MASK | FETCH_PREFETCH_MASK | instance_swizzle)) |
 			constant / FETCHES_PER_GROUP << FETCH_CONSTANT_INDEX_SHIFT |
-			constant % FETCHES_PER_GROUP << FETCH_CONSTANT_SELECT_SHIFT;
+			constant % FETCHES_PER_GROUP << FETCH_CONSTANT_SELECT_SHIFT |
+			(uint32_t)element->per_instance << FETCH_SOURCE_SWIZZLE_SHIFT;
 		fetch[1] =
 			(source[1] &
 				~(FETCH_SWIZZLE_MASK | FETCH_SIGNED | FETCH_INTEGER | FETCH_NO_ZERO | FETCH_FORMAT_MASK | FETCH_MINI)) |

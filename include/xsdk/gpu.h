@@ -272,7 +272,8 @@ void xsdk_gpu_set_draw_rows(uint32_t top, uint32_t bottom);
 // Fails as xsdk_gpu_record_end does, queuing nothing.
 NTSTATUS xsdk_gpu_end_tiles(const XsdkTileResolve *resolves, uint32_t count);
 
-// Loads both shaders with IM_LOAD and sets the program registers; a resolve replaces the vertex shader.
+// Loads both shaders with IM_LOAD and sets the program registers; a resolve replaces the vertex shader. An instanced
+// vertex shader's group is kept for the instanced draws.
 void xsdk_gpu_set_shaders(const XsdkShader *vertex, const XsdkShader *pixel);
 // After the CPU writes vertices, indices or texels, xsdk_texture_upload's included, and before the draws that read
 // them: the GPU's caches drop what they hold of that memory, as libxenon's unlock does. A resolve does it for itself.
@@ -285,6 +286,37 @@ void xsdk_gpu_set_texture(uint32_t slot, const XsdkTexture *texture, const XsdkS
 void xsdk_gpu_draw(uint32_t primitive_type, uint32_t vertex_count);
 // Draws up to 65535 indices as primitive_type, big-endian, 16 or 32 bits each, from memory from xsdk_gpu_alloc.
 void xsdk_gpu_draw_indexed(uint32_t primitive_type, uint32_t index_address, uint32_t index_count, bool indices_32_bit);
+
+// Instanced draws, under an instanced vertex shader (include/xsdk/shader.h): a draw goes in pieces, each writing the
+// shader's group first with its first instance, then drawing its instances in one packet (docs/scope/47-instancing.md).
+// Elements per_instance read the instance's element, the others the vertex's.
+
+// Draws instance_count instances of vertex_count auto-indexed vertices, whole primitives up to 65535, from instance
+// first_instance: a list in pieces of whole instances up to 65535 vertices, a strip or a fan an instance a piece.
+void xsdk_gpu_draw_instanced(
+	uint32_t primitive_type, uint32_t vertex_count, uint32_t first_instance, uint32_t instance_count);
+
+// Copies of a mesh's indices, each moved on by step, the power of two above its largest index, so a copy is an
+// instance as an auto-indexed draw's vertex_count vertices are.
+typedef struct {
+	uint32_t address;
+	uint32_t index_count;
+	uint32_t step;
+	uint32_t copies;
+	bool indices_32_bit;
+} XsdkRepeatedIndices;
+
+// The bytes xsdk_gpu_repeat_indices writes for the mesh.
+uint32_t xsdk_gpu_repeated_index_bytes(const uint32_t *indices, uint32_t index_count, uint32_t copies);
+// Writes copies of the mesh's index_count indices, each below 2^24, into memory from xsdk_gpu_alloc: as many as one
+// draw packet and 24-bit indices hold, or copies if that's fewer and not 0; 16-bit while they fit, else 32-bit. A title
+// makes them once, then invalidates them as any indices.
+void xsdk_gpu_repeat_indices(XsdkRepeatedIndices *repeated, volatile uint32_t *memory, const uint32_t *indices,
+	uint32_t index_count, uint32_t copies);
+// Draws instance_count instances of the repeated mesh from instance first_instance: a list in pieces of as many
+// instances as there are copies, a strip or a fan an instance a piece.
+void xsdk_gpu_draw_indexed_instanced(
+	uint32_t primitive_type, const XsdkRepeatedIndices *repeated, uint32_t first_instance, uint32_t instance_count);
 
 // Comparisons (xenia:src/xenia/gpu/xenos.h:685-694).
 enum {

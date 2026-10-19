@@ -25,8 +25,9 @@ loops from 100 and by 2 to a block's int, each its own passes, drawn in the rast
 vk_loop_sample_lod.frag, vk_loop_sample_grad.frag, vk_loop_sample_computed.frag, vk_loop_derivative.frag,
 vk_loop_parallax.frag, vk_vertex_loop_sample.vert and vk_loop_sample_grid.frag, samples and derivatives in hardware
 loops' passes, the grid drawn in the raster test; and vk_scalar_input_loop.frag, vk_scalar_input.frag and
-vk_vertex_scalar_input.vert, scalar inputs, held in x alone, read as values. Prints a C header. Runs in WSL, where make
-builds the compiler for the PC.
+vk_vertex_scalar_input.vert, scalar inputs, held in x alone, read as values; and milestone 47's vk_instance_cells.vert
+and vk_instance_step.vert, instanced, which the instancing test draws. Prints a C header. Runs in WSL, where make builds
+the compiler for the PC.
 """
 
 import struct
@@ -50,11 +51,12 @@ SHADERS = ("vk_block_literals.vert", "vk_texel_offsets.frag", "vk_vertex_if.vert
            "vk_loop_in_unrolled.frag", "vk_vertex_loop_nest.vert", "vk_loop_nest_grid.frag", "vk_loop_step_grid.frag",
            "vk_loop_sample_lod.frag", "vk_loop_sample_grad.frag", "vk_loop_sample_computed.frag",
            "vk_loop_derivative.frag", "vk_loop_parallax.frag", "vk_vertex_loop_sample.vert", "vk_loop_sample_grid.frag",
-           "vk_scalar_input_loop.frag", "vk_scalar_input.frag", "vk_vertex_scalar_input.vert")
+           "vk_scalar_input_loop.frag", "vk_scalar_input.frag", "vk_vertex_scalar_input.vert",
+           "vk_instance_cells.vert", "vk_instance_step.vert")
 # xsdk's split (xsdk:src/gpu_setup.c).
 REGISTERS = 64
 RESOURCE_KINDS = {"push": "XSDK_XSC_PUSH_CONSTANTS", "uniform": "XSDK_XSC_UNIFORM_BUFFER",
-                  "sampler": "XSDK_XSC_SAMPLER"}
+                  "sampler": "XSDK_XSC_SAMPLER", "instance": "XSDK_XSC_INSTANCE"}
 
 
 def print_words(name, words):

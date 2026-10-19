@@ -148,6 +148,9 @@ void test_tiles(void);
 // Vertex input (milestone 17).
 void test_vertex(void);
 
+// Instanced draws (milestone 47).
+void test_instancing(void);
+
 // Recorded command buffers (milestone 18).
 void test_replay(void);
 

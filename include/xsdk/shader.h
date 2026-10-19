@@ -1,6 +1,7 @@
 #ifndef XSDK_SHADER_H
 #define XSDK_SHADER_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "xsdk/kernel.h"
@@ -60,6 +61,10 @@ typedef struct {
 	const uint32_t *fetches;
 	uint32_t fetch_count;
 	const uint32_t *source;
+	// An instanced vertex shader's group, the float constant its instanced draws write (include/xsdk/xsc.h,
+	// XSDK_XSC_INSTANCE), from the _instance its container's constant table names.
+	bool instanced;
+	uint32_t instance_constant;
 } XsdkShader;
 
 // Which of a format's components an attribute's x, y, z or w reads, counted as the formats above lay them out; 0 reads
@@ -73,7 +78,9 @@ enum {
 };
 
 // One attribute of a vertex: the shader input it feeds, its format, its stream, where it sits in the stream, and the
-// XSDK_COMPONENT_* each of x to w reads, so data whose components lie in another order is fetched as it is.
+// XSDK_COMPONENT_* each of x to w reads, so data whose components lie in another order is fetched as it is. An
+// instanced vertex shader's attribute per_instance is fetched at its instance in the stream, each instance an element
+// of the stream's stride, in its instanced draws (include/xsdk/gpu.h).
 typedef struct {
 	uint32_t usage;
 	uint32_t usage_index;
@@ -81,11 +88,13 @@ typedef struct {
 	uint32_t stream;
 	uint32_t offset_bytes;
 	uint8_t components[4];
+	bool per_instance;
 } XsdkVertexElement;
 
 // Copies the container's microcode into GPU memory.
 NTSTATUS xsdk_shader_load(XsdkShader *shader, const uint32_t *container, uint32_t size_bytes);
 // Patches a vertex shader's fetches for this layout and each stream's stride, as libxenon does; not while it may run.
+// An element per_instance is refused for a shader that isn't instanced.
 NTSTATUS xsdk_shader_set_vertex_layout(
 	XsdkShader *shader, const XsdkVertexElement *elements, uint32_t element_count, const uint32_t *stream_strides);
 // Moves the shader's texture fetches up by first_slot fetch constants, from the container's, so both stages' textures

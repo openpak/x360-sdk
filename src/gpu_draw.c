@@ -115,6 +115,7 @@ enum {
 	INDEX_32_BIT_SHIFT = 11,
 	DMA_SWAP_8IN16 = 1 << 30,
 	MAX_INDICES = 0xFFFF,
+	MAX_16_BIT_INDEX = 0xFFFF,
 	// RB_DEPTHCONTROL's fields and RB_STENCILREFMASK's bytes (xenia:src/xenia/gpu/registers.h:799-834).
 	STENCIL_ENABLE = 1 << 0,
 	Z_ENABLE = 1 << 1,
@@ -455,6 +456,8 @@ static void put_im_load(GpuPackets *packets, const XsdkShader *shader)
 // us more than loading it alone (docs/HARDWARE.md, "The GPU's cost of a draw").
 static uint32_t loaded_vertex;
 static uint32_t loaded_pixel;
+// The vertex shader set's instance group, or XSDK_FLOAT_CONSTANTS for one that isn't instanced.
+static uint32_t instance_group = XSDK_FLOAT_CONSTANTS;
 
 static uint32_t hiz_control(uint32_t depth_control);
 
@@ -469,6 +472,7 @@ void xsdk_gpu_forget_shaders(void)
 void xsdk_gpu_set_shaders(const XsdkShader *vertex, const XsdkShader *pixel)
 {
 	assert(vertex->type == XSDK_SHADER_VERTEX && pixel->type == XSDK_SHADER_PIXEL);
+	instance_group = vertex->instanced ? vertex->instance_constant : XSDK_FLOAT_CONSTANTS;
 	const bool load_vertex = vertex->address != loaded_vertex;
 	const bool load_pixel = pixel->address != loaded_pixel;
 	if (!load_vertex && !load_pixel)
@@ -743,6 +747,103 @@ void xsdk_gpu_draw_indexed(uint32_t primitive_type, uint32_t index_address, uint
 	gpu_put(&packets, index_address);
 	gpu_put(&packets, (index_count | DMA_SWAP_8IN16) << indices_32_bit);
 	gpu_packets_done(&packets);
+}
+
+static uint32_t min_u32(uint32_t a, uint32_t b)
+{
+	return a < b ? a : b;
+}
+
+// A list's instances share a packet; a strip's or a fan's would join each to the next.
+static bool is_list(uint32_t primitive_type)
+{
+	return primitive_type == XSDK_PRIMITIVE_POINT_LIST || primitive_type == XSDK_PRIMITIVE_LINE_LIST ||
+		primitive_type == XSDK_PRIMITIVE_TRIANGLE_LIST;
+}
+
+// The group: 1/S, 0.5/S or 0 for a power of two, S, and the piece's first instance, 1/S worked out on the CPU, as the
+// console drew it (docs/HARDWARE.md, "Instancing on the console, milestone 47 step 1"). Written between draws, it takes
+// effect on the next (docs/HARDWARE.md, "Instances and long strips, vulkan4xenon milestone 24").
+static void put_instance_group(uint32_t step, uint32_t first_instance)
+{
+	const bool power = (step & (step - 1)) == 0;
+	const float group[4] = { (float)(1.0 / step), power ? 0.0f : (float)(0.5 / step), (float)step,
+		(float)first_instance };
+	xsdk_gpu_set_vertex_constants(instance_group, group, 1);
+}
+
+void xsdk_gpu_draw_instanced(
+	uint32_t primitive_type, uint32_t vertex_count, uint32_t first_instance, uint32_t instance_count)
+{
+	assert(instance_group < XSDK_FLOAT_CONSTANTS && vertex_count && vertex_count <= MAX_INDICES);
+	assert(primitive_type != XSDK_PRIMITIVE_LINE_LIST || vertex_count % 2 == 0);
+	assert(primitive_type != XSDK_PRIMITIVE_TRIANGLE_LIST || vertex_count % 3 == 0);
+	const uint32_t per_piece = is_list(primitive_type) ? MAX_INDICES / vertex_count : 1;
+	for (uint32_t done = 0; done < instance_count; done += per_piece) {
+		put_instance_group(vertex_count, first_instance + done);
+		xsdk_gpu_draw(primitive_type, min_u32(instance_count - done, per_piece) * vertex_count);
+	}
+}
+
+// The step, the power of two above the mesh's largest index, and as many copies as one packet and 24-bit indices
+// hold (xenia:src/xenia/gpu/registers.h:327; xenos.h:38-42), or copies if that's fewer and not 0.
+static XsdkRepeatedIndices plan_copies(const uint32_t *indices, uint32_t index_count, uint32_t copies)
+{
+	assert(index_count && index_count <= MAX_INDICES);
+	uint32_t largest = 0;
+	for (uint32_t i = 0; i < index_count; i++)
+		largest = indices[i] > largest ? indices[i] : largest;
+	assert(largest <= MAX_VERTEX_INDEX);
+	uint32_t step = 1;
+	while (step <= largest)
+		step <<= 1;
+	const uint32_t most = min_u32(MAX_INDICES / index_count, (MAX_VERTEX_INDEX - largest) / step + 1);
+	const uint32_t count = copies ? min_u32(copies, most) : most;
+	return (XsdkRepeatedIndices){ .index_count = index_count,
+		.step = step,
+		.copies = count,
+		.indices_32_bit = (count - 1) * step + largest > MAX_16_BIT_INDEX };
+}
+
+uint32_t xsdk_gpu_repeated_index_bytes(const uint32_t *indices, uint32_t index_count, uint32_t copies)
+{
+	const XsdkRepeatedIndices r = plan_copies(indices, index_count, copies);
+	const uint32_t total = r.copies * index_count;
+	return r.indices_32_bit ? total * 4 : (total + 1) / 2 * 4;
+}
+
+// Big-endian, as xsdk_gpu_draw_indexed reads them: 16-bit ones two to a dword, the first in its high half.
+void xsdk_gpu_repeat_indices(XsdkRepeatedIndices *repeated, volatile uint32_t *memory, const uint32_t *indices,
+	uint32_t index_count, uint32_t copies)
+{
+	*repeated = plan_copies(indices, index_count, copies);
+	repeated->address = xsdk_gpu_address(memory);
+	const uint32_t total = repeated->copies * index_count;
+	uint32_t pair = 0;
+	for (uint32_t n = 0; n < total; n++) {
+		const uint32_t value = indices[n % index_count] + n / index_count * repeated->step;
+		if (repeated->indices_32_bit)
+			memory[n] = value;
+		else if (n % 2)
+			memory[n / 2] = pair | value;
+		else
+			pair = value << 16;
+	}
+	if (!repeated->indices_32_bit && total % 2)
+		memory[total / 2] = pair;
+	__asm__ volatile("sync" ::: "memory");
+}
+
+void xsdk_gpu_draw_indexed_instanced(
+	uint32_t primitive_type, const XsdkRepeatedIndices *repeated, uint32_t first_instance, uint32_t instance_count)
+{
+	assert(instance_group < XSDK_FLOAT_CONSTANTS && repeated->copies);
+	const uint32_t per_piece = is_list(primitive_type) ? repeated->copies : 1;
+	for (uint32_t done = 0; done < instance_count; done += per_piece) {
+		put_instance_group(repeated->step, first_instance + done);
+		xsdk_gpu_draw_indexed(primitive_type, repeated->address,
+			min_u32(instance_count - done, per_piece) * repeated->index_count, repeated->indices_32_bit);
+	}
 }
 
 // D3D's (xenia:src/xenia/gpu/registers.h:516), as tests/probe_occlusion.c ran it on the console (docs/HARDWARE.md).
