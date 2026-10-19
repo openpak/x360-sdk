@@ -23,8 +23,8 @@ accesses, instruction fetch, interrupt/thread persistence, kernel crossings, and
 specifies the standalone `probe_msr_le.xex` and its limits. Its first console run passed BE execution and `mfmsr`,
 then stopped at the BE exception control before any LE switch (HARDWARE.md, "MSR[LE] probe stops at its BE exception
 control"). Its diagnostic rerun and the original fault probe's baseline rerun also left the console unresponsive
-before any handler-entry log with Watson connected. LE results remain pending; the probe defaults to BE controls,
-and the next baseline comparison removes the debugger connection without changing the executable.
+before any handler-entry log with Watson connected. Title-side LE results remain pending; the probe defaults to BE
+controls, and the next baseline comparison removes the debugger connection without changing the executable.
 That title-side probe adds no SDK endian mode, game changes, or HV/HVX calls.
 
 On 2026-10-18 the user separately authorized `probe_hv_le.xex`: a standalone source-built HV expansion probe.
@@ -34,8 +34,11 @@ unsigned-expansion firmware prerequisite, public sources, and unmeasured behavio
 in CODE_GUIDELINES.md; it adds no firmware patch, general peek/poke API, or SDK-wide HV interface. The first console
 run installed the unsigned expansion and measured HV=1 with a clean title return. Its BE data operation was
 rejected before the window. V2 measured an eight-byte-aligned HV stack with remainder eight modulo sixteen,
-passed aligned BE loads/stores and exact return checks, and exited successfully. All LE results remain pending;
-the next run uses the same v2 executable with `retail le` configuration.
+passed aligned BE loads/stores and exact return checks, and exited successfully. The subsequent `retail le` run
+read back LE=1 inside HV while continuing to fetch BE instruction words. Aligned `lwz`, `lhz`, `ld` and `stw`
+used LE data order; both windows restored the exact HV MSR and every title call returned cleanly in BE. The title
+exited with status zero. These results are inside HV with EE=0; title-side LE, FP, unaligned/multiple accesses,
+interrupt/thread persistence, kernel crossings and switch cost remain untested.
 
 ## 1. What already exists: the user's shader toolchain ("xost")
 

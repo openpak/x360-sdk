@@ -3,8 +3,10 @@
 `build/probe_hv_le.xex` implements the separate experiment authorized on 2026-10-18. The first hardware run
 installed the expansion and confirmed HV=1 with a clean title return. Its BE data operation was rejected before
 the test window. The v2 control run measured the HV stack's eight-byte alignment, passed BE loads/stores and
-exact return checks, and exited with status zero. The next run uses the same executable with `retail le`;
-LE behavior remains unmeasured.
+exact return checks, and exited with status zero. The subsequent `retail le` run passed: MSR[LE] read back as one,
+instruction fetch stayed BE, and aligned integer loads/stores used LE data order inside HV. Both windows restored
+the exact entry MSR, all title returns remained BE, and the title exited successfully. Title-side LE and the
+remaining port prerequisites are still unmeasured.
 The earlier title-side probe measured HV=0 and stopped in its BE exception test before requesting LE
 (`MSR_LE.md`). This probe neither injects that fault nor installs an exception handler.
 
@@ -129,6 +131,43 @@ unchanged. The log ends with `PASS: control stage complete` and `exit: status 0`
 This satisfies the prerequisite for the LE stage. Cold-boot, put `retail le` in `probe_hv_le.txt` beside the same
 v2 XEX, and run it. The mode repeats all controls, tests register-only LE fetch and exact restoration, then tests
 aligned integer LE data only if fetch/readback/restoration passed. No LE result follows from the BE control.
+
+## Completed HV LE fetch and data run (2026-10-18)
+
+The user's pasted transcript is preserved verbatim in `results/2026-10-18-hv-le-aligned/probe_hv_le.log`. It used
+the same v2 payload `82F7BBC4`, selected `retail le`, repeated all controls successfully and exited with status 0.
+
+Both the register-only fetch window and the aligned data window recorded:
+
+| Observation | Value |
+|---|---|
+| Entry HV MSR | `9000000000001000` |
+| Requested and observed window MSR | `9000000000001001` |
+| Restored HV MSR | `9000000000001000` |
+| Executed instruction bank | BE words |
+| Register-built fetch sentinel | `13579BDF` |
+| Title MSR before and after every call | `9030` |
+
+This measures BE instruction execution with LE set, including `isync` and `mfmsr` inside the selected bank. The
+little-endian instruction bank was not taken. The data window's ordinary instructions read the fixed bytes
+`11 22 33 44 55 66 77 88` as follows:
+
+| Operation | Observed result |
+|---|---|
+| `lwz` | `44332211` |
+| `lhz` | `2211` |
+| `ld` | `8877665544332211` |
+| `stw` of `11223344`, inspected with `lbz` after BE restoration | `44 33 22 11 00 00 00 00` |
+
+All report reads returned cleanly. Every call preserved the checked title nonvolatile GPRs, CR2-4, LR, r2/r13 and
+stack. The expansion restored BE before returning; the title itself never ran LE.
+
+The bounded HV experiment is complete. These are HV=1, EE=0, SF=1 results. They establish aligned integer LE
+accesses and BE fetch in that context, not an LE game runtime. Remaining measurements are `lfs`/`stfs`, unaligned
+and multiple-register operations, LE execution in a title thread, interrupt/decrementer/thread-switch persistence,
+another hardware thread's independence, kernel/xsdk crossings and round-trip switch cost. The next decisive
+question is whether an HV-mediated switch can leave a title thread running LE and later restore it to BE; this
+probe deliberately restores BE inside HV and does not answer that question.
 
 ## Sources
 

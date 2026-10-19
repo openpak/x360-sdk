@@ -1,0 +1,68 @@
+Execution Thread Found.  Information has been removed
+MultiDiscEngineProcess: info TitleId 00000000 does not match current TitleId 5853444b, disabling
+log: game:\probe_hv_le.log
+log: named after \Device\Harddisk0\Partition1\probe_hv_le.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+probe_hv_le v2: profile=retail mode=le expansion=82F7BBC4 payload SHA256=82f7bbc43a647fa67ec2f1d8182e4572d94c180190aebb2d184a12f2747dcacc
+Unsigned plaintext expansion: firmware must already accept it; this probe changes no firmware
+Services install=72 call=73; no fault injection or title exception handler
+BEGIN install expansion: service=0x72 argument=0000000000001000
+END install expansion: value=0000000000000000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: source-built expansion installed
+BEGIN payload identity: service=0x73 argument=0000000000000000
+END payload identity: value=48564C4500000001 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: payload identity and 64-bit result ABI
+BEGIN HV control (mfmsr only): service=0x73 argument=0000000000000001
+END HV control (mfmsr only): value=9000000000001000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+HV entry MSR=9000000000001000 HV=1 LE=0 EE=0 SF=1
+PASS: HV=1, LE=0 inside the expansion, followed by a clean title return
+BEGIN HV stack (register only): service=0x73 argument=0000000000000006
+END HV stack (register only): value=0000006A01F61EF8 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+HV stack=0000006A01F61EF8 mod8=0 mod16=8
+PASS: HV stack supports aligned 64-bit saves
+BEGIN report bounds control: service=0x73 argument=0000000000000005
+END report bounds control: value=FFFFFFFFFFFFFFFF title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: report getter rejects an out-of-range index
+BEGIN BE data control: service=0x73 argument=0000000000000002
+END BE data control: value=0000000000000000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: expansion operation completed
+BEGIN bounded report read: 12 fields
+PASS: all report reads returned cleanly
+report: operation=2 complete=0000000048564C45 fetch=BE words sentinel=0000000013579BDF
+HV MSR: before=9000000000001000 requested=9000000000001000 inside=9000000000001000 after=9000000000001000
+PASS: HV report records the requested MSR, a fetch sentinel, and exact restoration
+PASS: BE control fetched BE words
+lwz=0000000011223344 lhz=0000000000001122 ld=1122334455667788
+stw 11223344, read with lbz after restoring BE: 11 22 33 44 | 00 00 00 00
+PASS: BE aligned lwz/lhz/ld/stw controls
+BEGIN LE fetch (registers only): service=0x73 argument=0000000000000003
+END LE fetch (registers only): value=0000000000000000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: expansion operation completed
+BEGIN bounded report read: 12 fields
+PASS: all report reads returned cleanly
+report: operation=3 complete=0000000048564C45 fetch=BE words sentinel=0000000013579BDF
+HV MSR: before=9000000000001000 requested=9000000000001001 inside=9000000000001001 after=9000000000001000
+PASS: HV report records the requested MSR, a fetch sentinel, and exact restoration
+BEGIN LE aligned data: service=0x73 argument=0000000000000004
+END LE aligned data: value=0000000000000000 title MSR=0000000000009030 -> 0000000000009030 register damage=0000000000000000
+PASS: HV call returns with unchanged title MSR, nonvolatile GPRs, CR2-4, LR, r2/r13 and stack
+PASS: expansion operation completed
+BEGIN bounded report read: 12 fields
+PASS: all report reads returned cleanly
+report: operation=4 complete=0000000048564C45 fetch=BE words sentinel=0000000013579BDF
+HV MSR: before=9000000000001000 requested=9000000000001001 inside=9000000000001001 after=9000000000001000
+PASS: HV report records the requested MSR, a fetch sentinel, and exact restoration
+PASS: fetch order is stable
+lwz=0000000044332211 lhz=0000000000002211 ld=8877665544332211
+stw 11223344, read with lbz after restoring BE: 44 33 22 11 | 00 00 00 00
+PASS: LE aligned lwz/lhz/ld/stw values
+PASS: HV control, LE fetch and aligned integer data; every call returned to the title in BE
+Title-side LE, FP, unaligned/multiple accesses, interrupt persistence and switch cost remain untested
+exit: status 0

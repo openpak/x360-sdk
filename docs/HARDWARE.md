@@ -4303,8 +4303,8 @@ is `results/2026-10-18-hv-le-control/probe_hv_le-v1.log`; `docs/HV_LE.md` record
   exited with status 1. V1 shared this result among invalid-operation, HV/LE and sixteen-byte stack checks.
   The stack check is the likely cause, not yet measured. V2 adds a register-only stack diagnostic, requires the
   eight-byte alignment its integer saves need, and assigns separate rejection codes.
-- **LE remains untested.** This control run never requested it. Installation and HV entry are established only
-  for this console setup; BE data, LE fetch/data, title-side persistence, kernel crossings and cost remain open.
+- **This first control did not test LE.** It never requested it. At this point only installation and HV entry
+  were established for this console setup; the v2 controls and LE run are recorded below.
 
 The complete v2 control transcript is `results/2026-10-18-hv-le-control/probe_hv_le-v2.log`. It supersedes an
 initial file fragment that ended mid-line; the full transcript ends with a successful control and exit status 0.
@@ -4318,5 +4318,26 @@ initial file fragment that ended mid-line; the full transcript ends with a succe
 - **Bounded report reads and title returns passed.** Index 12 returned -1 as intended; indices 0 through 11
   returned cleanly. Each call preserved title MSR `9030` and the checked nonvolatile GPRs, CR2-4, LR, r2/r13 and
   stack. The missing optional configuration selected `retail control` correctly.
-- **The LE stage is next.** The same v2 executable can now run with `retail le`, after a cold boot. This control
-  did not request LE; it says nothing yet about LE fetch/data, title-side persistence, kernel crossings or cost.
+- **The control qualified the LE stage.** The same v2 executable could proceed with `retail le` after a cold boot.
+  This control did not request LE; the subsequent LE run is recorded below.
+
+## HV LE integer data with BE instruction fetch (2026-10-18)
+
+The user ran the same v2 `probe_hv_le.xex`, payload `82F7BBC4`, in `retail le` mode. The complete pasted transcript
+is `results/2026-10-18-hv-le-aligned/probe_hv_le.log`. Every control and both LE windows passed; exit status was 0.
+
+- **MSR[LE] can be set and cleared inside this HV callback.** Both windows recorded entry MSR
+  `9000000000001000`, requested and observed `9000000000001001`, and restored `9000000000001000`. HV=1, EE=0 and
+  SF=1 throughout. This is the successful path tested; it does not establish that HV is the only possible path.
+- **Instruction fetch stayed BE while LE was set.** The register-only fetch window selected BE words, executed
+  `isync` and `mfmsr` there, and returned sentinel `13579BDF`. The aligned data window independently recorded the
+  same fetch order and sentinel. The LE instruction bank was not executed.
+- **Ordinary aligned integer accesses used LE data order.** From bytes `11 22 33 44 55 66 77 88`, `lwz` returned
+  `44332211`, `lhz` returned `2211`, and `ld` returned `8877665544332211`. `stw` of `11223344` produced
+  `44 33 22 11 00 00 00 00`, inspected byte by byte with `lbz` after restoring BE.
+- **Restoration and title returns passed.** Each window restored the exact HV entry MSR before touching its
+  report or stack. Every title call and report read returned with title MSR `9030` and no detected damage to the
+  checked nonvolatile GPRs, CR2-4, LR, r2/r13 or stack. The title itself remained BE.
+- **The port decision still needs title-context measurements.** FP, unaligned and multiple-register accesses,
+  title-side LE entry, interrupts/decrementer ticks, thread switches, another hardware thread's independence,
+  kernel/xsdk crossings and switch cost remain untested. The successful HV windows do not establish those results.
