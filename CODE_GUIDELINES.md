@@ -13,7 +13,10 @@ If a rule gets in the way of correct code, change the rule in this file first, i
    a test needs it, not before. No speculative options, flags or extension points. The exception is parity: xsdk is
    meant to let others make homebrew and port games without the XDK, so a feature that gives a title something the
    XDK does may come before any title needs it, as long as it comes with a test that exercises all of it on the
-   console (agreed with the user, 2026-10-15). The hypervisor stays out: no HV or HVX calls.
+   console (agreed with the user, 2026-10-15). The hypervisor stays out of the SDK. The standalone HV expansion
+   probe authorized on 2026-10-18 may install and call its own bounded MSR[LE] test expansion. It must first verify
+   HV=1 and an unchanged return, and restore BE before returning from every LE test. No firmware patches, arbitrary
+   memory peek/poke interface, keys, or SDK-wide HV/HVX API are part of this exception.
 3. **Cite the source.** Every fact about the kernel, the XEX format or Xenos comes from Xenia, libxenon, xost, other
    public reverse engineering, or a hardware result, and the code or commit says which. Anything else is marked
    unverified until hardware settles it.
