@@ -1,0 +1,6 @@
+log: game:\probe_fault.log
+log: named after \Device\Harddisk0\Partition1\probe_fault.xex
+sbrk: the heap may grow to 474 MB from 0x00070000, the title's free memory
+open: NtCreateFile(game:\probe_fault.txt) failed: 0xC0000034
+probe_fault: run 1 of main, mode probe; sites: patterned 82031DCC, store 82031F0C, load 82031F14
+fault: RtlSetVectoredExceptionHandler(82030EF0, 82030EF0) returned 00000000

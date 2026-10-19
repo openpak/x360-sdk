@@ -8,9 +8,19 @@ probe requested on 2026-10-18, not an SDK endian mode or a change to the game/to
 The diagnostic v2 rerun also left the console unresponsive. Watson reported `0xC000001D` at `0x82032FBC`, exactly
 the deliberate BE fault site, with `FirstChance` and no handler-entry line. The decimal values and transcript are
 preserved in `results/2026-10-18-msr-le-handler-crash/xbwatson-handler-v2.log`. This confirms the fault location, not
-the cause of the hang. The next comparison is `build/probe_fault.xex` with `probe_fault.txt` absent or containing
-`probe`, keeping the same console and Watson setup. That probe's earlier hardware run recovered from this exception
-code; its new log will check whether exception delivery still works in the baseline before changing the MSR probe.
+the cause of the hang.
+
+The baseline comparison also left the console unresponsive with Watson connected. Its log
+(`results/2026-10-18-msr-le-handler-crash/probe_fault_baseline.log`) ends after handler registration, before any
+handler-entry diagnostic. Its first test is a patterned store to address zero, and it contains no LE switching code.
+This establishes a similar failure outside the MSR probe, but does not establish a shared cause or prove debugger
+interception. The missing optional `probe_fault.txt` selected the intended default `probe` mode.
+
+The next check uses the same `probe_fault.xex`, with `probe_fault.txt` absent or containing `probe`: fully close
+Watson and other attached debuggers, cold-boot the console, launch the baseline, and retrieve `probe_fault.log`
+afterward without a debugger connected during the run. Keep the binary and console configuration unchanged.
+Do not advance to LE experiments until BE exception recovery works. No further probe code change follows from
+this baseline log alone.
 
 ## Run
 

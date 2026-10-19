@@ -22,7 +22,9 @@ translation layer comes later and is out of this scope. So are games.
 accesses, instruction fetch, interrupt/thread persistence, kernel crossings, and switch cost. `docs/MSR_LE.md`
 specifies the standalone `probe_msr_le.xex` and its limits. Its first console run passed BE execution and `mfmsr`,
 then stopped at the BE exception control before any LE switch (HARDWARE.md, "MSR[LE] probe stops at its BE exception
-control"). LE results remain pending; the next build defaults to the BE controls with handler diagnostics.
+control"). Its diagnostic rerun and the original fault probe's baseline rerun also left the console unresponsive
+before any handler-entry log with Watson connected. LE results remain pending; the probe defaults to BE controls,
+and the next baseline comparison removes the debugger connection without changing the executable.
 This adds no SDK endian mode, game changes, or HV/HVX calls.
 
 ## 1. What already exists: the user's shader toolchain ("xost")

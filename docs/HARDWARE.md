@@ -4271,3 +4271,20 @@ as `xbwatson-handler-v2.log`.
   default `probe` mode under the same console/debugger setup. Its source recovered the same illegal-instruction code
   in the 2026-10-15 run above. A fresh baseline run can distinguish a failure shared with the older probe from one
   specific to the MSR probe; it is not yet a result. No code is changed on the strength of the first-chance label.
+
+The baseline rerun is now recorded in `results/2026-10-18-msr-le-handler-crash/probe_fault_baseline.log`. The user
+confirmed that it also left the console unresponsive with Watson connected.
+
+- **The baseline produced no handler-entry line either.** Its six-line log ends after
+  `RtlSetVectoredExceptionHandler(82030EF0, 82030EF0) returned 00000000`. It selected the normal `probe` mode despite
+  the missing optional configuration file. The next test in the source is the patterned store to address zero at
+  `0x82031DCC`; the log does not report an exception code or address for this run. It records no completed control.
+- **This symptom does not require the MSR probe.** `probe_fault` contains no LE switch and uses its original handler
+  and assembly fault sites. The comparison does not identify a shared cause: debugger interception, exception
+  dispatch, callback execution and logging remain possibilities. It does not contradict the earlier successful run
+  or establish that Watson caused either hang.
+- **The next comparison changes only the debugger connection.** Fully close Watson and other attached debuggers,
+  cold-boot the console, and launch the same baseline `probe_fault.xex` in `probe` mode. Retrieve its on-console log
+  afterward without reconnecting a debugger during the run. A handler entry and completed recoveries would narrow
+  the difference to that setup; another hang would leave a shared exception-path failure to investigate. Keep the
+  MSR probe in BE-only `handler` mode until recovery is demonstrated. This comparison has not yet been run.
