@@ -35,9 +35,8 @@ That builds `build/libxsdk.a` and the test title `build/xsdk_test.xex`. It needs
 ## Docs
 
 - [Protocol](docs/protocol.md)
-- [Evidence](docs/evidence.md)
 - [Deploy](docs/deploy.md)
-- [Notes](docs/notes.md)
+- [Provenance](docs/provenance.md)
 - [Hardware results](docs/HARDWARE.md)
 - [Parity](docs/PARITY.md)
 - Scope studies: [36](docs/scope/36-texel-rate.md), [37](docs/scope/37-guide.md), [38](docs/scope/38-draw-cost.md),
