@@ -16,5 +16,5 @@ Initial integration work:
 - Feed package generation into the homebrew store's installation pipeline.
 
 This SDK does not implement the Xbox Live backend or the dashboard Store.
-The OpenPak fork has not yet been built or tested on a console. Follow the
+Follow the
 workspace build lock and scratch-directory rules when building.
